@@ -1,0 +1,13 @@
+{
+  "name": "crm-analytics-monorepo",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev:api": "npm run dev -w @crm/api",
+    "dev:web": "npm run dev -w @crm/web",
+    "check": "npm run check --workspaces",
+    "test": "npm run test -w @crm/api",
+    "build": "npm run build -w @crm/web"
+  },
+  "engines": { "node": ">=24.17.0" }
+}
