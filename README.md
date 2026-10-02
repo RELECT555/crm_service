@@ -1,6 +1,6 @@
 # CRM analytics integration foundation
 
-This repository contains a TypeScript backend prototype, an operator admin UI, and the design for a service that reads customer-authorized CRM data and builds analytics across two axes: commercial outcomes and non-commercial work, compared per manager. Bitrix24 is the first implemented adapter; Kommo/amoCRM, HubSpot, Pipedrive, Salesforce, Zoho, Dynamics 365 and RetailCRM are researched and shown in the admin catalog as planned. Customer login, analytics screens, CRM embedding, and additional adapters are still planned.
+This repository contains a TypeScript backend prototype, an operator admin UI, and the design for a service that reads customer-authorized CRM data and builds analytics across two axes: commercial outcomes and non-commercial work, compared per manager. Implemented adapters: Bitrix24 and Kommo/amoCRM (the latter not yet verified in a sandbox). HubSpot, Pipedrive, Salesforce, Zoho, Dynamics 365 and RetailCRM are researched and shown in the admin catalog as planned. Customer login, analytics screens, CRM embedding, and additional adapters are still planned.
 
 | Path | What it is |
 | --- | --- |
@@ -38,10 +38,10 @@ All `/v1` routes require the `x-admin-key` header. This is a development-only op
 
 1. `GET /v1/providers` returns the connector catalog (available and planned CRMs, setup steps, data per axis, limits, callback URL).
 2. `POST /v1/tenants` with optional `{"name":"Acme"}` creates a workspace; `GET /v1/tenants`, `GET`/`PATCH /v1/tenants/{tenantId}` list, read and rename.
-3. `POST /v1/tenants/{tenantId}/connect/bitrix24` with `{"account":"your-portal.bitrix24.com"}` returns `authorizeUrl`. Open it as the authorized Bitrix24 user.
-4. Bitrix24 returns to `/oauth/bitrix24/callback`; the service exchanges the code, verifies the account, queues the event subscription and backfill, and redirects a browser to the connection page (API clients get JSON). Authorizing the same portal again repairs the existing connection.
+3. `POST /v1/tenants/{tenantId}/connect/{provider}` (`bitrix24`, `kommo`, `amocrm`) with `{"account":"your-portal.bitrix24.com"}` returns `authorizeUrl`. Open it as the authorized CRM user.
+4. The CRM returns to `/oauth/{provider}/callback`; the service exchanges the code, verifies the account, queues the event subscription and backfill, and redirects a browser to the connection page (API clients get JSON). Authorizing the same portal again repairs the existing connection.
 5. `GET /v1/tenants/{tenantId}/connections/{connectionId}` reports status, sync coverage per object, queue, record counts and mappings. No credentials are returned.
-6. `POST …/commercial-sources` maps a deal pipeline or smart-process type to `sale` or `purchase`, e.g. `{"entityTypeId":128,"direction":"purchase","amountField":"purchaseValue","currencyField":"purchaseCurrency"}`; add `categoryId` to limit it to one pipeline. `DELETE …/commercial-sources/{entityTypeId}/{categoryId|*}` removes it.
+6. `POST …/commercial-sources` marks a source kind (optionally one pipeline) as `sale` or `purchase`, e.g. `{"sourceKind":"smart:128","direction":"purchase","amountField":"purchaseValue","currencyField":"purchaseCurrency"}` or `{"sourceKind":"deal","categoryId":2,"direction":"purchase"}`. Allowed kinds and whether amount/currency fields apply come from the connector (`mappingOptions` in the connection detail). `DELETE …/commercial-sources/{sourceKind}/{categoryId|*}` removes it.
 7. `POST …/action-types` maps a provider activity code, e.g. `{"providerTypeId":"TRAVEL","actionType":"visit"}`; `DELETE …/action-types/{providerTypeId}` removes it.
 8. `POST …/resync` starts a full reconciliation. The worker also schedules one after a live connection becomes 24 hours stale.
 9. `GET …/dashboard` returns the prototype two-axis read model (commercial/work groups, `byOwner`, linked work, coverage, limitations). It has no UI yet.

@@ -12,11 +12,19 @@ export type Connection = {
   account: string;
   access_token_enc: string; refresh_token_enc: string; expires_at: number;
   webhook_secret_hash: string; webhook_secret_enc: string; events_bound: number;
+  /** `webhook`: provider pushes change events; `polling`: events unavailable, freshness comes from reconciliation. */
+  events_mode: EventsMode | null;
+  /** Non-secret provider settings captured at authorization (JSON), e.g. account currency. */
+  settings: string | null;
   status: string; last_sync: number | null;
   last_error: string | null; created_at: number | null;
 };
+export type EventsMode = "webhook" | "polling";
 export type ConnectionSummary = Pick<Connection, "id" | "provider" | "account_id" | "account" | "status" |
-  "last_sync" | "last_error" | "created_at">;
+  "last_sync" | "last_error" | "created_at" | "events_mode">;
+/** Operator rule: records of `source_kind` (optionally one pipeline) are sales or purchases. */
+export type CommercialMapping = { source_kind: string; category_id: string; direction: "sale" | "purchase";
+  amount_field: string | null; currency_field: string | null };
 export type TenantSummary = { id: string; name: string | null; created_at: number;
   connections: number; live: number; attention: number };
 export type Job = {
@@ -37,11 +45,12 @@ export class Store {
         state_hash TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, account TEXT NOT NULL,
         created_at INTEGER NOT NULL, FOREIGN KEY(tenant_id) REFERENCES tenants(id));
       CREATE TABLE IF NOT EXISTS connections (
-        id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, account_id TEXT NOT NULL,
+        id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, provider TEXT NOT NULL DEFAULT 'bitrix24', account_id TEXT NOT NULL,
         account TEXT NOT NULL, access_token_enc TEXT NOT NULL, refresh_token_enc TEXT NOT NULL,
         expires_at INTEGER NOT NULL, webhook_secret_hash TEXT NOT NULL, webhook_secret_enc TEXT NOT NULL,
         status TEXT NOT NULL, events_bound INTEGER NOT NULL DEFAULT 0, last_sync INTEGER, last_error TEXT,
-        UNIQUE(tenant_id, account_id), FOREIGN KEY(tenant_id) REFERENCES tenants(id));
+        created_at INTEGER, events_mode TEXT, settings TEXT,
+        UNIQUE(tenant_id, provider, account_id), FOREIGN KEY(tenant_id) REFERENCES tenants(id));
       CREATE TABLE IF NOT EXISTS jobs (
         id TEXT PRIMARY KEY, connection_id TEXT NOT NULL, type TEXT NOT NULL,
         kind TEXT NOT NULL, cursor TEXT, external_id TEXT, operation TEXT,
@@ -64,10 +73,10 @@ export class Store {
       CREATE TABLE IF NOT EXISTS ingest_events (
         connection_id TEXT NOT NULL, digest TEXT NOT NULL, received_at INTEGER NOT NULL,
         PRIMARY KEY(connection_id, digest));
-      CREATE TABLE IF NOT EXISTS commercial_sources (
-        connection_id TEXT NOT NULL, entity_type_id INTEGER NOT NULL, category_id TEXT NOT NULL,
-        direction TEXT NOT NULL, amount_field TEXT NOT NULL, currency_field TEXT NOT NULL,
-        PRIMARY KEY(connection_id, entity_type_id, category_id));
+      CREATE TABLE IF NOT EXISTS commercial_mappings (
+        connection_id TEXT NOT NULL, source_kind TEXT NOT NULL, category_id TEXT NOT NULL,
+        direction TEXT NOT NULL, amount_field TEXT, currency_field TEXT,
+        PRIMARY KEY(connection_id, source_kind, category_id));
       CREATE TABLE IF NOT EXISTS action_types (
         connection_id TEXT NOT NULL, provider_type_id TEXT NOT NULL, action_type TEXT NOT NULL,
         PRIMARY KEY(connection_id, provider_type_id));
@@ -80,6 +89,21 @@ export class Store {
     this.addColumn("tenants", "name", "TEXT");
     this.addColumn("connections", "provider", "TEXT NOT NULL DEFAULT 'bitrix24'");
     this.addColumn("connections", "created_at", "INTEGER");
+    this.addColumn("connections", "events_mode", "TEXT");
+    this.addColumn("connections", "settings", "TEXT");
+    this.migrateCommercialSources();
+  }
+
+  /** v1 stored Bitrix24 entityTypeId (2 = deals, >= 128 = smart processes); v2 stores the connector's object kind. */
+  private migrateCommercialSources(): void {
+    const legacy = this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='commercial_sources'").get();
+    if (!legacy) return;
+    this.transaction(() => {
+      this.db.exec(`INSERT OR IGNORE INTO commercial_mappings
+        SELECT connection_id, CASE WHEN entity_type_id=2 THEN 'deal' ELSE 'smart:' || entity_type_id END,
+          category_id, direction, amount_field, currency_field FROM commercial_sources`);
+      this.db.exec("DROP TABLE commercial_sources");
+    });
   }
 
   private columns(table: string): string[] {
@@ -134,12 +158,16 @@ export class Store {
       return { tenant_id: row.tenant_id, provider: row.provider, account: row.account };
     });
   }
-  saveConnection(input: Omit<Connection, "status" | "events_bound" | "last_sync" | "last_error" | "created_at">): void {
+  saveConnection(input: Omit<Connection, "status" | "events_bound" | "events_mode" | "last_sync" | "last_error" | "created_at" | "settings">
+    & { settings?: string | null }): void {
     this.db.prepare(`INSERT INTO connections
-      (id,tenant_id,provider,account_id,account,access_token_enc,refresh_token_enc,expires_at,webhook_secret_hash,webhook_secret_enc,status,created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(input.id, input.tenant_id, input.provider, input.account_id, input.account,
+      (id,tenant_id,provider,account_id,account,access_token_enc,refresh_token_enc,expires_at,webhook_secret_hash,webhook_secret_enc,status,created_at,settings)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(input.id, input.tenant_id, input.provider, input.account_id, input.account,
       input.access_token_enc, input.refresh_token_enc, input.expires_at, input.webhook_secret_hash,
-      input.webhook_secret_enc, "backfilling", Date.now());
+      input.webhook_secret_enc, "backfilling", Date.now(), input.settings ?? null);
+  }
+  updateSettings(id: string, settings: string | null): void {
+    this.db.prepare("UPDATE connections SET settings=? WHERE id=?").run(settings, id);
   }
   getConnectionByAccount(tenantId: string, provider: string, accountId: string): Connection | null {
     return (this.db.prepare("SELECT * FROM connections WHERE tenant_id=? AND provider=? AND account_id=?")
@@ -156,7 +184,7 @@ export class Store {
     return (this.db.prepare("SELECT * FROM connections WHERE webhook_secret_hash=?").get(hash) as Connection | undefined) ?? null;
   }
   listConnections(tenantId: string): ConnectionSummary[] {
-    return this.db.prepare(`SELECT id,provider,account_id,account,status,last_sync,last_error,created_at
+    return this.db.prepare(`SELECT id,provider,account_id,account,status,last_sync,last_error,created_at,events_mode
       FROM connections WHERE tenant_id=? ORDER BY created_at`).all(tenantId) as ConnectionSummary[];
   }
   connectionOverview(tenantId: string, connectionId: string): unknown {
@@ -181,15 +209,17 @@ export class Store {
   setConnectionStatus(id: string, status: string, error: string | null = null): void {
     this.db.prepare("UPDATE connections SET status=?,last_error=? WHERE id=?").run(status, error, id);
   }
-  markEventsBound(connectionId: string): void {
-    this.db.prepare("UPDATE connections SET events_bound=1 WHERE id=?").run(connectionId);
+  markEventsBound(connectionId: string, mode: EventsMode): void {
+    this.db.prepare("UPDATE connections SET events_bound=1,events_mode=? WHERE id=?").run(mode, connectionId);
   }
   resetEventsBound(connectionId: string): void {
     this.db.prepare("UPDATE connections SET events_bound=0 WHERE id=?").run(connectionId);
   }
-  staleConnectionIds(before: number): string[] {
-    return (this.db.prepare("SELECT id FROM connections WHERE status='live' AND last_sync<?")
-      .all(before) as Array<{ id: string }>).map(row => row.id);
+  /** Live connections due for reconciliation; polling connections (no change events) are due sooner. */
+  staleConnectionIds(webhookBefore: number, pollingBefore: number): string[] {
+    return (this.db.prepare(`SELECT id FROM connections WHERE status='live'
+      AND last_sync < CASE WHEN events_mode='polling' THEN ? ELSE ? END`)
+      .all(pollingBefore, webhookBefore) as Array<{ id: string }>).map(row => row.id);
   }
   hasActiveSync(connectionId: string): boolean {
     return !!this.db.prepare("SELECT 1 FROM jobs WHERE connection_id=? AND type='sync' AND status IN ('queued','running') LIMIT 1")
@@ -233,41 +263,45 @@ export class Store {
       .run(connectionId, eventDigest, Date.now());
     return result.changes === 1;
   }
-  setCommercialSource(connectionId: string, entityTypeId: number, categoryId: string,
-    direction: string, amountField: string, currencyField: string): void {
-    this.db.prepare(`INSERT INTO commercial_sources VALUES (?,?,?,?,?,?)
-      ON CONFLICT(connection_id,entity_type_id,category_id) DO UPDATE SET
+  setCommercialMapping(connectionId: string, mapping: CommercialMapping): void {
+    this.db.prepare(`INSERT INTO commercial_mappings VALUES (?,?,?,?,?,?)
+      ON CONFLICT(connection_id,source_kind,category_id) DO UPDATE SET
       direction=excluded.direction,amount_field=excluded.amount_field,currency_field=excluded.currency_field`)
-      .run(connectionId, entityTypeId, categoryId, direction, amountField, currencyField);
+      .run(connectionId, mapping.source_kind, mapping.category_id, mapping.direction, mapping.amount_field, mapping.currency_field);
   }
-  getCommercialSource(connectionId: string, entityTypeId: number, categoryId: string):
-    { direction: string; amount_field: string; currency_field: string } | null {
-    return (this.db.prepare(`SELECT direction,amount_field,currency_field FROM commercial_sources
-      WHERE connection_id=? AND entity_type_id=? AND category_id IN (?,'*')
+  /** The mapping for one pipeline wins over the kind-wide (`*`) mapping. */
+  getCommercialMapping(connectionId: string, sourceKind: string, categoryId: string): CommercialMapping | null {
+    return (this.db.prepare(`SELECT source_kind,category_id,direction,amount_field,currency_field FROM commercial_mappings
+      WHERE connection_id=? AND source_kind=? AND category_id IN (?,'*')
       ORDER BY CASE WHEN category_id=? THEN 0 ELSE 1 END LIMIT 1`)
-      .get(connectionId, entityTypeId, categoryId, categoryId) as
-      { direction: string; amount_field: string; currency_field: string } | undefined) ?? null;
+      .get(connectionId, sourceKind, categoryId, categoryId) as CommercialMapping | undefined) ?? null;
   }
-  deleteCommercialSource(connectionId: string, entityTypeId: number, categoryId: string): boolean {
-    return this.db.prepare("DELETE FROM commercial_sources WHERE connection_id=? AND entity_type_id=? AND category_id=?")
-      .run(connectionId, entityTypeId, categoryId).changes === 1;
+  deleteCommercialMapping(connectionId: string, sourceKind: string, categoryId: string): boolean {
+    return this.db.prepare("DELETE FROM commercial_mappings WHERE connection_id=? AND source_kind=? AND category_id=?")
+      .run(connectionId, sourceKind, categoryId).changes === 1;
   }
-  hasCommercialType(connectionId: string, entityTypeId: number): boolean {
-    return !!this.db.prepare("SELECT 1 FROM commercial_sources WHERE connection_id=? AND entity_type_id=?")
-      .get(connectionId, entityTypeId);
+  hasCommercialMapping(connectionId: string, sourceKind: string): boolean {
+    return !!this.db.prepare("SELECT 1 FROM commercial_mappings WHERE connection_id=? AND source_kind=?").get(connectionId, sourceKind);
   }
-  listCommercialSources(connectionId: string): unknown[] {
-    return this.db.prepare(`SELECT entity_type_id,category_id,direction,amount_field,currency_field FROM commercial_sources
-      WHERE connection_id=? ORDER BY entity_type_id,category_id`).all(connectionId);
+  listCommercialMappings(connectionId: string): CommercialMapping[] {
+    return this.db.prepare(`SELECT source_kind,category_id,direction,amount_field,currency_field FROM commercial_mappings
+      WHERE connection_id=? ORDER BY source_kind,category_id`).all(connectionId).map(row => ({ ...row })) as CommercialMapping[];
   }
-  listSmartTypeIds(connectionId: string): number[] {
-    return (this.db.prepare("SELECT DISTINCT entity_type_id FROM commercial_sources WHERE connection_id=? AND entity_type_id>=128")
-      .all(connectionId) as Array<{ entity_type_id: number }>).map(row => row.entity_type_id);
+  mappedSourceKinds(connectionId: string): string[] {
+    return (this.db.prepare("SELECT DISTINCT source_kind FROM commercial_mappings WHERE connection_id=? ORDER BY source_kind")
+      .all(connectionId) as Array<{ source_kind: string }>).map(row => row.source_kind);
   }
-  commercialFields(connectionId: string, entityTypeId: number): string[] {
-    const rows = this.db.prepare("SELECT amount_field,currency_field FROM commercial_sources WHERE connection_id=? AND entity_type_id=?")
-      .all(connectionId, entityTypeId) as Array<{ amount_field: string; currency_field: string }>;
-    return [...new Set(rows.flatMap(row => [row.amount_field, row.currency_field]))];
+  /** Extra source fields a connector must select so mapped amount/currency fields are present. */
+  mappedFields(connectionId: string, sourceKind: string): string[] {
+    const rows = this.db.prepare("SELECT amount_field,currency_field FROM commercial_mappings WHERE connection_id=? AND source_kind=?")
+      .all(connectionId, sourceKind) as Array<{ amount_field: string | null; currency_field: string | null }>;
+    return [...new Set(rows.flatMap(row => [row.amount_field, row.currency_field]).filter((field): field is string => !!field))];
+  }
+  /** Labeled reference records of one kind (e.g. pipelines) for operator pickers. */
+  listLabels(tenantId: string, connectionId: string, kind: string): Array<{ id: string; label: string }> {
+    return this.db.prepare(`SELECT external_id AS id, COALESCE(label, external_id) AS label FROM records
+      WHERE tenant_id=? AND connection_id=? AND kind=? AND deleted=0 ORDER BY label`).all(tenantId, connectionId, kind) as
+      Array<{ id: string; label: string }>;
   }
   setActionType(connectionId: string, providerTypeId: string, actionType: string): void {
     this.db.prepare(`INSERT INTO action_types VALUES (?,?,?)
@@ -335,8 +369,9 @@ export class Store {
       GROUP BY action_type,status ORDER BY action_type,status`).all(tenantId, connectionId);
     const linked = this.db.prepare(`SELECT COUNT(*) AS count FROM records
       WHERE tenant_id=? AND connection_id=? AND axis='work' AND deleted=0
-      AND (target_kind='deal' OR target_kind LIKE 'smart:%') AND target_id IS NOT NULL`)
-      .get(tenantId, connectionId) as { count: number };
+      AND target_id IS NOT NULL AND target_kind IN (SELECT DISTINCT kind FROM records
+        WHERE tenant_id=? AND connection_id=? AND axis='commercial')`)
+      .get(tenantId, connectionId, tenantId, connectionId) as { count: number };
     const coverage = this.db.prepare("SELECT kind,cursor,completed_at FROM checkpoints WHERE connection_id=? ORDER BY kind")
       .all(connectionId);
     const commercialByOwner = this.db.prepare(`SELECT owner_id,direction,currency,COUNT(*) AS count,SUM(amount) AS amount

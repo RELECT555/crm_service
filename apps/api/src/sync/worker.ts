@@ -6,6 +6,8 @@ import type { Job, Store } from "../storage/store.ts";
 
 const MAX_ATTEMPTS = 5;
 const STALE_AFTER_MS = 24 * 60 * 60_000;
+/** Connections without change events (plan restrictions) are reconciled more often. */
+const POLLING_STALE_AFTER_MS = 60 * 60_000;
 
 export function webhookUrl(config: Config, provider: string, secret: string): string {
   return `${config.appOrigin}/webhooks/${provider}/${secret}`;
@@ -35,7 +37,7 @@ export function queueFullSync(store: Store, registry: ConnectorRegistry, connect
  * Single-process job runner. Job types:
  * - `bind`  register provider change notifications;
  * - `sync`  read one page of a kind, upsert it and persist the cursor in the same transaction;
- * - `fetch` refetch (or tombstone) one record named by a change event.
+ * - `fetch` refetch (or tombstone) one record named by a change event; a record that no longer exists is skipped.
  */
 export class Worker {
   private running = false;
@@ -52,10 +54,11 @@ export class Worker {
     this.store.recoverJobs();
     this.timer = setInterval(() => { void this.tick(); }, 250);
     this.reconcileTimer = setInterval(() => {
-      for (const id of this.store.staleConnectionIds(Date.now() - STALE_AFTER_MS)) {
+      const now = Date.now();
+      for (const id of this.store.staleConnectionIds(now - STALE_AFTER_MS, now - POLLING_STALE_AFTER_MS)) {
         queueFullSync(this.store, this.registry, id);
       }
-    }, 60 * 60_000);
+    }, 15 * 60_000);
     void this.tick();
   }
   stop(): void {
@@ -95,9 +98,9 @@ export class Worker {
     const seal = (payload: unknown) => encrypt(this.config.dataKey, JSON.stringify(payload));
     if (job.type === "bind") {
       const secret = decrypt(this.config.dataKey, connection.webhook_secret_enc);
-      await connector.subscribe(connection, webhookUrl(this.config, connection.provider, secret));
+      const mode = await connector.subscribe(connection, webhookUrl(this.config, connection.provider, secret));
       this.store.transaction(() => {
-        this.store.markEventsBound(connection.id);
+        this.store.markEventsBound(connection.id, mode);
         this.store.completeJob(job.id);
         this.store.refreshSyncState(connection.id);
       });

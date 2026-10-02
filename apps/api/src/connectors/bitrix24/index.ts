@@ -1,7 +1,7 @@
 import type { Config } from "../../config.ts";
 import type { CanonicalRecord, ChangeEvent, SyncPage } from "../../domain/model.ts";
-import type { Connection, Store } from "../../storage/store.ts";
-import { type AuthorizationGrant, type Connector, ConnectorInputError, ConnectorUpstreamError } from "../types.ts";
+import type { Connection, EventsMode, Store } from "../../storage/store.ts";
+import { type AuthorizationGrant, type Connector, ConnectorInputError, ConnectorUpstreamError, type MappingOptions } from "../types.ts";
 import { BitrixClient } from "./client.ts";
 import { BITRIX24_INFO } from "./info.ts";
 import { normalizeBitrixRecord, parseBitrixEvent, SUBSCRIBED_EVENTS } from "./mapping.ts";
@@ -24,13 +24,14 @@ export class Bitrix24Connector implements Connector {
     this.client = new BitrixClient(this.app(), config.dataKey, store, fetcher);
   }
   private app() {
-    return { clientId: this.config.bitrixClientId, clientSecret: this.config.bitrixClientSecret };
+    // The registry only constructs this connector when both credentials are configured.
+    return { clientId: this.config.bitrixClientId!, clientSecret: this.config.bitrixClientSecret! };
   }
 
   normalizeAccount(input: string): string { return normalizePortal(input); }
 
   authorizeUrl(account: string, state: string): string {
-    return authorizeUrl(account, this.config.bitrixClientId, state);
+    return authorizeUrl(account, this.config.bitrixClientId!, state);
   }
 
   async completeAuthorization(callback: URLSearchParams, expectedAccount: string): Promise<AuthorizationGrant> {
@@ -49,7 +50,8 @@ export class Bitrix24Connector implements Connector {
   }
 
   syncKinds(connection: Connection): string[] {
-    return [...BASE_KINDS, ...this.store.listSmartTypeIds(connection.id).map(typeId => `smart:${typeId}`)];
+    // Smart processes are read only once the operator mapped them as commercial.
+    return [...BASE_KINDS, ...this.store.mappedSourceKinds(connection.id).filter(kind => kind.startsWith("smart:"))];
   }
 
   async listPage(connection: Connection, kind: string, cursor: string | null): Promise<SyncPage> {
@@ -64,7 +66,7 @@ export class Bitrix24Connector implements Connector {
       const select = kind === "contact" ? ["id", "assignedById", "updatedTime"] :
         [...new Set(["id", "stageId", "categoryId", "assignedById", "updatedTime",
           ...(kind === "deal" ? ["opportunity", "currencyId"] : []),
-          ...this.store.commercialFields(connection.id, typeId)])];
+          ...this.store.mappedFields(connection.id, kind)])];
       const body = await this.client.call(connection, "crm.item.list", {
         entityTypeId: typeId, filter: { ">id": after }, order: { id: "ASC" }, select, start: 0,
       });
@@ -101,7 +103,7 @@ export class Bitrix24Connector implements Connector {
     return this.normalize(connection, kind, object(raw));
   }
 
-  async subscribe(connection: Connection, handlerUrl: string): Promise<void> {
+  async subscribe(connection: Connection, handlerUrl: string): Promise<EventsMode> {
     const existingResponse = await this.client.call(connection, "event.get");
     const existing = new Set((Array.isArray(existingResponse.result) ? existingResponse.result : [])
       .map(row => {
@@ -111,13 +113,29 @@ export class Bitrix24Connector implements Connector {
     for (const event of SUBSCRIBED_EVENTS) {
       if (!existing.has(`${event}|${handlerUrl}`)) await this.client.call(connection, "event.bind", { event, handler: handlerUrl });
     }
+    return "webhook";
   }
 
-  parseEvent(body: string): ChangeEvent | null { return parseBitrixEvent(body); }
+  parseEvents(body: string): ChangeEvent[] {
+    const event = parseBitrixEvent(body);
+    return event ? [event] : [];
+  }
 
   acceptsEvent(connection: Connection, event: ChangeEvent): boolean {
     // Smart-process events are only relevant once the operator mapped that process as commercial.
-    return !event.kind.startsWith("smart:") || this.store.hasCommercialType(connection.id, Number(event.kind.slice(6)));
+    return !event.kind.startsWith("smart:") || this.store.hasCommercialMapping(connection.id, event.kind);
+  }
+
+  mappingOptions(): MappingOptions {
+    return {
+      sources: [{ kind: "deal", label: "Сделки" }],
+      customSource: { prefix: "smart:", label: "Смарт-процесс", idLabel: "ID смарт-процесса (entityTypeId)", minId: 128 },
+      categoryKind: "pipeline",
+      fieldMapping: { amountDefault: "opportunity", currencyDefault: "currencyId" },
+      activityKind: "activity",
+      activityCodeLabel: "PROVIDER_TYPE_ID дела",
+      activityCodeHint: "Код пользовательского типа дела в Bitrix24, например TRAVEL.",
+    };
   }
 
   private normalize(connection: Connection, kind: string, row: JsonObject): CanonicalRecord {
@@ -127,8 +145,7 @@ export class Bitrix24Connector implements Connector {
       return normalizeBitrixRecord(kind, row, { actionType: mappedType ?? undefined });
     }
     if (kind === "deal" || kind.startsWith("smart:")) {
-      const typeId = kind === "deal" ? 2 : Number(kind.slice(6));
-      const mapped = this.store.getCommercialSource(connection.id, typeId, valueString(row.categoryId) ?? "*");
+      const mapped = this.store.getCommercialMapping(connection.id, kind, valueString(row.categoryId) ?? "*");
       return normalizeBitrixRecord(kind, row, {
         direction: mapped?.direction ?? (kind === "deal" ? "sale" : "unclassified"),
         amountField: mapped?.amount_field ?? "opportunity",

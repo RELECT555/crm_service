@@ -24,7 +24,8 @@ export function errorText(error: unknown): string {
     'Mapping not found': 'Маппинг уже удалён.',
   }
   if (known[message]) return known[message]
-  if (/Portal must be/.test(message)) return 'Укажите адрес портала вида company.bitrix24.ru или company.bitrix24.com.'
+  if (/(Portal|Account) must be/.test(message)) return 'Проверьте адрес аккаунта: он должен совпадать с примером под полем.'
+  if (message === 'OAuth account mismatch') return 'Авторизация выполнена в другом аккаунте CRM. Войдите в тот, что указали.'
   if (message === 'Failed to fetch') return 'Сервер недоступен. Проверьте, что API запущен.'
   return message
 }

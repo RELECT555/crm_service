@@ -1,9 +1,25 @@
 # Kommo / amoCRM connector playbook
 
-Status: **planned**. Research date: 2026-10-02. Direct fetches of developers.kommo.com were blocked from the research environment; facts below come from the official documentation pages listed in Sources, as indexed by search. Re-read them before implementation.
+Status: **implemented, not yet verified in a sandbox** (adapter in `apps/api/src/connectors/kommo/`, serves both Kommo and [amoCRM](amocrm.md)). Research date: 2026-10-02. Direct fetches of developers.kommo.com were blocked from the research environment; facts below come from the official documentation pages listed in Sources, as indexed by search. Re-read them before the first real connection.
+
+## What the adapter does today
+
+| Area | Implementation | Verified? |
+| --- | --- | --- |
+| Consent | `https://www.kommo.com/oauth?client_id&state&mode=post_message` (amoCRM: `https://www.amocrm.ru/oauth`) | documented, not run |
+| Callback | Requires `code` and `referer`; `referer` must equal the account the operator entered, else 400 | documented, not run |
+| Tokens | `POST https://{account}/oauth2/access_token` (JSON, includes `redirect_uri`); refresh rotates the refresh token, both tokens are written in one statement | documented, not run |
+| Identity | `GET /api/v4/account` → `id` (account ID), `currency` (stored in connection settings, used as deal currency) | documented, not run |
+| Backfill | `pipeline`, `stage` from `/api/v4/leads/pipelines`; `deal` (`/api/v4/leads`), `contact`, `task`: `page` + `limit=250` + `order[id]=asc`; 204 = empty | partly documented (`order[id]`, 204 behaviour **unverified**) |
+| Change events | `POST /api/v4/webhooks` with lead/contact/task events to the per-connection secret URL; 402/403 → `polling` mode (hourly reconciliation) | plan restriction documented; status code and task/contact event names **unverified** |
+| Webhook parsing | form keys `leads|tasks|contacts[add|update|delete|status|restore|responsible][n][id]`, account from `account[id]` (must match) | `account[id]` field name **unverified** |
+| Rate limit | ≥160 ms between requests per connection (< 7 rps); 429/5xx retried with backoff | documented |
+| Mapping | Deals are sales; a pipeline can be marked purchase. Amount = `price`, currency = account currency (no field mapping). Task type 2 → meeting; other types → `task` until mapped by `task_type_id` | — |
+
+Known gaps: call notes (`call_in`/`call_out`) are not read yet; stage history from `/api/v4/events` is not used; page-number pagination can skip rows deleted during a backfill (reconciliation repairs it).
 
 ## Operator setup
-1. Once per service: register a public integration in the Kommo developer account (or amoCRM for Russian accounts, which is a separate platform and app registration), set the redirect URI `${APP_ORIGIN}/oauth/kommo/callback`, and store the integration ID/secret server-side.
+1. Once per service: register a public integration in the Kommo developer account (or amoCRM for Russian accounts, which is a separate platform and app registration), set the redirect URI `${APP_ORIGIN}/oauth/kommo/callback` (`/oauth/amocrm/callback` for amoCRM), and set `KOMMO_CLIENT_ID`/`KOMMO_CLIENT_SECRET` (or `AMOCRM_*`) on the server. Until then the admin catalog shows the CRM as «Нужна настройка».
 2. Per customer: enter the account subdomain (`company.kommo.com` / `company.amocrm.ru`) and authorize as an account administrator.
 3. Map which pipelines are purchases (if any) and which task types / call notes count as which work type.
 

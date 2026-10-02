@@ -18,6 +18,7 @@ apps/
         types.ts               Connector contract, ProviderInfo, connector error classes
         registry.ts            which adapters exist; catalog = available adapters + planned providers
         catalog.ts             researched-but-not-implemented providers (admin UI catalog)
+        kommo/                 Kommo + amoCRM adapter (platforms.ts holds the two registrations)
         bitrix24/              one folder per provider; nothing outside it may know Bitrix field names
           index.ts             Bitrix24Connector implements Connector
           client.ts            authenticated REST transport, token refresh, retry/backoff
@@ -87,6 +88,7 @@ GET /oauth/:provider/callback
   -> known account: rotate tokens, queue full resync (repairs reauthorization_required)
 worker
   bind  -> connector.subscribe(handler URL with secret) -> events_bound = 1
+  bind  returns the events mode: `webhook`, or `polling` when the CRM plan forbids webhooks (hourly reconciliation)
   sync  -> connector.listPage -> upsert records + checkpoint + next page job in ONE transaction
   fetch -> connector.fetchRecord (upsert) or tombstone on a verified delete event
   refreshSyncState -> live when no sync job is pending, all checkpoints complete, events bound
@@ -118,9 +120,17 @@ Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_requ
 
 `npm test` runs `node --test` over `apps/api/test`. Tests start the real HTTP server on an ephemeral port with `:memory:` SQLite and a fake `fetch`; they never call a real CRM. Drain the queue with `while (await worker.tick()) {}`. `npm run check` type-checks the API (`tsc`) and the web app (`tsc -b` + `oxlint`; shadcn files in `components/ui` are exempt from the fast-refresh export rule).
 
+## Connector contract highlights
+
+- `info` — catalog entry; the registry marks it `not_configured` when the provider's app credentials are missing (`requiredEnv`).
+- `completeAuthorization` may return non-secret `settings` (e.g. account currency) stored on the connection.
+- `subscribe` returns the events mode; `parseEvents` returns every change in a webhook body (one body can carry several).
+- `fetchRecord` returns null for a record that no longer exists; only delete events tombstone.
+- `mappingOptions()` declares mappable commercial kinds, an optional custom-process family (`smart:<id>`), the pipeline record kind for the picker, whether amount/currency fields are configurable, and the work-item kind (`activityKind`) that is resynced after an action-type mapping change. Routes and the UI never hardcode these.
+
 ## Known debt
 
-- **Commercial-source mappings use Bitrix24 `entityTypeId`** (`commercial_sources.entity_type_id`, `/commercial-sources` validation in `routes/admin.ts`). Generalize to connector object kinds (`deal`, `smart:128`, Kommo pipeline IDs, ...) when the second connector lands, via a connector method that validates and describes mappable sources.
-- Column names `account_id`/`account` were renamed from Bitrix-specific names by forward migration; the unique key on existing databases still predates the `provider` column.
-- Single-process SQLite and in-process worker; no per-connection rate limiter yet; refresh-token rotation must be made atomic before adding Kommo (rotating refresh tokens).
+- Single-process SQLite and in-process worker; rate limiting is per process (Kommo client spaces requests per connection).
+- Kommo backfill uses page numbers; Bitrix24 uses id keysets. Incremental `updated_at` scans would make polling-mode reconciliation cheaper.
+- Existing databases keep the old `UNIQUE(tenant_id, account_id)` connection key; new databases use `(tenant_id, provider, account_id)`.
 - The analytics read model (`store.dashboard`) is a prototype and has no UI.

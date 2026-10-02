@@ -3,6 +3,7 @@ import type { ProviderInfo } from "../types.ts";
 // Facts here are summarized from docs/connectors/bitrix24.md, which cites the official documentation.
 export const BITRIX24_INFO: ProviderInfo = {
   id: "bitrix24", name: "Bitrix24", status: "available", auth: "oauth2",
+  requiredEnv: ["BITRIX_CLIENT_ID", "BITRIX_CLIENT_SECRET"],
   accountLabel: "Адрес портала", accountHint: "company.bitrix24.ru",
   setupSteps: [
     "Один раз на сервис: создайте приложение Bitrix24 (маркетплейс или локальное) с правом crm и укажите Redirect URI ниже. Client ID и Client Secret внесите в BITRIX_CLIENT_ID / BITRIX_CLIENT_SECRET на сервере.",

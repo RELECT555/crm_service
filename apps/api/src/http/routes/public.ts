@@ -38,6 +38,7 @@ export function publicRoutes(router: Router, { config, store, registry }: AppCon
       store.transaction(() => {
         store.updateTokens(id, tokens.access_token_enc, tokens.refresh_token_enc, tokens.expires_at);
         store.updateAccount(id, grant.account);
+        if (grant.settings) store.updateSettings(id, JSON.stringify(grant.settings));
       });
       if (!queueFullSync(store, registry, id)) store.setConnectionStatus(id, "backfilling");
     } else {
@@ -45,7 +46,7 @@ export function publicRoutes(router: Router, { config, store, registry }: AppCon
       const webhookSecret = generateSecret();
       store.transaction(() => {
         store.saveConnection({ id, tenant_id: pending.tenant_id, provider, account_id: grant.accountId,
-          account: grant.account, ...tokens,
+          account: grant.account, ...tokens, settings: grant.settings ? JSON.stringify(grant.settings) : null,
           webhook_secret_hash: digest(webhookSecret), webhook_secret_enc: encrypt(config.dataKey, webhookSecret) });
         queueInitialSync(store, registry, id);
       });
@@ -64,16 +65,17 @@ export function publicRoutes(router: Router, { config, store, registry }: AppCon
     const connector = registry.get(provider);
     if (!connection || !connector || connection.provider !== provider) throw new HttpError(404, "Unknown webhook");
     const body = await readBody(req);
-    const event = connector.parseEvent(body);
-    if (!event || event.accountId !== connection.account_id) throw new HttpError(400, "Invalid event");
-    if (connector.acceptsEvent(connection, event)) {
-      // Acknowledge only after the event is durably queued; duplicates are dropped by body digest.
-      store.transaction(() => {
-        if (store.recordEvent(connection.id, digest(body))) {
-          store.enqueue(connection.id, "fetch", event.kind, null, event.externalId, event.operation);
-        }
-      });
+    const events = connector.parseEvents(body);
+    if (events.length === 0 || events.some(event => event.accountId !== connection.account_id)) {
+      throw new HttpError(400, "Invalid event");
     }
+    const accepted = events.filter(event => connector.acceptsEvent(connection, event));
+    // Acknowledge only after the events are durably queued; a redelivered body is dropped by its digest.
+    store.transaction(() => {
+      if (accepted.length && store.recordEvent(connection.id, digest(body))) {
+        for (const event of accepted) store.enqueue(connection.id, "fetch", event.kind, null, event.externalId, event.operation);
+      }
+    });
     json(res, 202, { accepted: true });
   });
   return router;

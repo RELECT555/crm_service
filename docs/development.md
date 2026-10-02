@@ -20,7 +20,11 @@ node -e "console.log(require('node:crypto').randomBytes(24).toString('base64url'
 | `APP_ORIGIN` | yes | Public origin of the API. OAuth redirect URI is `${APP_ORIGIN}/oauth/<provider>/callback`. HTTPS except `localhost`. |
 | `ADMIN_API_KEY` | yes | Operator key for the admin UI and `/v1` routes, ≥ 32 characters. |
 | `DATA_KEY_BASE64` | yes | 32-byte AES-256-GCM key for tokens and payloads. Losing it makes stored tokens unreadable. |
-| `BITRIX_CLIENT_ID`, `BITRIX_CLIENT_SECRET` | yes | Bitrix24 application credentials (placeholders are fine with demo data). |
+| `BITRIX_CLIENT_ID`, `BITRIX_CLIENT_SECRET` | no | Bitrix24 application credentials (placeholders are fine with demo data). |
+| `KOMMO_CLIENT_ID`, `KOMMO_CLIENT_SECRET` | no | Kommo integration credentials. |
+| `AMOCRM_CLIENT_ID`, `AMOCRM_CLIENT_SECRET` | no | amoCRM integration credentials. |
+
+Set each pair completely or not at all; a CRM without credentials shows as «Нужна настройка» in the admin catalog with the variables to set and its redirect URI.
 | `PORT` | no | Default 3000. |
 | `DB_PATH` | no | Default `./data/crm.sqlite` (relative to `apps/api`). |
 | `ADMIN_ORIGIN` | no | Where the OAuth callback sends the browser. Set `http://localhost:5173` when using the Vite dev server. |

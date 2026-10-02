@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Layers, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Plug } from 'lucide-react'
 import { Brand } from '@/components/Brand'
 import { ThemeSwitch } from '@/components/ThemeSwitch'
@@ -49,7 +49,10 @@ function SidebarContent({ route, collapsed, onToggle, onNavigate }: {
   route: string[]; collapsed: boolean; onToggle?: () => void; onNavigate?: () => void
 }) {
   const [section, currentId] = route
-  const tenants = useResource(() => api.tenants(), [section, currentId])
+  const tenants = useResource(() => api.tenants(), [])
+  // Refresh in the background on navigation; the list stays visible instead of flickering.
+  const { reload } = tenants
+  useEffect(() => { reload() }, [section, currentId, reload])
   const recent = tenants.data?.slice(0, 6) ?? []
   return (
     <div className="flex h-full flex-col gap-1 overflow-hidden px-3 py-4">

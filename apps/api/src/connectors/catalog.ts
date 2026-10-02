@@ -4,22 +4,6 @@ import type { ProviderInfo } from "./types.ts";
 // When an adapter ships, move its entry into connectors/<id>/info.ts and register it in registry.ts.
 export const PLANNED_PROVIDERS: ProviderInfo[] = [
   {
-    id: "kommo", name: "Kommo / amoCRM", status: "planned", auth: "oauth2",
-    accountLabel: "Поддомен аккаунта", accountHint: "company.kommo.com или company.amocrm.ru",
-    setupSteps: [
-      "Один раз на сервис: зарегистрируйте публичную интеграцию (Kommo и amoCRM — отдельные платформы) с Redirect URI ниже.",
-      "Введите поддомен аккаунта и авторизуйтесь администратором аккаунта.",
-      "Отметьте воронки закупок (если есть) и сопоставьте типы задач и звонков.",
-    ],
-    scopes: ["Доступ интеграции к сделкам, контактам, компаниям, задачам и событиям"],
-    commercialData: ["Сделки (бюджет, этап, ответственный)", "История смены этапов (events)"],
-    workData: ["Задачи (звонок, встреча и пользовательские типы)", "Звонки из примечаний call_in / call_out"],
-    changeCapture: "Вебхуки с повторами; регистрация через API зависит от тарифа, иначе опрос по updated_at",
-    embed: "Виджет в карточке (Web SDK)",
-    limits: "Не более 7 запросов/с; 250 записей на страницу. Refresh-токен меняется при каждом обновлении.",
-    docsUrl: "https://developers.kommo.com/docs/oauth-20",
-  },
-  {
     id: "hubspot", name: "HubSpot", status: "planned", auth: "oauth2",
     accountLabel: "Аккаунт", accountHint: "Выбирается на экране согласия HubSpot",
     setupSteps: [

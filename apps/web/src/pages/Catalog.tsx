@@ -27,7 +27,7 @@ export function Catalog() {
             <>
               <SheetHeader>
                 <SheetTitle>{selected.name}</SheetTitle>
-                <SheetDescription>{selected.status === 'available' ? 'Доступно — подключается из пространства клиента' : 'Коннектор в разработке'}</SheetDescription>
+                <SheetDescription>{selected.status === 'available' ? 'Доступно — подключается из пространства клиента' : selected.status === 'not_configured' ? 'Коннектор готов — нужны ключи приложения на сервере' : 'Коннектор в разработке'}</SheetDescription>
               </SheetHeader>
               <SheetBody><ProviderDetails provider={selected} /></SheetBody>
             </>

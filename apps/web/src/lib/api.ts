@@ -4,7 +4,8 @@ export type ConnectionStatus =
 export type Provider = {
   id: string
   name: string
-  status: 'available' | 'planned'
+  status: 'available' | 'not_configured' | 'planned'
+  requiredEnv?: string[]
   auth: 'oauth2' | 'api_key'
   accountLabel: string
   accountHint: string
@@ -40,11 +41,22 @@ export type ConnectionSummary = {
 }
 
 export type CommercialSource = {
-  entity_type_id: number
+  source_kind: string
   category_id: string
   direction: 'sale' | 'purchase'
-  amount_field: string
-  currency_field: string
+  amount_field: string | null
+  currency_field: string | null
+}
+
+/** Mirrors MappingOptions in apps/api/src/connectors/types.ts. */
+export type MappingOptions = {
+  sources: Array<{ kind: string; label: string }>
+  customSource: { prefix: string; label: string; idLabel: string; minId: number } | null
+  categoryKind: string | null
+  fieldMapping: { amountDefault: string; currencyDefault: string } | null
+  activityKind: string
+  activityCodeLabel: string
+  activityCodeHint: string
 }
 
 export type ActionTypeMapping = { provider_type_id: string; action_type: string }
@@ -57,6 +69,7 @@ export type ConnectionDetail = {
     account: string
     status: ConnectionStatus
     eventsBound: boolean
+    eventsMode: 'webhook' | 'polling' | null
     lastSync: number | null
     lastError: string | null
     createdAt: number | null
@@ -67,6 +80,8 @@ export type ConnectionDetail = {
     syncingKinds: string[]
     queue: Partial<Record<'queued' | 'running' | 'failed', number>>
   }
+  mappingOptions: MappingOptions | null
+  pipelines: Array<{ id: string; label: string }>
   commercialSources: CommercialSource[]
   actionTypes: ActionTypeMapping[]
 }
@@ -127,8 +142,9 @@ export const api = {
   resync: (tenantId: string, connectionId: string) => request(`${base(tenantId, connectionId)}/resync`, { method: 'POST' }),
   addCommercialSource: (tenantId: string, connectionId: string, body: Record<string, unknown>) =>
     request(`${base(tenantId, connectionId)}/commercial-sources`, { method: 'POST', body }),
-  deleteCommercialSource: (tenantId: string, connectionId: string, typeId: number, categoryId: string) =>
-    request(`${base(tenantId, connectionId)}/commercial-sources/${typeId}/${encodeURIComponent(categoryId)}`, { method: 'DELETE' }),
+  // Kinds are [a-z:0-9] and safe in a path segment; encoding ':' would not match the server route.
+  deleteCommercialSource: (tenantId: string, connectionId: string, sourceKind: string, categoryId: string) =>
+    request(`${base(tenantId, connectionId)}/commercial-sources/${sourceKind}/${categoryId}`, { method: 'DELETE' }),
   addActionType: (tenantId: string, connectionId: string, providerTypeId: string, actionType: string) =>
     request(`${base(tenantId, connectionId)}/action-types`, { method: 'POST', body: { providerTypeId, actionType } }),
   deleteActionType: (tenantId: string, connectionId: string, providerTypeId: string) =>

@@ -15,4 +15,8 @@ Short records of decisions that shape the code. Add an entry when you make a cho
 | 9 | 2026-10-02 | Web stack: Tailwind CSS + shadcn on Base UI; no Radix. | Team choice in `main`; one component system. | accepted |
 | 10 | 2026-10-02 | Theme is a `.dark` class with a light/dark/system preference; theme bootstrap script is an external file. | User-selectable theme; CSP forbids inline scripts. | accepted |
 | 11 | 2026-10-02 | Re-authorizing the same CRM account repairs the existing connection. | Keeps mappings and history; avoids duplicate accounts. | accepted |
-| 12 | 2026-10-02 | Commercial-source mappings keyed by Bitrix24 `entityTypeId`. | Only one connector exists; generalize with the second connector. | accepted (known debt) |
+| 12 | 2026-10-02 | Commercial-source mappings keyed by Bitrix24 `entityTypeId`. | Only one connector exists; generalize with the second connector. | superseded by 13 |
+| 13 | 2026-10-02 | Commercial mappings keyed by connector object kind (`deal`, `smart:128`) + pipeline; connectors describe mappable kinds via `mappingOptions()`. Legacy rows migrate automatically. | Second connector (Kommo) needs the same rules without Bitrix IDs. | accepted |
+| 14 | 2026-10-02 | Kommo and amoCRM share one adapter with two registrations and separate credentials. | Same API v4, separate platforms and app registrations. | accepted |
+| 15 | 2026-10-02 | Provider app credentials are optional; adapters without them show as «Нужна настройка» with the env vars and redirect URI. | Operators can see what to configure without code changes. | accepted |
+| 16 | 2026-10-02 | A connection whose CRM plan forbids webhook registration runs in `polling` mode (hourly reconciliation) instead of failing. | Kommo restricts webhook API to higher plans. | accepted |

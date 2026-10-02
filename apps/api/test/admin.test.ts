@@ -86,7 +86,11 @@ test("admin API: tenants, provider catalog, connection detail, mapping removal, 
     assert.equal((await api(`/v1/tenants/${tenantId}`)).data.connections.length, 1);
 
     const path = `/v1/tenants/${tenantId}/connections/${connectionId}`;
-    assert.equal((await api(`${path}/commercial-sources`, "POST", { entityTypeId: 2, categoryId: 3, direction: "purchase" })).status, 202);
+    assert.equal((await api(`${path}/commercial-sources`, "POST", { sourceKind: "deal", categoryId: 3, direction: "purchase" })).status, 202);
+    assert.equal((await api(`${path}/commercial-sources`, "POST", { sourceKind: "smart:12", direction: "sale" })).status, 400,
+      "smart-process IDs below 128 are not custom processes");
+    assert.equal((await api(`${path}/commercial-sources`, "POST", { sourceKind: "lead", direction: "sale" })).status, 400,
+      "only kinds the connector declares are mappable");
     assert.equal((await api(`${path}/action-types`, "POST", { providerTypeId: "TRAVEL", actionType: "visit" })).status, 202);
     let detail = await api(path);
     assert.equal(detail.status, 200);
@@ -95,14 +99,17 @@ test("admin API: tenants, provider catalog, connection detail, mapping removal, 
     assert.equal(detail.data.connection.account, "demo.bitrix24.com");
     assert.equal(JSON.stringify(detail.data).includes("access-2"), false);
     assert.equal(JSON.stringify(detail.data).includes("_enc"), false);
-    assert.deepEqual(detail.data.commercialSources, [{ entity_type_id: 2, category_id: "3", direction: "purchase",
+    assert.deepEqual(detail.data.commercialSources, [{ source_kind: "deal", category_id: "3", direction: "purchase",
       amount_field: "opportunity", currency_field: "currencyId" }]);
+    assert.equal(detail.data.mappingOptions.customSource.prefix, "smart:");
+    assert.equal(detail.data.mappingOptions.categoryKind, "pipeline");
+    assert.deepEqual(detail.data.pipelines, []);
     assert.deepEqual(detail.data.actionTypes, [{ provider_type_id: "TRAVEL", action_type: "visit" }]);
     assert.ok(detail.data.sync.queue.queued > 0);
     assert.ok(detail.data.sync.syncingKinds.includes("deal"));
 
-    assert.equal((await api(`${path}/commercial-sources/2/3`, "DELETE")).status, 202);
-    assert.equal((await api(`${path}/commercial-sources/2/3`, "DELETE")).status, 404);
+    assert.equal((await api(`${path}/commercial-sources/deal/3`, "DELETE")).status, 202);
+    assert.equal((await api(`${path}/commercial-sources/deal/3`, "DELETE")).status, 404);
     assert.equal((await api(`${path}/action-types/TRAVEL`, "DELETE")).status, 202);
     detail = await api(path);
     assert.deepEqual(detail.data.commercialSources, []);
@@ -130,6 +137,8 @@ test("every catalog provider is fully described and has a connector playbook", a
   const store = new Store(":memory:");
   try {
     const catalog = ConnectorRegistry.create(config, store).catalog();
+    assert.deepEqual(catalog.filter(info => info.status === "not_configured").map(info => info.id).sort(), ["amocrm", "kommo"]);
+    assert.ok(catalog.filter(info => info.status === "not_configured").every(info => info.requiredEnv?.length === 2));
     assert.equal(new Set(catalog.map(info => info.id)).size, catalog.length);
     for (const info of catalog) {
       assert.ok(info.setupSteps.length > 0 && info.commercialData.length > 0 && info.workData.length > 0, info.id);

@@ -7,8 +7,13 @@ export type Config = {
   appOrigin: string;
   adminOrigin?: string;
   webDist?: string;
-  bitrixClientId: string;
-  bitrixClientSecret: string;
+  /** OAuth application credentials per provider. A provider without credentials shows as "not configured". */
+  bitrixClientId?: string;
+  bitrixClientSecret?: string;
+  kommoClientId?: string;
+  kommoClientSecret?: string;
+  amocrmClientId?: string;
+  amocrmClientSecret?: string;
   adminApiKey: string;
   dataKey: Buffer;
 };
@@ -29,6 +34,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (adminApiKey.length < 32) throw new Error("ADMIN_API_KEY must be at least 32 characters");
   const port = Number(env.PORT ?? 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid PORT");
+  // Provider app credentials are optional, but an ID without its secret (or vice versa) is a configuration error.
+  const pair = (idName: string, secretName: string): [string | undefined, string | undefined] => {
+    const id = env[idName] || undefined;
+    const secret = env[secretName] || undefined;
+    if (!!id !== !!secret) throw new Error(`Set both ${idName} and ${secretName}, or neither`);
+    return [id, secret];
+  };
+  const [bitrixClientId, bitrixClientSecret] = pair("BITRIX_CLIENT_ID", "BITRIX_CLIENT_SECRET");
+  const [kommoClientId, kommoClientSecret] = pair("KOMMO_CLIENT_ID", "KOMMO_CLIENT_SECRET");
+  const [amocrmClientId, amocrmClientSecret] = pair("AMOCRM_CLIENT_ID", "AMOCRM_CLIENT_SECRET");
   const adminOrigin = env.ADMIN_ORIGIN ? new URL(env.ADMIN_ORIGIN).origin : undefined;
   return {
     port,
@@ -36,8 +51,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webDist: env.WEB_DIST ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
     dbPath: env.DB_PATH ?? "./data/crm.sqlite",
     appOrigin: appOrigin.origin,
-    bitrixClientId: required("BITRIX_CLIENT_ID"),
-    bitrixClientSecret: required("BITRIX_CLIENT_SECRET"),
+    bitrixClientId, bitrixClientSecret,
+    kommoClientId, kommoClientSecret,
+    amocrmClientId, amocrmClientSecret,
     adminApiKey,
     dataKey,
   };

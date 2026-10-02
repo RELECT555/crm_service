@@ -90,7 +90,7 @@ test("Bitrix OAuth, two-axis sync, mapping, event updates, and tenant isolation"
     assert.equal((await api(`/v1/tenants/${other}/connections/${connection}/dashboard`)).status, 404);
 
     const mappedPurchase = await api(`/v1/tenants/${tenant}/connections/${connection}/commercial-sources`, "POST", {
-      entityTypeId: 128, direction: "purchase", amountField: "purchaseValue", currencyField: "purchaseCurrency",
+      sourceKind: "smart:128", direction: "purchase", amountField: "purchaseValue", currencyField: "purchaseCurrency",
     });
     assert.equal(mappedPurchase.status, 202);
     const mappedVisit = await api(`/v1/tenants/${tenant}/connections/${connection}/action-types`, "POST", {

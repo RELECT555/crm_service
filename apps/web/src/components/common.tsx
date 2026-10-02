@@ -151,6 +151,7 @@ export function CopyField({ value, label }: { value: string; label: string }) {
 
 const MARKS: Record<string, { text: string; color: string }> = {
   bitrix24: { text: 'B24', color: '#1e9bd7' },
+  amocrm: { text: 'amo', color: '#2b8be8' },
   kommo: { text: 'K', color: '#3a6ff7' },
   hubspot: { text: 'HS', color: '#e8613c' },
   pipedrive: { text: 'P', color: '#1a7f4b' },

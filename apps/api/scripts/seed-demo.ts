@@ -32,18 +32,24 @@ for (const kind of ["pipeline", "stage", "deal", "contact"]) store.saveCheckpoin
 store.saveCheckpoint(loading.id, "activity", "4150", false);
 // Scheduled far ahead so the worker never calls Bitrix24 with the fake token.
 store.enqueue(loading.id, "sync", "activity", "4150", null, null, Date.now() + 365 * 86_400_000);
-store.markEventsBound(loading.id);
+store.markEventsBound(loading.id, "webhook");
 const counts: Array<[string, "commercial" | "work" | "context", number]> =
   [["pipeline", "context", 4], ["stage", "context", 27], ["deal", "commercial", 1284], ["contact", "context", 3120], ["activity", "work", 4150]];
+const pipelineNames = ["Продажи", "Закупки", "Тендеры", "Сервис"];
 store.transaction(() => {
+  pipelineNames.forEach((label, index) => store.upsertRecord(loading,
+    { kind: "pipeline", externalId: String(index + 1), axis: "context", label, payload: {} }, encrypt(dataKey, "{}")));
   for (const [kind, axis, total] of counts) {
+    if (kind === "pipeline") continue;
     for (let index = 1; index <= total; index++) {
       store.upsertRecord(loading, { kind, externalId: String(index), axis, payload: {} }, encrypt(dataKey, "{}"));
     }
   }
 });
-store.setCommercialSource(loading.id, 2, "3", "purchase", "opportunity", "currencyId");
-store.setCommercialSource(loading.id, 180, "*", "sale", "ufCrmAmount", "ufCrmCurrency");
+store.setCommercialMapping(loading.id, { source_kind: "deal", category_id: "2", direction: "purchase",
+  amount_field: "opportunity", currency_field: "currencyId" });
+store.setCommercialMapping(loading.id, { source_kind: "smart:180", category_id: "*", direction: "sale",
+  amount_field: "ufCrmAmount", currency_field: "ufCrmCurrency" });
 store.setActionType(loading.id, "TRAVEL", "visit");
 
 // A connection whose token was revoked.

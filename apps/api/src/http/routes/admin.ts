@@ -1,5 +1,5 @@
 import { generateSecret } from "../../config.ts";
-import { ConnectorInputError } from "../../connectors/types.ts";
+import { ConnectorInputError, isMappableKind } from "../../connectors/types.ts";
 import { digest } from "../../security/crypto.ts";
 import type { Connection } from "../../storage/store.ts";
 import { queueFullSync } from "../../sync/worker.ts";
@@ -32,7 +32,8 @@ export function adminRoutes(router: Router, { config, store, registry }: AppCont
 
   router.on("GET", "/v1/providers", ({ res }) => json(res, 200, {
     providers: registry.catalog().map(info => ({ ...info,
-      callbackUrl: info.status === "available" ? `${config.appOrigin}/oauth/${info.id}/callback` : null })),
+      // Shown before the app is configured too: the operator needs it to register the OAuth application.
+      callbackUrl: info.status === "planned" ? null : `${config.appOrigin}/oauth/${info.id}/callback` })),
   }));
 
   router.on("GET", "/v1/tenants", ({ res }) => json(res, 200, { tenants: store.listTenants() }));
@@ -80,12 +81,16 @@ export function adminRoutes(router: Router, { config, store, registry }: AppCont
 
   router.on("GET", "/v1/tenants/:uuid/connections/:uuid", ({ res, params: [tenantId, connectionId] }) => {
     const connection = connectionOr404(tenantId, connectionId);
+    const options = registry.get(connection.provider)?.mappingOptions() ?? null;
     json(res, 200, {
       connection: { id: connection.id, provider: connection.provider, accountId: connection.account_id,
         account: connection.account, status: connection.status, eventsBound: connection.events_bound === 1,
-        lastSync: connection.last_sync, lastError: connection.last_error, createdAt: connection.created_at },
+        eventsMode: connection.events_mode, lastSync: connection.last_sync, lastError: connection.last_error,
+        createdAt: connection.created_at },
       sync: store.connectionOverview(tenantId, connection.id),
-      commercialSources: store.listCommercialSources(connection.id),
+      mappingOptions: options,
+      pipelines: options?.categoryKind ? store.listLabels(tenantId, connection.id, options.categoryKind) : [],
+      commercialSources: store.listCommercialMappings(connection.id),
       actionTypes: store.listActionTypes(connection.id),
     });
   });
@@ -97,37 +102,39 @@ export function adminRoutes(router: Router, { config, store, registry }: AppCont
   });
 
   // --- Mappings ---
-  // Commercial sources are keyed by Bitrix24 entityTypeId (2 = deals, >=128 = smart processes) today.
-  // Generalize to connector object kinds together with the second connector (docs/code-architecture.md, "Known debt").
+  // Which kinds are mappable and whether amount/currency fields are configurable comes from the connector.
 
   router.on("POST", "/v1/tenants/:uuid/connections/:uuid/commercial-sources", async ({ req, res, params: [tenantId, connectionId] }) => {
     const connection = connectionOr404(tenantId, connectionId);
+    const options = registry.require(connection.provider).mappingOptions();
     const body = await readJson(req);
-    const typeId = Number(body.entityTypeId);
+    const sourceKind = body.sourceKind;
     const direction = body.direction;
     const category = body.categoryId === undefined || body.categoryId === "" ? "*" : String(body.categoryId);
-    const amountField = body.amountField === undefined ? "opportunity" : body.amountField;
-    const currencyField = body.currencyField === undefined ? "currencyId" : body.currencyField;
-    if ((!Number.isSafeInteger(typeId) || (typeId !== 2 && typeId < 128)) ||
-        (direction !== "sale" && direction !== "purchase") || !/^\d+$|^\*$/.test(category) ||
-        typeof amountField !== "string" || !FIELD.test(amountField) ||
-        typeof currencyField !== "string" || !FIELD.test(currencyField)) {
+    const fields = options.fieldMapping;
+    const amountField = fields ? body.amountField ?? fields.amountDefault : null;
+    const currencyField = fields ? body.currencyField ?? fields.currencyDefault : null;
+    if (typeof sourceKind !== "string" || !isMappableKind(options, sourceKind) ||
+        (direction !== "sale" && direction !== "purchase") || !/^\d{1,18}$|^\*$/.test(category) ||
+        (fields && (typeof amountField !== "string" || !FIELD.test(amountField) ||
+          typeof currencyField !== "string" || !FIELD.test(currencyField))) ||
+        (!fields && (body.amountField !== undefined || body.currencyField !== undefined))) {
       throw new HttpError(400, "Invalid commercial source mapping");
     }
     store.transaction(() => {
-      store.setCommercialSource(connection.id, typeId, category, direction, amountField, currencyField);
-      store.enqueue(connection.id, "sync", typeId === 2 ? "deal" : `smart:${typeId}`);
+      store.setCommercialMapping(connection.id, { source_kind: sourceKind, category_id: category, direction,
+        amount_field: amountField as string | null, currency_field: currencyField as string | null });
+      store.enqueue(connection.id, "sync", sourceKind);
     });
     json(res, 202, { mapped: true, syncQueued: true });
   });
 
-  router.on("DELETE", "/v1/tenants/:uuid/connections/:uuid/commercial-sources/(\\d+)/(\\d+|\\*)",
-    ({ res, params: [tenantId, connectionId, type, category] }) => {
+  router.on("DELETE", "/v1/tenants/:uuid/connections/:uuid/commercial-sources/([a-z]{1,32}(?::\\d{1,9})?)/(\\d{1,18}|\\*)",
+    ({ res, params: [tenantId, connectionId, sourceKind, category] }) => {
       const connection = connectionOr404(tenantId, connectionId);
-      const typeId = Number(type);
       const removed = store.transaction(() => {
-        if (!store.deleteCommercialSource(connection.id, typeId, category)) return false;
-        store.enqueue(connection.id, "sync", typeId === 2 ? "deal" : `smart:${typeId}`);
+        if (!store.deleteCommercialMapping(connection.id, sourceKind, category)) return false;
+        store.enqueue(connection.id, "sync", sourceKind);
         return true;
       });
       if (!removed) throw new HttpError(404, "Mapping not found");
@@ -137,13 +144,14 @@ export function adminRoutes(router: Router, { config, store, registry }: AppCont
   router.on("POST", "/v1/tenants/:uuid/connections/:uuid/action-types", async ({ req, res, params: [tenantId, connectionId] }) => {
     const connection = connectionOr404(tenantId, connectionId);
     const body = await readJson(req);
+    const activityKind = registry.require(connection.provider).mappingOptions().activityKind;
     if (typeof body.providerTypeId !== "string" || !/^[A-Za-z0-9_-]{1,100}$/.test(body.providerTypeId) ||
         typeof body.actionType !== "string" || !/^[a-z][a-z_]{0,39}$/.test(body.actionType)) {
       throw new HttpError(400, "Invalid action type mapping");
     }
     store.transaction(() => {
       store.setActionType(connection.id, body.providerTypeId as string, body.actionType as string);
-      store.enqueue(connection.id, "sync", "activity");
+      store.enqueue(connection.id, "sync", activityKind);
     });
     json(res, 202, { mapped: true, syncQueued: true });
   });
@@ -151,9 +159,10 @@ export function adminRoutes(router: Router, { config, store, registry }: AppCont
   router.on("DELETE", "/v1/tenants/:uuid/connections/:uuid/action-types/([A-Za-z0-9_-]{1,100})",
     ({ res, params: [tenantId, connectionId, providerTypeId] }) => {
       const connection = connectionOr404(tenantId, connectionId);
+      const activityKind = registry.require(connection.provider).mappingOptions().activityKind;
       const removed = store.transaction(() => {
         if (!store.deleteActionType(connection.id, providerTypeId)) return false;
-        store.enqueue(connection.id, "sync", "activity");
+        store.enqueue(connection.id, "sync", activityKind);
         return true;
       });
       if (!removed) throw new HttpError(404, "Mapping not found");
@@ -167,9 +176,9 @@ export function adminRoutes(router: Router, { config, store, registry }: AppCont
     json(res, 200, { connection: { id: connection.id, account: connection.account,
       status: connection.status, lastSync: connection.last_sync, lastError: connection.last_error },
       analytics: store.dashboard(tenantId, connectionId),
-      commercialSources: store.listCommercialSources(connection.id),
+      commercialSources: store.listCommercialMappings(connection.id),
       limitations: ["Deals are classified as sales unless a pipeline mapping overrides them; purchases need an explicit process mapping.",
-        "Only Bitrix CRM activities are loaded; unlinked work and external tasks may be incomplete.",
+        "Only work items the connector reads (CRM activities or tasks) are counted; unlinked work may be incomplete.",
         "Values are grouped by source currency and are not converted.",
         "Relationships show recorded links, not proven causal impact."] });
   });

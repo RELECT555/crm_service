@@ -23,7 +23,7 @@ What the operator enters and how each provider behaves. Details, endpoints and s
 | CRM | Operator enters | Credential | Token lifetime | List page | Rate limit (summary) | Change capture | Playbook |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Bitrix24 | Portal host | OAuth app | Access short-lived, refresh via oauth.bitrix.info | 50 | Leaky bucket ~2 rps (5 rps Enterprise), 503 `QUERY_LIMIT_EXCEEDED` | `event.bind`, no retries → reconcile | [bitrix24.md](connectors/bitrix24.md) |
-| Kommo / amoCRM | Account subdomain | OAuth integration | Access 24 h, refresh 3 months, rotated | 250 | 7 rps | Webhooks with retries; API registration plan-dependent | [kommo.md](connectors/kommo.md) |
+| Kommo / amoCRM (**implemented**, sandbox pending) | Account subdomain | OAuth integration | Access 24 h, refresh 3 months, rotated | 250 | 7 rps | Webhooks with retries; API registration plan-dependent | [kommo.md](connectors/kommo.md) |
 | HubSpot | Nothing (account picker) | OAuth app | Access ~30 min, refresh until revoked | 100 (search: 10k cap) | Per-app burst; search ~5 rps | App webhook subscriptions | [hubspot.md](connectors/hubspot.md) |
 | Pipedrive | Nothing (company picker) | OAuth app | Access 60 min, refresh expires after 60 days unused | 500 (cursor) | Daily company budget + burst | Webhooks v2 | [pipedrive.md](connectors/pipedrive.md) |
 | Salesforce | Login domain (prod/sandbox/My Domain) | External Client App | Org policy | 2,000 (REST) / Bulk 2.0 | Daily org allocation | CDC via Pub/Sub, 72 h replay | [salesforce.md](connectors/salesforce.md) |

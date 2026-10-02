@@ -13,6 +13,9 @@ import { errorText, useToast } from '@/lib/toast'
 import { useResource } from '@/lib/use-resource'
 import { cn } from '@/lib/utils'
 
+const eventsLabel = (data: ConnectionDetail) =>
+  data.connection.eventsMode === 'webhook' ? 'По событиям' : data.connection.eventsMode === 'polling' ? 'Сверка раз в час' : 'Настраивается'
+
 const isSyncing = (data: ConnectionDetail) =>
   data.connection.status === 'backfilling' || !!data.sync.queue.queued || !!data.sync.queue.running
 
@@ -54,7 +57,8 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
             </div>
             <div className="grid grid-cols-2 divide-x divide-y md:grid-cols-4 md:divide-y-0 [&>*:nth-child(3)]:border-l-0 md:[&>*:nth-child(3)]:border-l">
               <Stat label="Последняя полная синхронизация" value={formatAgo(data.connection.lastSync)} title={formatDateTime(data.connection.lastSync)} />
-              <Stat label="Подписка на события" value={data.connection.eventsBound ? 'Активна' : 'Не настроена'} />
+              <Stat label="Изменения из CRM" value={eventsLabel(data)} title={data.connection.eventsMode === 'polling'
+                ? 'Тариф CRM не позволяет подписаться на события; данные перечитываются каждый час.' : undefined} />
               <Stat label="ID аккаунта в CRM" value={data.connection.accountId} />
               <Stat label="Подключено" value={formatDateTime(data.connection.createdAt)} />
             </div>
@@ -125,7 +129,7 @@ function SyncCoverage({ data }: { data: ConnectionDetail }) {
               const done = !!checkpoint?.completed_at && !syncing
               return (
                 <TableRow key={kind}>
-                  <TableCell className="font-medium">{kindLabel(kind)}</TableCell>
+                  <TableCell className="font-medium">{kindLabel(kind, data.mappingOptions?.customSource)}</TableCell>
                   <TableCell className="text-right tabular-nums">{numberFormat.format(counts.get(kind) ?? 0)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -167,55 +171,66 @@ function MappingCard({ title, description, table, children }: { title: string; d
 }
 
 function CommercialSources({ data, tenantId, onChange }: { data: ConnectionDetail; tenantId: string; onChange: () => void }) {
-  const [source, setSource] = useState<'deal' | 'smart'>('deal')
-  const [smartId, setSmartId] = useState('')
+  const options = data.mappingOptions
+  const pipelineNames = new Map(data.pipelines.map(pipeline => [pipeline.id, pipeline.label]))
+  const [source, setSource] = useState(options?.sources[0]?.kind ?? '')
+  const [customId, setCustomId] = useState('')
   const [category, setCategory] = useState('')
   const [direction, setDirection] = useState<'sale' | 'purchase'>('purchase')
-  const [amountField, setAmountField] = useState('opportunity')
-  const [currencyField, setCurrencyField] = useState('currencyId')
+  const [amountField, setAmountField] = useState(options?.fieldMapping?.amountDefault ?? '')
+  const [currencyField, setCurrencyField] = useState(options?.fieldMapping?.currencyDefault ?? '')
   const [busy, setBusy] = useState(false)
   const toast = useToast()
-  const connectionId = data.connection.id
+  if (!options) {
+    return <MappingCard title="Коммерческие процессы" description="Коннектор этой CRM сейчас не настроен на сервере — разметка недоступна.">{null}</MappingCard>
+  }
+  const custom = options.customSource
+  const isCustom = source === '__custom'
+  // Pipelines apply to fixed kinds (e.g. deals); custom processes have their own categories, entered by ID.
+  const pickPipeline = !isCustom && data.pipelines.length > 0
+  const sourceLabel = (kind: string) =>
+    options.sources.find(item => item.kind === kind)?.label ?? kindLabel(kind, custom)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     setBusy(true)
     try {
-      await api.addCommercialSource(tenantId, connectionId, {
-        entityTypeId: source === 'deal' ? 2 : Number(smartId), direction,
-        ...(category.trim() ? { categoryId: Number(category) } : {}), amountField, currencyField,
+      await api.addCommercialSource(tenantId, data.connection.id, {
+        sourceKind: isCustom && custom ? `${custom.prefix}${customId}` : source, direction,
+        ...(category ? { categoryId: category } : {}),
+        ...(options.fieldMapping ? { amountField, currencyField } : {}),
       })
-      toast.show('Маппинг сохранён, данные будут перечитаны')
+      toast.show('Разметка сохранена, данные будут перечитаны')
       setCategory('')
       onChange()
     } catch (failure) { toast.show(errorText(failure), 'error') }
     finally { setBusy(false) }
   }
-  const remove = async (typeId: number, categoryId: string) => {
+  const remove = async (kind: string, categoryId: string) => {
     try {
-      await api.deleteCommercialSource(tenantId, connectionId, typeId, categoryId)
-      toast.show('Маппинг удалён')
+      await api.deleteCommercialSource(tenantId, data.connection.id, kind, categoryId)
+      toast.show('Разметка удалена')
       onChange()
     } catch (failure) { toast.show(errorText(failure), 'error') }
   }
 
   return (
     <MappingCard title="Коммерческие процессы"
-      description="Сделки по умолчанию считаются продажами. Закупки и смарт-процессы учитываются только после явной разметки."
+      description="Сделки по умолчанию считаются продажами. Закупки — только по явной разметке воронки или процесса."
       table={data.commercialSources.length > 0 && (
         <Table>
           <TableHeader><TableRow><TableHead>Источник</TableHead><TableHead>Воронка</TableHead><TableHead>Тип</TableHead><TableHead /></TableRow></TableHeader>
           <TableBody>
             {data.commercialSources.map(row => (
-              <TableRow key={`${row.entity_type_id}-${row.category_id}`}>
+              <TableRow key={`${row.source_kind}-${row.category_id}`}>
                 <TableCell>
-                  <div className="font-medium">{row.entity_type_id === 2 ? 'Сделки' : `Смарт-процесс ${row.entity_type_id}`}</div>
-                  <div className="font-mono text-xs text-muted-foreground">{row.amount_field} · {row.currency_field}</div>
+                  <div className="font-medium">{sourceLabel(row.source_kind)}</div>
+                  {row.amount_field && <div className="font-mono text-xs text-muted-foreground">{row.amount_field} · {row.currency_field}</div>}
                 </TableCell>
-                <TableCell>{row.category_id === '*' ? 'Все' : row.category_id}</TableCell>
+                <TableCell>{row.category_id === '*' ? 'Все' : pipelineNames.get(row.category_id) ?? row.category_id}</TableCell>
                 <TableCell><ToneBadge tone={row.direction === 'purchase' ? 'warn' : 'ok'}>{row.direction === 'purchase' ? 'Закупка' : 'Продажа'}</ToneBadge></TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon-sm" aria-label="Удалить маппинг" onClick={() => remove(row.entity_type_id, row.category_id)}><Trash2 /></Button>
+                  <Button variant="ghost" size="icon-sm" aria-label="Удалить разметку" onClick={() => remove(row.source_kind, row.category_id)}><Trash2 /></Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -225,29 +240,36 @@ function CommercialSources({ data, tenantId, onChange }: { data: ConnectionDetai
       <form onSubmit={submit} className="grid gap-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Источник" htmlFor="cs-source">
-            <NativeSelect id="cs-source" value={source} onChange={event => {
-              const next = event.target.value as 'deal' | 'smart'
-              setSource(next)
-              if (next === 'deal') { setAmountField('opportunity'); setCurrencyField('currencyId') }
-            }}>
-              <option value="deal">Сделки</option>
-              <option value="smart">Смарт-процесс</option>
+            <NativeSelect id="cs-source" value={source} onChange={event => { setSource(event.target.value); setCategory('') }}>
+              {options.sources.map(item => <option key={item.kind} value={item.kind}>{item.label}</option>)}
+              {custom && <option value="__custom">{custom.label}</option>}
             </NativeSelect>
           </Field>
-          {source === 'smart' && (
-            <Field label="ID смарт-процесса" htmlFor="cs-smart">
-              <Input id="cs-smart" required inputMode="numeric" pattern="\d+" placeholder="128" value={smartId} onChange={event => setSmartId(event.target.value)} />
+          {isCustom && custom && (
+            <Field label={custom.idLabel} htmlFor="cs-custom" hint={`Число от ${custom.minId}.`}>
+              <Input id="cs-custom" required inputMode="numeric" pattern="\d+" placeholder={String(custom.minId)} value={customId} onChange={event => setCustomId(event.target.value)} />
             </Field>
           )}
-          <Field label="ID воронки" htmlFor="cs-category">
-            <Input id="cs-category" inputMode="numeric" pattern="\d*" placeholder="Все воронки" value={category} onChange={event => setCategory(event.target.value)} />
+          <Field label="Воронка" htmlFor="cs-category" hint={pickPipeline ? undefined : 'ID воронки; пусто — все воронки.'}>
+            {pickPipeline ? (
+              <NativeSelect id="cs-category" value={category} onChange={event => setCategory(event.target.value)}>
+                <option value="">Все воронки</option>
+                {data.pipelines.map(pipeline => <option key={pipeline.id} value={pipeline.id}>{pipeline.label}</option>)}
+              </NativeSelect>
+            ) : (
+              <Input id="cs-category" inputMode="numeric" pattern="\d*" placeholder="Все воронки" value={category} onChange={event => setCategory(event.target.value)} />
+            )}
           </Field>
-          <Field label="Поле суммы" htmlFor="cs-amount">
-            <Input id="cs-amount" required className="font-mono" value={amountField} onChange={event => setAmountField(event.target.value)} />
-          </Field>
-          <Field label="Поле валюты" htmlFor="cs-currency">
-            <Input id="cs-currency" required className="font-mono" value={currencyField} onChange={event => setCurrencyField(event.target.value)} />
-          </Field>
+          {options.fieldMapping && (
+            <>
+              <Field label="Поле суммы" htmlFor="cs-amount">
+                <Input id="cs-amount" required className="font-mono" value={amountField} onChange={event => setAmountField(event.target.value)} />
+              </Field>
+              <Field label="Поле валюты" htmlFor="cs-currency">
+                <Input id="cs-currency" required className="font-mono" value={currencyField} onChange={event => setCurrencyField(event.target.value)} />
+              </Field>
+            </>
+          )}
         </div>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
           <div role="group" aria-label="Направление" className="inline-flex rounded-lg bg-muted p-0.5">
@@ -272,13 +294,14 @@ function ActionTypes({ data, tenantId, onChange }: { data: ConnectionDetail; ten
   const [busy, setBusy] = useState(false)
   const toast = useToast()
   const connectionId = data.connection.id
+  const options = data.mappingOptions
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     setBusy(true)
     try {
       await api.addActionType(tenantId, connectionId, providerTypeId.trim(), actionType)
-      toast.show('Тип действия сопоставлен, дела будут перечитаны')
+      toast.show('Тип действия сопоставлен, данные будут перечитаны')
       setProviderTypeId('')
       onChange()
     } catch (failure) { toast.show(errorText(failure), 'error') }
@@ -294,10 +317,10 @@ function ActionTypes({ data, tenantId, onChange }: { data: ConnectionDetail; ten
 
   return (
     <MappingCard title="Типы действий менеджеров"
-      description="Встречи, звонки, задачи и письма распознаются автоматически. Пользовательские типы дел (например, визиты) сопоставьте вручную."
+      description="Встречи, звонки и задачи распознаются автоматически. Пользовательские типы (например, визиты) сопоставьте вручную."
       table={data.actionTypes.length > 0 && (
         <Table>
-          <TableHeader><TableRow><TableHead>Код типа в CRM</TableHead><TableHead>Считать как</TableHead><TableHead /></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Код в CRM</TableHead><TableHead>Считать как</TableHead><TableHead /></TableRow></TableHeader>
           <TableBody>
             {data.actionTypes.map(row => (
               <TableRow key={row.provider_type_id}>
@@ -313,8 +336,8 @@ function ActionTypes({ data, tenantId, onChange }: { data: ConnectionDetail; ten
       )}>
       <form onSubmit={submit} className="grid gap-3">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Код типа в CRM" htmlFor="at-code" hint="Например, PROVIDER_TYPE_ID дела в Bitrix24.">
-            <Input id="at-code" required className="font-mono" pattern="[A-Za-z0-9_\-]{1,100}" placeholder="TRAVEL" value={providerTypeId} onChange={event => setProviderTypeId(event.target.value)} />
+          <Field label={options?.activityCodeLabel ?? 'Код типа в CRM'} htmlFor="at-code" hint={options?.activityCodeHint}>
+            <Input id="at-code" required className="font-mono" pattern="[A-Za-z0-9_\-]{1,100}" value={providerTypeId} onChange={event => setProviderTypeId(event.target.value)} />
           </Field>
           <Field label="Считать как" htmlFor="at-type" hint="Тип в аналитике.">
             <NativeSelect id="at-type" value={actionType} onChange={event => setActionType(event.target.value)}>
@@ -322,7 +345,7 @@ function ActionTypes({ data, tenantId, onChange }: { data: ConnectionDetail; ten
             </NativeSelect>
           </Field>
         </div>
-        <div className="mt-1 flex justify-end"><Button type="submit" size="lg" disabled={busy}>Сопоставить</Button></div>
+        <div className="mt-1 flex justify-end"><Button type="submit" size="lg" disabled={busy || !options}>Сопоставить</Button></div>
       </form>
     </MappingCard>
   )

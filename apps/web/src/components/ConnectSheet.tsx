@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { api, type Provider } from '@/lib/api'
-import { ErrorNotice, Field, LoadingRows, ProviderMark } from '@/components/common'
+import { ErrorNotice, Field, LoadingRows, Notice, ProviderMark } from '@/components/common'
 import { ProviderDetails } from '@/components/ProviderDetails'
 import { ProviderGrid } from '@/components/ProviderGrid'
 import { Button } from '@/components/ui/button'
@@ -40,7 +40,8 @@ export function ConnectSheet({ tenantId, open, onOpenChange }: { tenantId: strin
         <SheetHeader>
           <SheetTitle>{selected ? selected.name : 'Подключить CRM'}</SheetTitle>
           <SheetDescription>
-            {!selected ? 'Выберите систему клиента' : available ? 'Подключение аккаунта клиента' : 'Коннектор в разработке'}
+            {!selected ? 'Выберите систему клиента' : available ? 'Подключение аккаунта клиента'
+              : selected.status === 'not_configured' ? 'Коннектор готов, нужны ключи приложения' : 'Коннектор в разработке'}
           </SheetDescription>
         </SheetHeader>
         <SheetBody>
@@ -58,9 +59,12 @@ export function ConnectSheet({ tenantId, open, onOpenChange }: { tenantId: strin
                 <p className="text-muted-foreground">
                   {available
                     ? 'Сервис получит доступ только на чтение. Учётные данные CRM хранятся на сервере в зашифрованном виде и не попадают в браузер.'
-                    : 'Исследование API завершено, адаптер ещё не реализован. Ниже — что понадобится для подключения.'}
+                    : selected.status === 'not_configured'
+                      ? 'Коннектор реализован, но на сервере не заданы ключи OAuth-приложения. Как только они появятся, подключение станет доступно.'
+                      : 'Исследование API завершено, адаптер ещё не реализован. Ниже — что понадобится для подключения.'}
                 </p>
               </div>
+              {selected.status === 'not_configured' && <SetupNotice provider={selected} />}
               {available && (
                 <form id="connect-form" onSubmit={submit}>
                   <Field label={selected.accountLabel} htmlFor="account" error={error}
@@ -82,5 +86,17 @@ export function ConnectSheet({ tenantId, open, onOpenChange }: { tenantId: strin
         )}
       </SheetContent>
     </Sheet>
+  )
+}
+
+/** What the server operator must add before this CRM can be connected. */
+function SetupNotice({ provider }: { provider: Provider }) {
+  return (
+    <Notice tone="warn" title="Нужна настройка сервера">
+      <p>Добавьте в <code className="font-mono text-xs">apps/api/.env</code> и перезапустите API:</p>
+      <pre className="mt-2 overflow-x-auto rounded-md bg-card px-3 py-2 font-mono text-xs text-foreground ring-1 ring-border">
+        {(provider.requiredEnv ?? []).map(name => `${name}=…`).join('\n')}
+      </pre>
+    </Notice>
   )
 }

@@ -34,10 +34,14 @@ export const STATUS: Record<ConnectionStatus, { label: string; tone: Tone; hint:
   disconnected: { label: 'Отключено', tone: 'muted', hint: 'Подключение отключено.' },
 }
 
-export function kindLabel(kind: string): string {
-  const smart = /^smart:(\d+)$/.exec(kind)
-  if (smart) return `Смарт-процесс ${smart[1]}`
-  return ({ pipeline: 'Воронки', stage: 'Стадии', deal: 'Сделки', contact: 'Контакты', activity: 'Дела' } as Record<string, string>)[kind] ?? kind
+const KIND_LABELS: Record<string, string> = {
+  pipeline: 'Воронки', stage: 'Стадии', deal: 'Сделки', contact: 'Контакты', activity: 'Дела', task: 'Задачи',
+}
+
+/** Label for a synced object kind; custom process kinds (`<prefix><id>`) use the connector's label. */
+export function kindLabel(kind: string, custom?: { prefix: string; label: string } | null): string {
+  if (custom && kind.startsWith(custom.prefix)) return `${custom.label} ${kind.slice(custom.prefix.length)}`
+  return KIND_LABELS[kind] ?? kind
 }
 
 export const ACTION_TYPES: Array<{ id: string; label: string }> = [
