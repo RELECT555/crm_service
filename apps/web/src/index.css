@@ -32,7 +32,6 @@
   --color-series-4: var(--series-4);
   --color-series-5: var(--series-5);
   --color-series-other: var(--series-other);
-  --color-stage: var(--stage);
   --color-scrim: var(--scrim);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -81,8 +80,7 @@
   /* Chart series (dataviz reference palette, validated light + dark: scripts/validate_palette.js). Fixed order. */
   --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4;
   --series-other: #c9c8d1;
-  /* Onboarding: the presentation stage is always near-black (it is rendered with .dark); the scrim dims the page around tour spotlights. */
-  --stage: #050507;
+  /* Onboarding tour: dims the page around the spotlight. */
   --scrim: rgb(14 12 28 / 0.56);
   --shadow-card: 0 1px 2px rgb(20 18 40 / 0.04), 0 1px 1px rgb(20 18 40 / 0.03);
   --shadow-pop: 0 18px 40px -12px rgb(20 18 40 / 0.22);

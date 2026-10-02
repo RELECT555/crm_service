@@ -1,9 +1,14 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowUpRight, BarChart3, MoreHorizontal, Pencil, Plus, RefreshCw, Settings2, Power, PowerOff } from 'lucide-react'
+import {
+  Activity, AlertTriangle, ArrowRight, ArrowUpRight, BarChart3, CalendarDays, Coins, Database, Globe, MoreHorizontal, Pencil,
+  Plug, Plus, Power, PowerOff, RefreshCw, Settings2,
+} from 'lucide-react'
+import { motion } from 'motion/react'
 import { useCan } from '@/lib/session'
 import { api, type ConnectionSummary, type Provider, type Tenant } from '@/lib/api'
 import { ConnectSheet } from '@/components/ConnectSheet'
-import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, PageHeader, ProviderMark, StatusBadge, SyncBar } from '@/components/common'
+import { AnimatedNumber } from '@/components/charts'
+import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, Metric, PageHeader, ProviderMark, StatusBadge, Steps, SyncBar } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -11,6 +16,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { formatAgo, formatDate, numberFormat, plural } from '@/lib/format'
+import { staggerItem, staggerList } from '@/lib/motion'
 import { navigate } from '@/lib/router'
 import { errorText, useToast } from '@/lib/toast'
 import { useResource } from '@/lib/use-resource'
@@ -39,8 +45,13 @@ export function Workspace({ tenantId }: { tenantId: string }) {
     <>
       <PageHeader title={name} leading={<Avatar name={name} large />}
         crumbs={[{ label: 'Пространства', href: '#/' }, { label: name }]}
-        meta={[`Создано ${formatDate(data.tenant.created_at)}`, data.tenant.timezone, data.tenant.currency && `валюта ${data.tenant.currency}`]
-          .filter(Boolean).join(' · ')}
+        meta={
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-1 [&_svg]:size-3.5">
+            <span className="flex items-center gap-1.5"><CalendarDays />Создано {formatDate(data.tenant.created_at)}</span>
+            <span className="flex items-center gap-1.5"><Globe />{data.tenant.timezone?.replace(/_/g, ' ') ?? 'Часовой пояс не выбран'}</span>
+            <span className="flex items-center gap-1.5"><Coins />{data.tenant.currency ?? 'Валюта не выбрана'}</span>
+          </span>
+        }
         actions={<>
           {can('analytics.view', tenantId) && (
             <Button variant="outline" size="lg" className="flex-1 sm:flex-none" onClick={() => navigate(`/tenants/${tenantId}/analytics`)}><BarChart3 />Аналитика</Button>
@@ -61,10 +72,15 @@ export function Workspace({ tenantId }: { tenantId: string }) {
 
       <Overview connections={connections} />
 
-      <section className="mt-10">
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-[15px] font-semibold">Подключения</h2>
-          {connections.length > 0 && <span className="text-[13px] text-muted-foreground">{connections.length} {plural(connections.length, 'аккаунт', 'аккаунта', 'аккаунтов')} CRM</span>}
+      <section className="mt-10" data-tour="workspace-connections">
+        <div className="mb-4 flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-[15px] font-semibold">Подключения</h2>
+            <p className="mt-0.5 text-[13px] text-muted-foreground">
+              {connections.length > 0 ? `${connections.length} ${plural(connections.length, 'аккаунт', 'аккаунта', 'аккаунтов')} CRM — откройте, чтобы увидеть загрузку и разметку данных.`
+                : 'Аккаунты CRM этого клиента. Данные разных пространств не смешиваются.'}
+            </p>
+          </div>
         </div>
         {connections.length === 0 ? (manageConnections ? <FirstConnection onPick={openConnect} />
           : <Card><EmptyState title="CRM ещё не подключены">Подключить CRM может пользователь с правом «Управление подключениями».</EmptyState></Card>) : (
@@ -91,27 +107,36 @@ export function Workspace({ tenantId }: { tenantId: string }) {
 
 function Overview({ connections }: { connections: ConnectionSummary[] }) {
   const lastSync = Math.max(0, ...connections.map(connection => connection.last_sync ?? 0))
-  const tiles = [
-    { label: 'Подключено CRM', value: numberFormat.format(connections.length) },
-    { label: 'Работают', value: numberFormat.format(connections.filter(c => c.status === 'live').length),
-      hint: connections.some(isLoading) ? `${connections.filter(isLoading).length} загружается` : undefined },
-    { label: 'Требуют внимания', value: numberFormat.format(connections.filter(needsAttention).length),
-      tone: connections.some(needsAttention) ? 'text-destructive' : undefined },
-    { label: 'Записей загружено', value: numberFormat.format(connections.reduce((sum, c) => sum + c.records, 0)),
-      hint: lastSync ? `обновлено ${formatAgo(lastSync)}` : undefined },
-  ]
+  const live = connections.filter(c => c.status === 'live').length
+  const loading = connections.filter(isLoading).length
+  const attention = connections.filter(needsAttention).length
+  const records = connections.reduce((sum, c) => sum + c.records, 0)
+  const providers = [...new Set(connections.map(c => c.provider))]
   return (
-    <Card className="grid grid-cols-2 gap-0 py-0 md:grid-cols-4">
-      {tiles.map((tile, index) => (
-        // Dividers: 2x2 grid on phones, one row from md; explicit per tile to avoid divide-* edge cases.
-        <div key={tile.label} className={cn('px-5 py-4', index % 2 === 1 && 'border-l', index >= 2 && 'border-t md:border-t-0',
-          index === 2 && 'md:border-l')}>
-          <div className="text-xs text-muted-foreground">{tile.label}</div>
-          <div className={cn('mt-1 text-2xl font-semibold tracking-tight tabular-nums', tile.tone)}>{tile.value}</div>
-          <div className="mt-0.5 h-4 text-xs text-muted-foreground">{tile.hint}</div>
-        </div>
-      ))}
-    </Card>
+    <motion.div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" variants={staggerList} initial="hidden" animate="show"
+      data-tour="workspace-overview">
+      <motion.div variants={staggerItem} className="grid">
+        <Metric icon={Plug} label="Подключено CRM" value={<AnimatedNumber value={connections.length} />}
+          meta={connections.length ? `${providers.length} ${plural(providers.length, 'система', 'системы', 'систем')} CRM` : 'Подключите первую CRM ниже'} />
+      </motion.div>
+      <motion.div variants={staggerItem} className="grid">
+        <Metric icon={Activity} label="Работают" value={<AnimatedNumber value={live} />} tone={live > 0 && live === connections.length ? 'ok' : undefined}
+          meta={connections.length ? (loading ? `${loading} ${plural(loading, 'загружается', 'загружаются', 'загружаются')}` : `из ${connections.length}`) : 'Нет подключений'}>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <motion.div className="h-full rounded-full bg-success" initial={{ width: 0 }}
+              animate={{ width: `${connections.length ? (live / connections.length) * 100 : 0}%` }} transition={{ duration: 0.8, ease: [0.2, 0.7, 0.2, 1] }} />
+          </div>
+        </Metric>
+      </motion.div>
+      <motion.div variants={staggerItem} className="grid">
+        <Metric icon={AlertTriangle} label="Требуют внимания" value={<AnimatedNumber value={attention} />} tone={attention ? 'danger' : undefined}
+          meta={attention ? 'Откройте и исправьте' : 'Ошибок нет'} />
+      </motion.div>
+      <motion.div variants={staggerItem} className="grid">
+        <Metric icon={Database} label="Записей загружено" value={<AnimatedNumber value={records} />}
+          meta={lastSync ? `Обновлено ${formatAgo(lastSync)}` : records ? 'Идёт первичная загрузка' : 'Загрузка ещё не начиналась'} />
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -174,20 +199,51 @@ function ConnectionCard({ tenantId, connection, onChange, canManage }: {
   )
 }
 
+const PROVIDER_STATE: Record<Provider['status'], string> = {
+  available: 'Готово к подключению', not_configured: 'Нужны ключи приложения', planned: 'В разработке',
+}
+
 function FirstConnection({ onPick }: { onPick: (provider: Provider) => void }) {
   const providers = useResource(() => api.providers(), [])
   const ready = providers.data?.filter(provider => provider.status !== 'planned') ?? []
   return (
-    <Card className="items-center px-6 py-10 text-center">
-      <p className="text-[15px] font-semibold">Подключите первую CRM</p>
-      <p className="max-w-md text-muted-foreground">Выберите систему клиента и войдите в неё — загрузка данных начнётся автоматически. Доступ только на чтение.</p>
-      <div className="mt-3 flex flex-wrap justify-center gap-2">
-        {ready.map(provider => (
-          <button key={provider.id} type="button" onClick={() => onPick(provider)}
-            className="flex items-center gap-2.5 rounded-xl bg-card py-2 pr-4 pl-2 text-[13px] font-medium shadow-card ring-1 ring-border transition-colors hover:bg-muted/50">
-            <ProviderMark provider={provider.id} />{provider.name}
-          </button>
-        ))}
+    <Card className="gap-0 overflow-hidden py-0">
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+        <div className="grid content-start gap-6 p-6 sm:p-8">
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight">Подключите первую CRM</h3>
+            <p className="mt-1.5 max-w-md text-[13.5px] text-muted-foreground">Три шага — и аналитика начнёт наполняться сама. Доступ только на чтение: в CRM ничего не меняется.</p>
+          </div>
+          <Steps items={[
+            <><span className="font-medium">Выберите систему клиента</span><span className="block text-muted-foreground">Системы, готовые к подключению, — в списке рядом.</span></>,
+            <><span className="font-medium">Войдите администратором CRM</span><span className="block text-muted-foreground">Через официальную авторизацию — пароль к нам не попадает.</span></>,
+            <><span className="font-medium">Дождитесь первичной загрузки</span><span className="block text-muted-foreground">Сделки, звонки, встречи и задачи загрузятся и будут обновляться.</span></>,
+          ]} />
+        </div>
+        <div className="grid content-start gap-3 border-t bg-muted/30 p-6 sm:p-8 lg:border-t-0 lg:border-l">
+          <div className="text-xs font-medium text-muted-foreground">Выберите систему</div>
+          {!providers.data && <LoadingRows rows={3} />}
+          <motion.div className="grid gap-2" variants={staggerList} initial="hidden" animate="show">
+            {ready.map(provider => (
+              <motion.button key={provider.id} type="button" onClick={() => onPick(provider)} variants={staggerItem}
+                whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}
+                className="group flex items-center gap-3.5 rounded-xl bg-card p-3 pr-4 text-left shadow-card ring-1 ring-border transition-shadow outline-none hover:ring-foreground/20 focus-visible:ring-2 focus-visible:ring-ring/60">
+                <ProviderMark provider={provider.id} large />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14px] font-medium">{provider.name}</span>
+                  <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className={cn('size-1.5 rounded-full', provider.status === 'available' ? 'bg-success' : 'bg-warning')} />
+                    {PROVIDER_STATE[provider.status]}
+                  </span>
+                </span>
+                <ArrowRight className="size-4 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-foreground" />
+              </motion.button>
+            ))}
+          </motion.div>
+          <a href="#/integrations" className="mt-1 inline-flex items-center gap-1 justify-self-start text-[13px] font-medium">
+            Все интеграции <ArrowRight className="size-3.5" />
+          </a>
+        </div>
       </div>
     </Card>
   )
@@ -198,40 +254,58 @@ const PREFERRED_ZONES = ['Europe/Moscow', 'Europe/Kaliningrad', 'Europe/Samara',
   'Asia/Krasnoyarsk', 'Asia/Irkutsk', 'Asia/Vladivostok', 'Asia/Almaty', 'Asia/Tashkent', 'Europe/Minsk', 'UTC']
 
 function WorkspaceSettings({ tenant, onSaved }: { tenant: Tenant; onSaved: () => void }) {
+  const [name, setName] = useState(tenant.name ?? '')
   const [timezone, setTimezone] = useState(tenant.timezone ?? '')
   const [currency, setCurrency] = useState(tenant.currency ?? '')
   const [busy, setBusy] = useState(false)
   const toast = useToast()
   const zones = [...new Set([...PREFERRED_ZONES, ...Intl.supportedValuesOf('timeZone')])]
-  const changed = timezone !== (tenant.timezone ?? '') || currency !== (tenant.currency ?? '')
+  const changed = name.trim() !== (tenant.name ?? '') || timezone !== (tenant.timezone ?? '') || currency !== (tenant.currency ?? '')
   const save = async (event: FormEvent) => {
     event.preventDefault()
     setBusy(true)
     try {
-      await api.updateTenant(tenant.id, { timezone: timezone || null, currency: currency || null })
+      await api.updateTenant(tenant.id, { name: name.trim() || undefined, timezone: timezone || null, currency: currency || null })
       toast.show('Настройки пространства сохранены')
       onSaved()
     } catch (failure) { toast.show(errorText(failure), 'error') }
     finally { setBusy(false) }
   }
   return (
-    <section id="workspace-settings" className="mt-10 scroll-mt-6">
-      <h2 className="mb-3 text-[15px] font-semibold">Настройки пространства</h2>
-      <Card>
-        <form onSubmit={save} className="grid gap-4 px-5 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-          <Field label="Часовой пояс" htmlFor="tz" hint="Границы дней и недель в будущих отчётах.">
-            <NativeSelect id="tz" value={timezone} onChange={event => setTimezone(event.target.value)}>
-              <option value="">Не выбран</option>
-              {zones.map(zone => <option key={zone} value={zone}>{zone.replace(/_/g, ' ')}</option>)}
-            </NativeSelect>
-          </Field>
-          <Field label="Базовая валюта" htmlFor="currency" hint="Суммы в других валютах не конвертируются молча.">
-            <NativeSelect id="currency" value={currency} onChange={event => setCurrency(event.target.value)}>
-              <option value="">Не выбрана</option>
-              {CURRENCIES.map(code => <option key={code} value={code}>{code}</option>)}
-            </NativeSelect>
-          </Field>
-          <Button type="submit" size="lg" disabled={!changed || busy} className="sm:mb-[22px]">Сохранить</Button>
+    <section id="workspace-settings" data-tour="workspace-settings"
+      className="mt-12 grid scroll-mt-6 gap-6 border-t pt-10 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)] lg:gap-10">
+      <div>
+        <h2 className="text-[15px] font-semibold">Настройки пространства</h2>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+          Используются в отчётах этого клиента. Ничего не конвертируется и не угадывается молча: без валюты суммы показываются как есть.
+        </p>
+      </div>
+      <Card className="gap-0 py-0">
+        <form onSubmit={save}>
+          <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
+            <div className="sm:col-span-2">
+              <Field label="Название" htmlFor="ws-name" hint="Как пространство называется в списке и в отчётах.">
+                <Input id="ws-name" maxLength={120} value={name} onChange={event => setName(event.target.value)} />
+              </Field>
+            </div>
+            <Field label="Часовой пояс" htmlFor="tz" hint="Границы дней и недель в отчётах.">
+              <NativeSelect id="tz" value={timezone} onChange={event => setTimezone(event.target.value)}>
+                <option value="">Не выбран</option>
+                {zones.map(zone => <option key={zone} value={zone}>{zone.replace(/_/g, ' ')}</option>)}
+              </NativeSelect>
+            </Field>
+            <Field label="Базовая валюта" htmlFor="currency" hint="Суммы в других валютах не конвертируются.">
+              <NativeSelect id="currency" value={currency} onChange={event => setCurrency(event.target.value)}>
+                <option value="">Не выбрана</option>
+                {CURRENCIES.map(code => <option key={code} value={code}>{code}</option>)}
+              </NativeSelect>
+            </Field>
+          </div>
+          <div className="flex items-center justify-end gap-3 rounded-b-xl border-t bg-muted/40 px-5 py-3 sm:px-6">
+            <span className="mr-auto text-xs text-muted-foreground">{changed ? 'Есть несохранённые изменения' : 'Все изменения сохранены'}</span>
+            {changed && <Button variant="ghost" onClick={() => { setName(tenant.name ?? ''); setTimezone(tenant.timezone ?? ''); setCurrency(tenant.currency ?? '') }}>Отменить</Button>}
+            <Button type="submit" disabled={!changed || busy}>{busy ? 'Сохраняем…' : 'Сохранить'}</Button>
+          </div>
         </form>
       </Card>
     </section>

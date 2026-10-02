@@ -13,13 +13,17 @@ import { useToast } from '@/lib/toast'
 const Welcome = lazy(() => import('@/components/onboarding/Welcome').then(module => ({ default: module.Welcome })))
 const Tour = lazy(() => import('@/components/onboarding/Tour').then(module => ({ default: module.Tour })))
 
-/** Workspace the tour talks about: the last opened one, else the one with the most connections (most to show). */
+/**
+ * Workspace the tour talks about: the last opened one if it has connections (there is something to show), else the
+ * one with the most connections, else the last opened or first one (the tour then points at empty states).
+ */
 async function tourContext(): Promise<TourContext> {
   try {
     const tenants = await api.tenants()
-    const last = readStorage(LAST_TENANT_KEY)
+    const last = tenants.find(tenant => tenant.id === readStorage(LAST_TENANT_KEY))
     const richest = [...tenants].sort((a, b) => b.connections - a.connections)[0]
-    return { tenantId: tenants.find(tenant => tenant.id === last)?.id ?? richest?.id ?? null }
+    const pick = last && last.connections > 0 ? last : richest && richest.connections > 0 ? richest : last ?? tenants[0]
+    return { tenantId: pick?.id ?? null }
   } catch {
     return { tenantId: null } // the tour still covers the sections that need no workspace
   }

@@ -1,14 +1,17 @@
 import * as React from "react"
 import { Menu as MenuPrimitive } from "@base-ui/react/menu"
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence, motion, type HTMLMotionProps } from "motion/react"
 import { Check } from "lucide-react"
 import { exitFast, menuItem, menuSpring } from "@/lib/motion"
 import { cn } from "@/lib/utils"
 
 // Animated with Motion following motion.dev/docs/base-ui: open state is hoisted, the Portal is keepMounted inside
 // AnimatePresence, and the popup and items render as motion elements so they can animate out.
+// The popup unfolds from its trigger (scale + blur, spring); items settle one after another; the highlight is one pill
+// that glides between items (shared layoutId per popup) instead of each row flashing its own background.
 
 const MenuOpenContext = React.createContext(false)
+const HighlightContext = React.createContext("menu")
 
 function DropdownMenu({ open: controlledOpen, onOpenChange, ...props }: MenuPrimitive.Root.Props) {
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false)
@@ -28,6 +31,9 @@ function DropdownMenuTrigger(props: MenuPrimitive.Trigger.Props) {
 function DropdownMenuContent({ className, side = "bottom", align = "start", sideOffset = 6, children, ...props }:
   MenuPrimitive.Popup.Props & Pick<MenuPrimitive.Positioner.Props, "side" | "align" | "sideOffset">) {
   const open = React.useContext(MenuOpenContext)
+  const highlight = React.useId()
+  const lift = side === "top" ? 6 : side === "bottom" ? -6 : 0
+  const slide = side === "left" ? 6 : side === "right" ? -6 : 0
   return (
     <AnimatePresence>
       {open && (
@@ -38,22 +44,23 @@ function DropdownMenuContent({ className, side = "bottom", align = "start", side
               render={
                 <motion.div
                   variants={{
-                    hidden: { opacity: 0, scale: 0.94, y: side === "top" ? 4 : -4 },
-                    show: { opacity: 1, scale: 1, y: 0, transition: { ...menuSpring, staggerChildren: 0.025, delayChildren: 0.03 } },
+                    hidden: { opacity: 0, scale: 0.9, x: slide, y: lift, filter: "blur(6px)" },
+                    show: { opacity: 1, scale: 1, x: 0, y: 0, filter: "blur(0px)",
+                      transition: { ...menuSpring, filter: { duration: 0.18 }, staggerChildren: 0.022, delayChildren: 0.04 } },
                   }}
                   initial="hidden"
                   animate="show"
-                  exit={{ opacity: 0, scale: 0.97, transition: exitFast }}
+                  exit={{ opacity: 0, scale: 0.96, filter: "blur(4px)", transition: exitFast }}
                   style={{ transformOrigin: "var(--transform-origin)" }}
                 />
               }
               className={cn(
-                "max-h-(--available-height) min-w-52 overflow-y-auto rounded-xl bg-card p-1 text-sm text-card-foreground shadow-pop ring-1 ring-border outline-none",
+                "max-h-(--available-height) min-w-56 overflow-y-auto rounded-xl bg-card/95 p-1.5 text-sm text-card-foreground shadow-pop ring-1 ring-border backdrop-blur-xl outline-none",
                 className
               )}
               {...props}
             >
-              {children}
+              <HighlightContext.Provider value={highlight}>{children}</HighlightContext.Provider>
             </MenuPrimitive.Popup>
           </MenuPrimitive.Positioner>
         </MenuPrimitive.Portal>
@@ -63,17 +70,35 @@ function DropdownMenuContent({ className, side = "bottom", align = "start", side
 }
 
 const itemClass =
-  "relative flex h-8 cursor-default items-center gap-2.5 rounded-lg px-2.5 text-[13px] outline-none select-none transition-colors duration-100 data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-muted [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground"
+  "relative isolate flex h-9 cursor-default items-center gap-2.5 rounded-lg px-2.5 text-[13px] outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground [&_svg]:transition-colors data-highlighted:[&_svg]:text-foreground"
 
-/** Items inherit the popup's variant state, so the popup's staggerChildren orders them. */
-const animatedItem = <motion.div variants={menuItem} />
+type ItemState = { highlighted: boolean }
+
+/**
+ * Renders an item as a motion element (inherits the popup's stagger) and, while highlighted, the shared pill behind it.
+ * The pill sits at -z-10 inside the item's own stacking context (`isolate`), above the popup and below the label.
+ */
+function useAnimatedItem(tone: "default" | "destructive" = "default", as: "div" | "a" = "div") {
+  const highlight = React.useContext(HighlightContext)
+  const Element = as === "a" ? motion.a : motion.div
+  return (props: React.HTMLAttributes<HTMLElement>, state: ItemState) => (
+    <Element {...(props as HTMLMotionProps<"div"> & HTMLMotionProps<"a">)} variants={menuItem}>
+      {state.highlighted && (
+        <motion.span layoutId={highlight} aria-hidden="true"
+          className={cn("absolute inset-0 -z-10 rounded-lg", tone === "destructive" ? "bg-destructive/10" : "bg-muted")}
+          transition={{ type: "spring", stiffness: 700, damping: 45, mass: 0.6 }} />
+      )}
+      {props.children}
+    </Element>
+  )
+}
 
 function DropdownMenuItem({ className, variant = "default", ...props }: MenuPrimitive.Item.Props & { variant?: "default" | "destructive" }) {
   return (
     <MenuPrimitive.Item
       data-slot="dropdown-menu-item"
-      render={animatedItem}
-      className={cn(itemClass, variant === "destructive" && "text-destructive data-highlighted:bg-destructive/10 [&_svg]:text-destructive", className)}
+      render={useAnimatedItem(variant)}
+      className={cn(itemClass, variant === "destructive" && "text-destructive [&_svg]:text-destructive data-highlighted:[&_svg]:text-destructive", className)}
       {...props}
     />
   )
@@ -81,7 +106,7 @@ function DropdownMenuItem({ className, variant = "default", ...props }: MenuPrim
 
 function DropdownMenuLinkItem({ className, ...props }: MenuPrimitive.LinkItem.Props) {
   return (
-    <MenuPrimitive.LinkItem data-slot="dropdown-menu-link-item" render={<motion.a variants={menuItem} />}
+    <MenuPrimitive.LinkItem data-slot="dropdown-menu-link-item" render={useAnimatedItem("default", "a")}
       className={cn(itemClass, "text-foreground no-underline hover:no-underline", className)} {...props} />
   )
 }
@@ -92,7 +117,7 @@ function DropdownMenuRadioGroup(props: MenuPrimitive.RadioGroup.Props) {
 
 function DropdownMenuRadioItem({ className, children, ...props }: MenuPrimitive.RadioItem.Props) {
   return (
-    <MenuPrimitive.RadioItem data-slot="dropdown-menu-radio-item" render={animatedItem} className={cn(itemClass, "pr-8", className)} {...props}>
+    <MenuPrimitive.RadioItem data-slot="dropdown-menu-radio-item" render={useAnimatedItem()} className={cn(itemClass, "pr-8", className)} {...props}>
       {children}
       <MenuPrimitive.RadioItemIndicator className="absolute right-2.5 flex items-center">
         <Check className="text-foreground!" />

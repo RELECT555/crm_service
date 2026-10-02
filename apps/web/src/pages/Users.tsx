@@ -40,7 +40,7 @@ export function Users() {
       <PageHeader eyebrow="Администрирование" icon={UsersRound} title="Пользователи"
         subtitle="Кто работает в админке и с какими правами. Роль можно выдать на все пространства или на одно." actions={add} />
       {users.error && <ErrorNotice message={errorText(users.error)} onRetry={users.reload} />}
-      <Card className="gap-0 py-0">
+      <Card className="gap-0 py-0" data-tour="users-list">
         {!users.data && !users.error && <LoadingRows rows={4} />}
         {users.data?.length === 0 && <EmptyState title="Пользователей нет" action={add} />}
         {!!users.data?.length && (

@@ -32,7 +32,7 @@ export function Roles() {
       {(!roles.data || !permissions.data) && !roles.error && <Card><LoadingRows rows={6} /></Card>}
       {roles.data && permissions.data && (
         <div className="grid gap-5">
-          <motion.div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" variants={staggerList} initial="hidden" animate="show">
+          <motion.div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" variants={staggerList} initial="hidden" animate="show" data-tour="roles-list">
             {roles.data.map(role => (
               <motion.button key={role.id} type="button" variants={staggerItem} onClick={() => setEditor({ role })}
                 whileHover={{ y: -2 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }}
@@ -61,7 +61,7 @@ export function Roles() {
 /** Permission × role matrix: the clearest view of the progressive model. Scrolls horizontally on small screens. */
 function Matrix({ roles, permissions }: { roles: Role[]; permissions: PermissionInfo[] }) {
   return (
-    <Card className="gap-0 pb-0">
+    <Card className="gap-0 pb-0" data-tour="roles-matrix">
       <CardHeader className="border-b">
         <CardTitle className="font-semibold">Матрица прав</CardTitle>
         <CardDescription>«Везде» — право действует, только если роль выдана на все пространства.</CardDescription>

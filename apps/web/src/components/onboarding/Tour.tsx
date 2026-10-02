@@ -17,17 +17,26 @@ const PAD = 6
 const GAP = 14
 const MARGIN = 16
 const WAIT_MS = 2500
+const SAME_PAGE_WAIT_MS = 600
 
 const visible = (element: Element) => {
   const rect = element.getBoundingClientRect()
   return rect.width > 0 && rect.height > 0
 }
 
-/** The step's target, or — for sidebar targets on phones — the menu button that opens the sidebar. */
-function findTarget(step: TourStep): HTMLElement | null {
-  const own = [...document.querySelectorAll<HTMLElement>(`[data-tour="${step.target}"]`)].find(visible)
-  if (own || !step.nav) return own ?? null
-  return [...document.querySelectorAll<HTMLElement>('[data-tour="menu"]')].find(visible) ?? null
+/**
+ * The first visible target of the step (with its position in the step's target list), or — for sidebar targets on
+ * phones — the menu button that opens the sidebar.
+ */
+function findTarget(step: TourStep): { element: HTMLElement; fallback: boolean } | null {
+  const targets = Array.isArray(step.target) ? step.target : [step.target]
+  for (const [at, name] of targets.entries()) {
+    const element = [...document.querySelectorAll<HTMLElement>(`[data-tour="${name}"]`)].find(visible)
+    if (element) return { element, fallback: at > 0 }
+  }
+  if (!step.nav) return null
+  const menu = [...document.querySelectorAll<HTMLElement>('[data-tour="menu"]')].find(visible)
+  return menu ? { element: menu, fallback: false } : null
 }
 
 function hole(element: HTMLElement): Box {
@@ -69,7 +78,12 @@ export function Tour({ steps, context, onFinish }: {
   const reduce = !!useReducedMotion()
   const [index, setIndex] = useState(0)
   const [target, setTarget] = useState<HTMLElement | null>(null)
+  const [usedFallback, setUsedFallback] = useState(false)
   const [searching, setSearching] = useState(true)
+  // The step on screen. It changes only when the next step's target is found, so the card text and the spotlight
+  // always move together (no text of a step whose target is still loading or turns out to be missing).
+  const [shown, setShown] = useState<number | null>(null)
+  const firstSearch = useRef(true)
   const [box, setBox] = useState<Box | null>(null)
   const [cardSize, setCardSize] = useState<{ width: number; height: number } | null>(null)
   const nextRef = useRef<HTMLButtonElement>(null)
@@ -79,7 +93,6 @@ export function Tour({ steps, context, onFinish }: {
   const [leaving, setLeaving] = useState<boolean | null>(null)
   const [direction, setDirection] = useState(1)
   const step = steps[index]
-  const last = index === steps.length - 1
 
   // Find the target: open the step's page first, then wait until the element exists and stops moving (page transitions).
   useEffect(() => {
@@ -87,24 +100,31 @@ export function Tour({ steps, context, onFinish }: {
     let previous = ''
     let cancelled = false
     const path = step.route?.(context)
-    if (path && currentPath() !== path) navigate(path)
+    const navigated = !!path && currentPath() !== path
+    if (navigated) navigate(path)
+    // A target missing on a page that is already open is missing for real; one on a new page may still be loading.
+    const wait = navigated || firstSearch.current ? WAIT_MS : SAME_PAGE_WAIT_MS
     const started = performance.now()
     const poll = () => {
       if (cancelled) return
-      const element = findTarget(step)
-      if (element) {
+      const found = findTarget(step)
+      if (found) {
+        const element = found.element
         const rect = element.getBoundingClientRect()
         const key = `${rect.x}|${rect.y}|${rect.width}|${rect.height}`
         if (key === previous) {
           const fits = rect.top >= MARGIN && rect.bottom <= window.innerHeight - MARGIN
           if (!fits) element.scrollIntoView({ block: rect.height > window.innerHeight * 0.6 ? 'start' : 'center', behavior: reduce ? 'auto' : 'smooth' })
           setTarget(element)
+          setUsedFallback(found.fallback)
+          firstSearch.current = false
+          setShown(index)
           setSearching(false)
           return
         }
         previous = key
       }
-      if (performance.now() - started > WAIT_MS) {
+      if (performance.now() - started > wait) {
         if (step.route) {
           // Content that this workspace does not have: move on in the direction the user is going.
           const next = index + direction
@@ -114,6 +134,9 @@ export function Tour({ steps, context, onFinish }: {
           return
         }
         setTarget(null)
+        setUsedFallback(false)
+        firstSearch.current = false
+        setShown(index)
         setSearching(false)
         return
       }
@@ -155,7 +178,7 @@ export function Tour({ steps, context, onFinish }: {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const next = event.key === 'ArrowRight' ? index + 1 : event.key === 'ArrowLeft' ? index - 1 : null
-      if (next === null || next < 0 || next >= steps.length) return
+      if (next === null || next < 0 || next >= steps.length || searching) return
       event.preventDefault()
       setSearching(true)
       setDirection(next > index ? 1 : -1)
@@ -163,9 +186,9 @@ export function Tour({ steps, context, onFinish }: {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [index, steps.length])
+  }, [index, steps.length, searching])
 
-  useEffect(() => { nextRef.current?.focus({ preventScroll: true }) }, [index])
+  useEffect(() => { nextRef.current?.focus({ preventScroll: true }) }, [shown])
 
   useEffect(() => {
     if (leaving === null) return
@@ -180,7 +203,9 @@ export function Tour({ steps, context, onFinish }: {
     setIndex(Math.max(next, 0))
   }
   // The card shows the new step at once and glides when its target is found; the spotlight follows the same target.
-  const ready = cardSize !== null
+  const ready = cardSize !== null && shown !== null
+  const view = steps[shown ?? 0]
+  const at = shown ?? 0
   const position = cardSize ? place(box, cardSize) : { x: 0, y: 0 }
   const glide = reduce || !glides ? { duration: 0 } : { type: 'spring' as const, stiffness: 320, damping: 34 }
   const spot = box ?? { x: window.innerWidth / 2, y: window.innerHeight / 2, width: 0, height: 0 }
@@ -194,7 +219,7 @@ export function Tour({ steps, context, onFinish }: {
           initial={{ opacity: 0, x: spot.x, y: spot.y, width: spot.width, height: spot.height }}
           animate={{ opacity: leaving === null ? 1 : 0, x: spot.x, y: spot.y, width: spot.width, height: spot.height }}
           transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 260, damping: 32, opacity: { duration: 0.3 } }}>
-          {box && (
+          {box && !searching && (
             <motion.span className="absolute inset-0 rounded-xl ring-2 ring-primary"
               animate={reduce ? undefined : { opacity: [0.9, 0.35, 0.9] }} transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }} />
           )}
@@ -210,30 +235,32 @@ export function Tour({ steps, context, onFinish }: {
           className={cn('fixed top-0 left-0 z-[61] grid gap-4 rounded-2xl bg-card p-5 text-card-foreground shadow-pop ring-1 ring-border outline-none',
             'w-[calc(100vw-32px)] sm:w-[360px]')}>
           <div className="flex items-center justify-between gap-3">
-            <span className="text-xs font-medium text-muted-foreground tabular-nums">Шаг {index + 1} из {steps.length}</span>
+            <span className="text-xs font-medium text-muted-foreground tabular-nums">Шаг {at + 1} из {steps.length}</span>
             <Dialog.Close render={<Button variant="ghost" size="icon-sm" aria-label="Завершить тур" className="-mr-1.5" />}><X /></Dialog.Close>
           </div>
           <div aria-live="polite" className="grid">
             <AnimatePresence mode="popLayout" initial={false}>
-              <motion.div key={step.id} className="grid gap-1.5 [grid-area:1/1]"
+              <motion.div key={view.id} className="grid gap-1.5 [grid-area:1/1]"
                 initial={reduce ? { opacity: 0 } : { opacity: 0, y: 6, filter: 'blur(4px)' }}
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.35, delay: 0.05 } }}
                 exit={{ opacity: 0, transition: { duration: 0.12 } }}>
-                <Dialog.Title className="text-[17px] leading-snug font-semibold tracking-tight">{step.title}</Dialog.Title>
-                <Dialog.Description className="text-[13.5px] leading-relaxed text-muted-foreground">{step.body}</Dialog.Description>
+                <Dialog.Title className="text-[17px] leading-snug font-semibold tracking-tight">{view.title}</Dialog.Title>
+                <Dialog.Description className="text-[13.5px] leading-relaxed text-muted-foreground">
+                  {usedFallback && view.fallbackBody ? view.fallbackBody : view.body}
+                </Dialog.Description>
               </motion.div>
             </AnimatePresence>
           </div>
           <div className="h-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
             <motion.div className="h-full rounded-full bg-primary" initial={false}
-              animate={{ width: `${((index + 1) / steps.length) * 100}%` }} transition={{ type: 'spring', stiffness: 260, damping: 30 }} />
+              animate={{ width: `${((at + 1) / steps.length) * 100}%` }} transition={{ type: 'spring', stiffness: 260, damping: 30 }} />
           </div>
           <div className="flex items-center justify-between gap-2">
-            {index > 0
-              ? <Button variant="ghost" onClick={() => go(index - 1)}><ArrowLeft />Назад</Button>
+            {at > 0
+              ? <Button variant="ghost" disabled={searching} onClick={() => go(at - 1)}><ArrowLeft />Назад</Button>
               : <span className="hidden text-xs text-muted-foreground sm:inline">Стрелки ← → тоже работают</span>}
-            <Button ref={nextRef} onClick={() => go(index + 1)}>
-              {last ? 'Готово' : <>Далее<ArrowRight /></>}
+            <Button ref={nextRef} disabled={searching && shown !== null} onClick={() => go(at + 1)}>
+              {at === steps.length - 1 ? 'Готово' : <>Далее<ArrowRight /></>}
             </Button>
           </div>
         </Dialog.Popup>

@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { api, type Provider } from '@/lib/api'
-import { ErrorNotice, Field, LoadingRows, ProviderMark } from '@/components/common'
-import { ProviderDetails } from '@/components/ProviderDetails'
+import { ErrorNotice, Field, LoadingRows } from '@/components/common'
+import { ProviderDetails, ProviderSheetHeader } from '@/components/ProviderDetails'
 import { ProviderGrid } from '@/components/ProviderGrid'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,16 +39,12 @@ export function ConnectSheet({ tenantId, open, onOpenChange, initialProvider = n
   return (
     <Sheet open={open} onOpenChange={next => { onOpenChange(next); if (!next) back() }}>
       <SheetContent>
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-3">
-            {selected && <ProviderMark provider={selected.id} />}
-            {selected ? selected.name : 'Подключить CRM'}
-          </SheetTitle>
-          <SheetDescription>
-            {!selected ? 'Выберите систему клиента' : available ? 'Подключение аккаунта клиента'
-              : selected.status === 'not_configured' ? 'Нужны ключи приложения на сервере' : 'Коннектор в разработке'}
-          </SheetDescription>
-        </SheetHeader>
+        {selected ? <ProviderSheetHeader provider={selected} subtitle={available ? 'Подключение аккаунта клиента' : undefined} /> : (
+          <SheetHeader>
+            <SheetTitle className="text-[17px] tracking-tight">Подключить CRM</SheetTitle>
+            <SheetDescription>Выберите систему клиента. Доступ только на чтение.</SheetDescription>
+          </SheetHeader>
+        )}
         <SheetBody>
           {!selected && (
             <>

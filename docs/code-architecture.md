@@ -50,7 +50,7 @@ apps/
       components/ui/           shadcn primitives (button, card, dialog, sheet, dropdown-menu, table, ...); overlays animated with Motion
       components/              app building blocks composed from ui/: Sidebar, SessionProvider, charts, common
       components/LoginBackdrop.tsx  decorative sign-in canvas; rAF loop, explicit playback, visibility and context lifecycle
-      components/onboarding/   welcome presentation, guided tour, OnboardingProvider (docs/onboarding.md); lazy chunks
+      components/onboarding/   Welcome (presentation), previews (live product previews), Tour (spotlight), OnboardingProvider — docs/onboarding.md; lazy chunks
       pages/                   one file per screen; owns data loading for that screen
                                Workspaces, Workspace, Connection, Catalog, Analytics, Users, Roles, Audit, Login
       lib/api.ts               typed client for /v1; the only module that calls fetch; cookie session + CSRF header

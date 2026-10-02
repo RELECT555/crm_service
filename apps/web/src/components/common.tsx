@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, type ComponentType, type ReactNode } from 'react'
 import { Check, Copy, House, RefreshCw, type LucideIcon } from 'lucide-react'
 import type { ConnectionStatus } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -238,5 +238,43 @@ export function Avatar({ name, small, large, muted }: { name: string; small?: bo
       small ? 'size-5 rounded-md text-[9px]' : large ? 'size-12 rounded-xl text-base' : 'size-7 text-[11px]')}>
       {initials}
     </span>
+  )
+}
+
+/** KPI tile (Tremor-style): label with an icon chip, a large number, one line of context, optional footer (e.g. a bar). */
+export function Metric({ icon: Icon, label, value, meta, tone, children, className }: {
+  icon: ComponentType<{ className?: string }>; label: string; value: ReactNode; meta?: ReactNode
+  tone?: 'danger' | 'ok'; children?: ReactNode; className?: string
+}) {
+  return (
+    <div className={cn('flex min-w-0 flex-col rounded-xl bg-card p-5 text-card-foreground shadow-card ring-1 ring-border', className)}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="truncate text-[13px] text-muted-foreground">{label}</span>
+        <span className={cn('grid size-8 flex-none place-items-center rounded-lg bg-muted text-muted-foreground [&_svg]:size-4',
+          tone === 'danger' && 'bg-destructive/10 text-destructive', tone === 'ok' && 'bg-success/10 text-success')}>
+          <Icon />
+        </span>
+      </div>
+      <div className={cn('mt-2 text-[28px] leading-none font-semibold tracking-tight tabular-nums', tone === 'danger' && 'text-destructive')}>{value}</div>
+      {meta && <div className="mt-2 truncate text-xs text-muted-foreground">{meta}</div>}
+      {children && <div className="mt-auto pt-4">{children}</div>}
+    </div>
+  )
+}
+
+/** Numbered vertical steps joined by a thin line — setup instructions and onboarding flows. */
+export function Steps({ items, className }: { items: ReactNode[]; className?: string }) {
+  return (
+    <ol className={cn('grid gap-0', className)}>
+      {items.map((item, index) => (
+        <li key={index} className="relative flex gap-3.5 pb-5 last:pb-0">
+          {index < items.length - 1 && <span aria-hidden="true" className="absolute top-7 bottom-1 left-[13px] w-px bg-border" />}
+          <span className="relative grid size-7 flex-none place-items-center rounded-full bg-card text-[12px] font-semibold text-foreground tabular-nums ring-1 ring-border">
+            {index + 1}
+          </span>
+          <div className="min-w-0 pt-1 text-[13.5px] leading-relaxed">{item}</div>
+        </li>
+      ))}
+    </ol>
   )
 }

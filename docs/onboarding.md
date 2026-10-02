@@ -4,8 +4,8 @@ Status: implemented in `apps/web/src/components/onboarding/` and `apps/web/src/l
 
 Two pieces, one lifecycle:
 
-- **Presentation** («Знакомство») — a full-screen, keynote-style sequence shown once after the first sign-in: what the product does, in five slides plus a closing slide with «Пройти тур» / «Сразу к работе».
-- **Tour** («Тур по разделам») — a spotlight that walks through the real interface, step by step, opening pages when needed. It only shows sections the user's roles allow.
+- **Presentation** («Знакомство») — a large dialog in the product's own theme, shown once after the first sign-in: five slides, each a short story on the left and a live preview of the real interface on the right; the last slide offers «Пройти тур» / «Позже».
+- **Tour** («Тур по разделам») — a spotlight that opens each section and highlights its key blocks in place (summary, connections, analytics, catalog, users, roles, audit). It only shows sections the user's roles allow.
 
 ## Lifecycle
 
@@ -14,7 +14,7 @@ sign-in ─► /v1/me returns onboarding.seen (ids already offered to this user)
   │
   ├─ 'welcome:1' not in seen ─► presentation
   │     ├─ «Пройти тур»      ─► mark welcome:1 ─► tour (all eligible steps) ─► mark those steps on finish or exit
-  │     └─ «Сразу к работе» / «Пропустить» / Esc ─► mark welcome:1 + every eligible step («offered, declined»)
+  │     └─ «Позже» / «Пропустить» / × / Esc ─► mark welcome:1 + every eligible step («offered, declined»)
   │
   ├─ welcome seen, some eligible step not seen ─► «Новое в админке» card (bottom right)
   │     ├─ «Показать» ─► tour with only those steps ─► mark them
@@ -50,15 +50,15 @@ Tests: `apps/api/test/access.test.ts` («Onboarding» block).
 
 ## Presentation
 
-Files: `components/onboarding/Welcome.tsx` (stage, navigation, slides list), `components/onboarding/visuals.tsx` (illustrations).
+Files: `components/onboarding/Welcome.tsx` (dialog, navigation, slides list), `components/onboarding/previews.tsx` (live previews).
 
-- Base UI `Dialog` (modal) owns focus trap, scroll lock and Escape; Motion owns visuals. The stage is rendered with the `.dark` class so every token resolves to its dark value, on the `bg-stage` surface.
-- Navigation: «Далее» / «Назад» buttons, ← → and PageUp/PageDown keys, dots (each is a button), swipe (pan) on touch screens, «Пропустить» in the header, Escape.
-- Motion: headlines reveal word by word (rise + blur), the accent phrase reveals as one unit so its gradient stays continuous; slides move with direction-aware variants; one soft light per slide cross-fades behind the content. Under reduced motion all of it becomes plain fades and illustrations show their end state.
-- Illustrations reuse the product's own marks (meters with a median tick, composition bars in `--series-*`, provider marks). They must not promise features that do not exist. Copy in `visuals.tsx` is illustrative example data, not customer data.
-- Besides the sign-in background (decision 25), the stage is the only place where a gradient text phrase and a soft radial light are allowed (decision 26). Working screens keep the no-gradient rule.
+- Base UI `Dialog` (modal) owns focus trap, scroll lock and Escape; Motion owns visuals. It uses the normal theme tokens — light or dark like the rest of the app — on `bg-card`, with the preview area on `bg-canvas`. No gradients, glows or special surfaces: the presentation is part of the product, not a poster.
+- Layout: story on the left (step number and eyebrow in `text-primary`, title, one paragraph, three check points, progress segments, buttons); preview on the right as an app window that bleeds off the edge like a product shot. Below `lg` the preview sits on top at 60–75 % scale and the check points are hidden.
+- Previews are built from the real components — `Metric`-like tiles, `BarList`, `MeterBar`, `MixBar`, `ProviderMark`, `StatusBadge`, the role matrix — so they always match the interface. Their numbers are illustrative (`previews.tsx` says so) and never come from customer data. They must not show features that do not exist.
+- Navigation: «Далее» / back arrow buttons, ← → keys, progress segments (each is a button), swipe on the preview, «Пропустить» on the first slide, × and Escape at any time.
+- Motion: the dialog opens with `dialogSpring`; the story cross-fades with a small rise and blur; the preview slides in the direction of travel; check points and preview rows stagger in. Under reduced motion all of it becomes plain fades.
 
-**Add or change a slide:** edit `slides()` in `Welcome.tsx` (`eyebrow`, `title` as words plus at most one `{ accent }` phrase, `text`, optional `visual`, `light` = a token for the background light). Keep it to one idea, a title under ~6 words, one sentence of text. Put a new illustration in `visuals.tsx`, check it at 360 px and with reduced motion. Bump `WELCOME_ID` only if existing users should see the presentation again.
+**Add or change a slide:** edit `slides()` in `Welcome.tsx` (`eyebrow`, `title` — a few words, `text` — one or two sentences, three `points`, `preview`). Build a new preview in `previews.tsx` inside `<Window title icon>` from existing components. Check it at 1440 px, 768 px and 390 px, in both themes and with reduced motion. Bump `WELCOME_ID` only if existing users should see the presentation again.
 
 ## Tour
 
@@ -68,48 +68,53 @@ A step:
 
 ```ts
 {
-  id: 'tour:nav-audit',          // stable contract (see above)
-  target: 'nav-audit',           // data-tour value of the element to highlight
+  id: 'tour:audit',              // stable contract (see above)
+  target: ['audit-list', 'audit-empty'], // data-tour value(s); the first visible wins — list a fallback (empty state) last
   title: 'Журнал действий',      // 1–3 words
   body: 'Кто, когда и что изменил…', // one or two sentences: what it is and why you would open it
+  fallbackBody: '…',             // optional: text for when a fallback target (not the first) was highlighted
   permission: 'audit.view',      // optional: offered only with this permission
   needsWorkspace: true,          // optional: skip when the user has no workspace
-  route: ctx => `/tenants/${ctx.tenantId}/analytics`, // optional: open this page first; return null to skip
+  route: () => '/audit',         // optional: open this page first; return null to skip
   nav: true,                     // target is in the sidebar: on phones highlight the menu button instead
 }
 ```
 
 Runtime behavior:
 
-- The tour workspace is the last opened one, else the one with the most connections (`tourContext()` in the provider).
-- For each step the tour opens `route` if needed, waits until the target exists and stops moving (page transitions), scrolls it into view, then glides the spotlight and the card to it. The card shows the new text at once.
-- A page step whose target does not appear within 2.5 s (e.g. analytics with no data) is skipped in the direction the user is moving. A sidebar step without a visible target shows the card centered.
+- The tour workspace is the last opened one if it has connections, else the one with the most connections, else the last opened or first one — then the tour points at empty states (`tourContext()` in the provider).
+- For each step the tour opens `route` if needed, waits until a target exists and stops moving (page transitions), scrolls it into view, then moves the spotlight and the card to it **together**: the card keeps the previous step's text until the new target is found, so text and highlight never disagree. «Далее» is disabled during that short search.
+- Targets are tried in order; when a fallback (not the first) matches, `fallbackBody` replaces `body` (analytics without data highlights the empty state and says what will appear there).
+- A page step with no target is skipped in the direction the user is moving: after 2.5 s on a page that was just opened, after 0.6 s on the page that is already open (e.g. «Слабые места» on empty analytics). A sidebar step without a visible target shows the card centered.
 - Placement: beside the target if it fits (right, below, above, left), else docked at the bottom; on phones the card spans the width on the half of the screen the target does not use.
 - The page is blocked while the tour runs (it shows, it does not click). Keys: ← →, Enter on the focused button, Escape ends the tour. Focus is trapped in the card (Base UI `Dialog`, `modal="trap-focus"`).
 
 **When a new section ships:**
 
-1. Put `data-tour="<name>"` on its navigation item (`NavItem tour="…"` in `Sidebar.tsx`) or on the page element to highlight.
-2. Add a step to `TOUR_STEPS` in display order with a new `tour:<name>` id, the permission that gates the section, and `route` if the target is on a page.
+1. Put `data-tour="<name>"` on the page's key block (a card, a list) and on its empty state; use `NavItem tour="…"` in `Sidebar.tsx` only for things that live in the sidebar.
+2. Add a step to `TOUR_STEPS` in display order with a new `tour:<name>` id, the permission that gates the section, `route` to the page, the targets (main first, empty state last) and `fallbackBody` if the empty state needs different words.
 3. Existing users get it automatically as «Новое в админке»; new users get it in the full tour.
 4. Run the tour at 1440 px, 820 px (rail) and 390 px; check the card does not cover the target and the text fits.
 5. Update the table below.
 
 ## Current steps
 
-| Id | Target | Shown to | Page |
+| Id | Target(s) | Shown to | Page |
 | --- | --- | --- | --- |
-| `tour:workspace-switcher` | workspace switcher | everyone | — |
-| `tour:nav-overview` | «Обзор» | `workspaces.view` in the tour workspace | — |
-| `tour:analytics-kpis` | KPI tiles | `analytics.view` | analytics |
-| `tour:analytics-signals` | «Слабые места» | `analytics.view` | analytics |
-| `tour:analytics-managers` | «Менеджеры» | `analytics.view` | analytics |
-| `tour:nav-integrations` | «Интеграции» | everyone | — |
-| `tour:nav-users` | «Пользователи» | `users.manage` | — |
-| `tour:nav-roles` | «Роли и права» | `users.manage` | — |
-| `tour:nav-audit` | «Журнал действий» | `audit.view` | — |
-| `tour:user-menu` | user menu | everyone | — |
+| `tour:workspace-switcher` | workspace switcher (sidebar) | everyone | — |
+| `tour:workspace-overview` | `workspace-overview` metric tiles | `workspaces.view` in the tour workspace | workspace |
+| `tour:workspace-connections` | `workspace-connections` section | `workspaces.view` | workspace |
+| `tour:analytics-kpis` | `analytics-kpis`, fallback `analytics-empty` | `analytics.view` | analytics |
+| `tour:analytics-signals` | `analytics-signals` (skipped without data) | `analytics.view` | analytics |
+| `tour:analytics-managers` | `analytics-managers` (skipped without data) | `analytics.view` | analytics |
+| `tour:catalog` | `catalog-ready` | everyone | integrations |
+| `tour:users` | `users-list` | `users.manage` | users |
+| `tour:roles` | `roles-matrix`, fallback `roles-list` | `users.manage` | roles |
+| `tour:audit` | `audit-list`, fallback `audit-empty` | `audit.view` | audit |
+| `tour:user-menu` | user menu (sidebar) | everyone | — |
+
+The step ids changed on 2026-10-02 when the tour moved from sidebar items to in-page blocks; users who had seen the old tour are offered the new steps once as «Новое в админке».
 
 ## Verified
 
-Checked in Chromium (Playwright) against the demo data on 2026-10-02: owner tour (10 steps) at 1440 px, phone tour at 390 px in dark theme, analyst tour (7 steps, no admin sections) at 1024 px with reduced motion, the «Новое» flow for one added step, Escape, replay from the user menu, and no horizontal scroll at 360 px. Not checked: real screen readers (VoiceOver, NVDA), Safari and Firefox.
+Checked in Chromium (Playwright) on 2026-10-02: owner tour (11 steps) on the demo data at 1440 px; the same on a fresh database with one empty workspace (analytics highlights the empty state, its two data-only steps are skipped); presentation and tour at 390 px in the dark theme; earlier: analyst tour with reduced motion, the «Новое» flow, Escape and replay from the user menu. Not checked: real screen readers (VoiceOver, NVDA), Safari and Firefox.

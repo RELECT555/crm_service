@@ -43,7 +43,7 @@ export function Analytics({ tenantId }: { tenantId: string }) {
       {data.error && <ErrorNotice message={errorText(data.error)} onRetry={data.reload} />}
       {!data.data && !data.error && <Card><LoadingRows rows={6} /></Card>}
       {data.data && (data.data.managers.length === 0
-        ? <Card><EmptyState title="Пока нечего показать">Подключите CRM и дождитесь первичной загрузки — показатели появятся автоматически.</EmptyState></Card>
+        ? <Card data-tour="analytics-empty"><EmptyState title="Пока нечего показать">Подключите CRM и дождитесь первичной загрузки — показатели появятся автоматически.</EmptyState></Card>
         : <Dashboard data={data.data} />)}
     </>
   )

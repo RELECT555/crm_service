@@ -2,7 +2,7 @@ import * as React from "react"
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
 import { AnimatePresence, motion } from "motion/react"
 import { X } from "lucide-react"
-import { exitFast, sheetSpring } from "@/lib/motion"
+import { sheetSpring } from "@/lib/motion"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
@@ -19,17 +19,18 @@ function Sheet({ open = false, ...props }: SheetPrimitive.Root.Props) {
 
 function SheetContent({ className, children, side = "right", ...props }: SheetPrimitive.Popup.Props & { side?: "left" | "right" }) {
   const open = React.useContext(SheetOpenContext)
-  const offset = side === "right" ? 48 : -48
+  // A real drawer: it travels in from its edge and back out, never just fades.
+  const offscreen = side === "right" ? "100%" : "-100%"
   return (
     <AnimatePresence>
       {open && (
         <SheetPrimitive.Portal keepMounted>
-          <SheetPrimitive.Backdrop render={<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.18 } }} />}
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" />
+          <SheetPrimitive.Backdrop render={<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.25 } }} exit={{ opacity: 0, transition: { duration: 0.2 } }} />}
+            className="fixed inset-0 z-50 bg-black/35 backdrop-blur-[3px]" />
           <SheetPrimitive.Popup
             data-slot="sheet-content"
-            render={<motion.div initial={{ x: offset, opacity: 0 }} animate={{ x: 0, opacity: 1, transition: sheetSpring }}
-              exit={{ x: offset / 2, opacity: 0, transition: exitFast }} />}
+            render={<motion.div initial={{ x: offscreen }} animate={{ x: 0, transition: sheetSpring }}
+              exit={{ x: offscreen, transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } }} />}
             className={cn("fixed inset-y-0 z-50 flex h-full w-full flex-col bg-card text-card-foreground shadow-pop ring-1 ring-border outline-none",
               side === "right" ? "right-0 max-w-xl" : "left-0 max-w-[290px]", className)}
             {...props}

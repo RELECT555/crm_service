@@ -28,7 +28,7 @@ src/
   index.css               Tailwind theme and design tokens (light + dark)
   components/ui/          shadcn primitives on Base UI (button, badge, card, dialog, sheet, dropdown-menu, input, table, ...)
   components/             app building blocks (common.tsx), Sidebar, SessionProvider, charts, ThemeSwitch, provider catalog, connect sheet, toasts
-  components/onboarding/  Welcome (presentation), Tour (spotlight), OnboardingProvider (when to show what)
+  components/onboarding/  Welcome (presentation), previews (live product previews), Tour (spotlight), OnboardingProvider
   components/LoginBackdrop.tsx  sign-in canvas playback and context lifecycle
   pages/                  one file per screen; owns its data loading (Analytics, Users, Roles, Audit, Login, ...)
   lib/api.ts              typed client for /v1 — the only module that calls fetch

@@ -29,7 +29,8 @@ Themes: light, dark and "as system" («Авто»). `lib/theme.ts` is a single s
 - App building blocks live in `components/common.tsx`: `PageHeader`, `Field`, `EmptyState`, `Notice`, `ErrorNotice`, `CopyField`, `ProviderMark`, `Stat`, `StatusBadge`, `ToneBadge`, `SyncBar`, `LoadingRows`.
 - Overlays: `Dialog` for confirmations and short forms, `Sheet` (right) for multi-step flows and reference panels, `Sheet side="left"` for the mobile menu.
 - Menus: `DropdownMenu` (Base UI Menu) for secondary actions behind a `…` button, the workspace switcher and the user menu (theme, password change, sign out). Destructive items use `variant="destructive"`, sit after a separator and open a confirmation `Dialog` when they stop work.
-- Brand: `BrandMark` (two bars = two analytical axes) on a graphite tile. Do not reintroduce colored gradient squares or generic chart icons.
+- Brand: `BrandMark` in `components/Brand.tsx` — a graphite squircle (inverted in dark theme) with two bars (result and work) and a primary-colored dot over the shorter bar: the gap the product shows. The same drawing is `public/favicon.svg`. In the sidebar it sits with the wordmark «CRM Analytics» and the line «Аналитика команды продаж». Do not reintroduce colored gradient squares or generic chart icons.
+- Building blocks for screens: `Metric` (KPI tile: label, icon chip, large number, one line of context, optional footer bar) and `Steps` (numbered vertical steps joined by a line) in `components/common.tsx`.
 - Workspaces are shown with `Avatar` initials in neutral color; provider marks are the only colored tiles.
 
 ## Badges and status (low visual noise)
@@ -55,7 +56,7 @@ The sign-in and first-owner forms share a 420px-wide `Card`, centered in the vie
 
 Two layers, each with one job:
 
-1. **Motion (`motion/react`)** — everything that enters, leaves or changes size: menus, dialogs, sheets, page transitions, staggered lists, the sidebar width, the KPI count-up. Presets live in `lib/motion.ts`; use them instead of inline numbers. The onboarding presentation has its own choreography in `components/onboarding/` ([onboarding.md](onboarding.md#presentation)). The sign-in shader has a separate rAF renderer and explicit playback control (decision 27).
+1. **Motion (`motion/react`)** — everything that enters, leaves or changes size: menus, dialogs, sheets, page transitions, staggered lists, the sidebar width, the KPI count-up. Presets live in `lib/motion.ts`; use them instead of inline numbers. The sign-in shader has a separate rAF renderer and explicit playback control (decision 27).
 2. **CSS utilities in `src/index.css`** — ambient, looping or purely decorative effects: `animate-indeterminate` (running progress), `shimmer` (skeletons), `animate-enter` / `stagger` / `animate-fade` in older screens and toasts.
 
 | Preset (`lib/motion.ts`) | Where |
@@ -81,6 +82,12 @@ const [open, setOpen] = useState(false)            // hoist open state out of Ba
 
 Base UI owns focus, keyboard, dismissal and ARIA; Motion only owns the visuals. Never re-implement focus traps or outside-click handling for an animation.
 
+**Menus** (`components/ui/dropdown-menu.tsx`): the popup unfolds from its trigger — scale 0.9 → 1, a 6px offset away from the side it opens on, blur 6 → 0 — with `menuSpring`; items settle with a 22 ms stagger; the highlight is one pill (`layoutId` per popup) that glides between items on hover and arrow keys instead of each row flashing its own background. Destructive items get a tinted pill.
+
+**Sheets** (`components/ui/sheet.tsx`): a drawer travels fully in from its edge (`x: ±100%`) with `sheetSpring` and back out in 240 ms; the backdrop fades with a light blur. The mobile menu is the same sheet from the left.
+
+**Sidebar**: the width animates between 256 and 68 px; icons never move (fixed left padding), labels fade and slide in after the rail widens and disappear at once when it narrows (`Reveal` in `Sidebar.tsx`); group headings turn into dividers in the same place, so nothing below jumps.
+
 Rules: springs without bounce for anything work-related (menus may have a tiny overshoot); durations 120–360 ms; hover lifts ≤ 2px; never animate layout-affecting properties of large lists (animate `opacity`/`transform`). **Reduced motion:** `<MotionConfig reducedMotion="user">` in `main.tsx` disables transform/layout animations within Motion; components that animate values by hand (`AnimatedNumber`) also read `useReducedMotion()` and show the final value immediately; CSS utilities are disabled under `prefers-reduced-motion`. The sign-in shader is the explicit exception above; its play/pause control remains available.
 
 ## Responsive layout
@@ -94,7 +101,7 @@ Three layouts, switched by Tailwind breakpoints (`md` = 768px, `lg` = 1024px, `x
 | desktop, ≥ `lg` | 256px sidebar, user-collapsible to the rail (stored in `localStorage`) | multi-column grids; wide data tables from `xl` |
 
 - Sidebar, top to bottom: brand, workspace switcher (remembers the last workspace; a user with exactly one workspace gets it preselected), navigation grouped by permission («Пространство», «Администрирование», «Сервис»), collapse button, user menu (theme, password, sign out). Sections the user has no permission for are not rendered.
-- Content: max width 1200px; 16 / 24 / 40px side padding on phone / tablet / desktop.
+- Content: max width 1600px (wide screens use the space; dense tables and grids get more columns); 16 / 24 / 40 / 56px side padding on phone / tablet / desktop / ≥1536px.
 - **No horizontal page scroll at 360px.** Grid items have `min-width: auto` by default, so long text inside them widens the page: give grids explicit tracks (`grid-cols-1`, `grid-cols-2` — Tailwind emits `minmax(0, 1fr)`) and children `min-w-0`; use `truncate` with a `title` for one-line labels. A `grid` without `grid-cols-*` creates an `auto` track that grows to its content — the most common cause of overflow here.
 - Tables wider than their card either scroll inside `data-slot=table-container` (admin lists) or switch to a card list below the breakpoint where they fit (the analytics manager table: cards below `xl`, `table-fixed` above).
 - Use `useMediaQuery` (`lib/use-media.ts`) only when behavior changes (the sidebar mode); prefer CSS breakpoints for appearance.
@@ -124,8 +131,7 @@ Built by hand in `components/charts.tsx` from the dataviz rules: thin marks, 4px
 
 The welcome presentation and the guided tour are specified in [onboarding.md](onboarding.md). UI rules that apply only there:
 
-- The presentation stage is always dark: render it with the `.dark` class on `bg-stage`, and use tokens (`text-foreground/60`, `bg-foreground/5`), not raw white.
-- Exception to «no gradients, no glows», for the stage only: one accent phrase per slide may use the `from-series-1 via-primary to-series-5` text gradient, and one soft radial light per slide may sit behind the content (decision 26).
+- The presentation is an ordinary dialog in the current theme; its previews are built from real components, never from screenshots or illustrations (decision 30).
 - The tour dims the page with `--scrim` and outlines the target with `ring-primary`; its card is a normal `bg-card` surface in the current theme.
 - A new section is not done until it has a `data-tour` anchor and a tour step (checklist in onboarding.md).
 

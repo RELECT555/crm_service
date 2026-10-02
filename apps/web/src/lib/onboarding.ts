@@ -16,10 +16,15 @@ export type TourContext = {
 export type TourStep = {
   /** `tour:<name>`; stable. */
   id: string
-  /** Value of the `data-tour` attribute that the spotlight highlights. */
-  target: string
+  /**
+   * `data-tour` value(s) of the element to highlight; the first one visible wins. List a fallback after the main
+   * target (e.g. the empty state) so a page without data still has something to point at.
+   */
+  target: string | string[]
   title: string
   body: string
+  /** Shown instead of `body` when a fallback target (not the first) was highlighted. */
+  fallbackBody?: string
   /** The step is offered only when the user holds this permission (in the tour's workspace for workspace permissions). */
   permission?: Permission
   /** Steps that need a workspace are skipped when the user has none. */
@@ -30,24 +35,34 @@ export type TourStep = {
   nav?: boolean
 }
 
+const workspace = ({ tenantId }: TourContext) => (tenantId ? `/tenants/${tenantId}` : null)
 const analytics = ({ tenantId }: TourContext) => (tenantId ? `/tenants/${tenantId}/analytics` : null)
 
-/** Tour steps in display order. Add a step here (and a `data-tour` attribute on its target) when a section appears. */
+/**
+ * Tour steps in display order: each section is opened and its key blocks are highlighted in place.
+ * Add steps here (and `data-tour` attributes on their targets) when a section appears — docs/onboarding.md#tour.
+ */
 export const TOUR_STEPS: TourStep[] = [
   {
     id: 'tour:workspace-switcher', target: 'workspace-switcher', nav: true,
-    title: 'Пространство',
-    body: 'Пространство — это компания или отдел со своими CRM и своей командой. Здесь переключаются пространства; всё в меню ниже относится к выбранному.',
+    title: 'Пространства',
+    body: 'Пространство — это клиент: его CRM, команда и отчёты. Здесь переключаются пространства; всё в меню ниже относится к выбранному.',
   },
   {
-    id: 'tour:nav-overview', target: 'nav-overview', nav: true, needsWorkspace: true, permission: 'workspaces.view',
-    title: 'Обзор',
-    body: 'Подключённые CRM, их состояние и ход загрузки данных. Отсюда же подключается новая CRM.',
+    id: 'tour:workspace-overview', target: 'workspace-overview', needsWorkspace: true, permission: 'workspaces.view', route: workspace,
+    title: 'Сводка пространства',
+    body: 'Сколько CRM подключено, какие работают, где нужна помощь и сколько записей уже загружено.',
   },
   {
-    id: 'tour:analytics-kpis', target: 'analytics-kpis', needsWorkspace: true, permission: 'analytics.view', route: analytics,
+    id: 'tour:workspace-connections', target: 'workspace-connections', needsWorkspace: true, permission: 'workspaces.view', route: workspace,
+    title: 'Подключения',
+    body: 'Каждая CRM — карточка со статусом и ходом загрузки. Откройте её, чтобы разметить закупки и типы дел. Новую CRM подключают здесь же.',
+  },
+  {
+    id: 'tour:analytics-kpis', target: ['analytics-kpis', 'analytics-empty'], needsWorkspace: true, permission: 'analytics.view', route: analytics,
     title: 'Аналитика команды',
-    body: 'Главные цифры рядом: результат — сделки, и работа — звонки, встречи, задачи. Так сразу видно, во что превращаются усилия.',
+    body: 'Главные цифры рядом: результат — сделки, и работа — звонки, встречи, задачи. Так видно, во что превращаются усилия.',
+    fallbackBody: 'Здесь появятся главные цифры команды, слабые места и сравнение менеджеров — как только загрузятся данные из CRM.',
   },
   {
     id: 'tour:analytics-signals', target: 'analytics-signals', needsWorkspace: true, permission: 'analytics.view', route: analytics,
@@ -60,24 +75,24 @@ export const TOUR_STEPS: TourStep[] = [
     body: 'Сделки и действия против лидера команды, риска — медиана. Цветная полоса показывает, из чего состоит работа человека.',
   },
   {
-    id: 'tour:nav-integrations', target: 'nav-integrations', nav: true,
+    id: 'tour:catalog', target: 'catalog-ready', route: () => '/integrations',
     title: 'Интеграции',
-    body: 'Какие CRM поддерживаются, что из них забираем и что нужно для подключения.',
+    body: 'Какие CRM можно подключить и что из них забираем. Нажмите на систему — откроется инструкция по подключению.',
   },
   {
-    id: 'tour:nav-users', target: 'nav-users', nav: true, permission: 'users.manage',
+    id: 'tour:users', target: 'users-list', permission: 'users.manage', route: () => '/users',
     title: 'Пользователи',
-    body: 'Кто работает в админке. Роль выдаётся на все пространства или на одно.',
+    body: 'Кто работает в админке и с какими ролями. Роль выдаётся на все пространства или на одно; действия с человеком — в меню «⋯» строки.',
   },
   {
-    id: 'tour:nav-roles', target: 'nav-roles', nav: true, permission: 'users.manage',
+    id: 'tour:roles', target: ['roles-matrix', 'roles-list'], permission: 'users.manage', route: () => '/roles',
     title: 'Роли и права',
-    body: 'Пять встроенных ролей по нарастающей — от наблюдателя до владельца — и свои роли из отдельных прав.',
+    body: 'Матрица показывает, что умеет каждая роль. Встроенные роли идут по нарастающей; свои собираются из отдельных прав.',
   },
   {
-    id: 'tour:nav-audit', target: 'nav-audit', nav: true, permission: 'audit.view',
+    id: 'tour:audit', target: ['audit-list', 'audit-empty'], permission: 'audit.view', route: () => '/audit',
     title: 'Журнал действий',
-    body: 'Кто, когда и что изменил: входы, подключения, роли, разметка данных.',
+    body: 'Кто, когда и что изменил: входы, подключения, роли, разметка данных. Пароли и токены сюда не попадают.',
   },
   {
     id: 'tour:user-menu', target: 'user-menu', nav: true,

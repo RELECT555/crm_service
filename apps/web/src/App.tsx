@@ -44,7 +44,7 @@ export default function App() {
       <Sidebar route={route} />
       <main className="min-w-0 flex-1">
         <AnimatePresence mode="wait" initial={false}>
-          <motion.div key={route.join('/')} className="mx-auto max-w-[1200px] px-4 pt-5 pb-12 sm:px-6 sm:pt-7 lg:px-10 lg:pt-8 lg:pb-16"
+          <motion.div key={route.join('/')} className="mx-auto max-w-[1600px] px-4 pt-5 pb-12 sm:px-6 sm:pt-7 lg:px-10 lg:pt-8 lg:pb-16 2xl:px-14"
             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0, transition: pageTransition }} exit={{ opacity: 0, transition: { duration: 0.1 } }}>
             {allowed ? <Suspense fallback={<Card><LoadingRows rows={5} /></Card>}>{page}</Suspense> : (
               <EmptyState title="Нет доступа" action={<Button variant="outline" size="lg" onClick={() => navigate('/')}>К пространствам</Button>}>

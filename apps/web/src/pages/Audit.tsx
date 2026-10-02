@@ -60,12 +60,12 @@ export function Audit() {
       <PageHeader eyebrow="Администрирование" icon={History} title="Журнал действий" subtitle="Кто, когда и что сделал в админке. Пароли и токены сюда не попадают." />
       {error && <ErrorNotice message={errorText(error)} onRetry={() => void load()} />}
       {next === undefined && !error && <Card><LoadingRows rows={6} /></Card>}
-      {next !== undefined && entries.length === 0 && <Card><EmptyState title="Записей пока нет" /></Card>}
+      {next !== undefined && entries.length === 0 && <Card data-tour="audit-empty"><EmptyState title="Записей пока нет" /></Card>}
       <div className="grid gap-6">
         {[...days.entries()].map(([day, list]) => (
           <section key={day}>
             <h2 className="mb-2 text-[13px] font-medium text-muted-foreground">{day}</h2>
-            <Card className="gap-0 py-0">
+            <Card className="gap-0 py-0" data-tour="audit-list">
               <motion.ol className="divide-y" variants={staggerList} initial="hidden" animate="show">
                 {list.map(entry => (
                   <motion.li key={entry.id} variants={staggerItem} className="grid gap-1 px-5 py-3 sm:grid-cols-[80px_1fr_minmax(0,220px)] sm:items-center sm:gap-4">

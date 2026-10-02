@@ -1,4 +1,4 @@
-import type { ConnectionStatus } from '@/lib/api'
+import type { ConnectionStatus, Provider } from '@/lib/api'
 
 // Russian formatting and labels shared by all screens.
 
@@ -65,4 +65,11 @@ export function plural(count: number, one: string, few: string, many: string): s
   if (mod10 === 1 && mod100 !== 11) return one
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few
   return many
+}
+
+/** Connector catalog states: label, status dot and one explanatory line. */
+export const PROVIDER_STATUS: Record<Provider['status'], { label: string; dot: string; text: string }> = {
+  available: { label: 'Готово к подключению', dot: 'bg-success', text: 'Подключается из пространства клиента' },
+  not_configured: { label: 'Нужны ключи приложения', dot: 'bg-warning', text: 'Коннектор готов — добавьте ключи приложения на сервер' },
+  planned: { label: 'В разработке', dot: 'bg-muted-foreground/40', text: 'API изучено, коннектор ещё не реализован' },
 }

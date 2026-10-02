@@ -1,10 +1,10 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { motion } from 'motion/react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import {
   BarChart3, Check, ChevronsUpDown, Compass, History, KeyRound, LayoutGrid, Layers, LogOut, Menu, Monitor, Moon, PanelLeftClose,
   PanelLeftOpen, Plug, Plus, ShieldCheck, Sparkles, Sun, Users,
 } from 'lucide-react'
-import { Brand } from '@/components/Brand'
+import { Brand, BrandMark } from '@/components/Brand'
 import { Avatar, Field } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -85,8 +85,13 @@ function SidebarContent({ route, collapsed, onToggle, onNavigate }: {
 
   return (
     <div className="flex h-full w-full flex-col px-3 py-3.5">
-      <div className={cn('mb-3 flex h-8 items-center', collapsed ? 'justify-center' : 'px-1.5')}>
-        <Brand compact={collapsed} />
+      {/* Fixed left padding everywhere: icons keep their position while the width animates; only labels fade. */}
+      <div className="mb-4 flex h-9 items-center overflow-hidden pl-2">
+        <BrandMark />
+        <Reveal show={!collapsed} className="ml-2.5 grid min-w-0 leading-none">
+          <span className="truncate text-[14px] font-semibold tracking-[-0.01em] text-foreground">CRM Analytics</span>
+          <span className="mt-1 truncate text-[11px] font-medium text-muted-foreground">Аналитика команды продаж</span>
+        </Reveal>
       </div>
 
       <WorkspaceSwitcher tenants={tenants.data ?? []} current={current} collapsed={collapsed} onNavigate={onNavigate} />
@@ -117,9 +122,17 @@ function SidebarContent({ route, collapsed, onToggle, onNavigate }: {
   )
 }
 
+/** Group heading; on the rail it becomes a divider in the same spot, so nothing below jumps while the width animates. */
 function Section({ label, collapsed, first }: { label: string; collapsed: boolean; first?: boolean }) {
-  if (collapsed) return first ? null : <div className="mx-2 my-2 h-px bg-sidebar-border" />
-  return <div className={cn('px-2.5 pb-1 text-[11px] font-medium text-sidebar-muted', !first && 'pt-4')}>{label}</div>
+  return (
+    <div className={cn('relative flex h-6 items-end overflow-hidden px-2.5 pb-1', !first && 'mt-3')}>
+      <Reveal show={!collapsed} className="text-[11px] font-medium whitespace-nowrap text-sidebar-muted">{label}</Reveal>
+      {!first && (
+        <motion.span aria-hidden="true" className="absolute inset-x-3 bottom-2.5 h-px bg-sidebar-border" initial={false}
+          animate={{ opacity: collapsed ? 1 : 0 }} transition={{ duration: 0.2 }} />
+      )}
+    </div>
+  )
 }
 
 function WorkspaceSwitcher({ tenants, current, collapsed, onNavigate }: {
@@ -131,12 +144,10 @@ function WorkspaceSwitcher({ tenants, current, collapsed, onNavigate }: {
     <DropdownMenu>
       <DropdownMenuTrigger
         data-tour="workspace-switcher"
-        className={cn('flex h-11 w-full items-center gap-2.5 rounded-xl bg-card text-left shadow-card ring-1 ring-border transition-colors outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-muted/60',
-          collapsed ? 'justify-center px-0' : 'px-2')}
+        className="flex h-11 w-full items-center gap-2.5 overflow-hidden rounded-xl bg-card px-2 text-left shadow-card ring-1 ring-border transition-colors outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-muted/60"
         title={collapsed ? name : undefined}>
         <Avatar name={current?.name ?? '?'} muted={!current} />
-        {!collapsed && (
-          <>
+        <Reveal show={!collapsed} className="flex min-w-0 flex-1 items-center gap-2.5">
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-medium text-foreground">{name}</span>
               <span className="block truncate text-[11px] text-muted-foreground">
@@ -144,8 +155,7 @@ function WorkspaceSwitcher({ tenants, current, collapsed, onNavigate }: {
               </span>
             </span>
             <ChevronsUpDown className="size-4 flex-none text-muted-foreground" />
-          </>
-        )}
+        </Reveal>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-60" align="start" side={collapsed ? 'right' : 'bottom'}>
         <DropdownMenuLabel>Пространства</DropdownMenuLabel>
@@ -186,20 +196,18 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
       <DropdownMenu>
         <DropdownMenuTrigger
           data-tour="user-menu"
-          className={cn('flex h-11 w-full items-center gap-2.5 rounded-xl text-left transition-colors outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-sidebar-accent',
-            collapsed ? 'justify-center px-0' : 'px-2')} title={collapsed ? name : undefined}>
+          className="flex h-11 w-full items-center gap-2.5 overflow-hidden rounded-xl px-2 text-left transition-colors outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-sidebar-accent"
+          title={collapsed ? name : undefined}>
           <span className="grid size-7 flex-none place-items-center rounded-full bg-accent text-[11px] font-semibold text-accent-foreground">
             {initials(name)}
           </span>
-          {!collapsed && (
-            <>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium text-foreground">{name}</span>
-                <span className="block truncate text-[11px] text-muted-foreground">{subtitle}</span>
-              </span>
-              <ChevronsUpDown className="size-4 flex-none text-muted-foreground" />
-            </>
-          )}
+          <Reveal show={!collapsed} className="flex min-w-0 flex-1 items-center gap-2.5">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-medium text-foreground">{name}</span>
+              <span className="block truncate text-[11px] text-muted-foreground">{subtitle}</span>
+            </span>
+            <ChevronsUpDown className="size-4 flex-none text-muted-foreground" />
+          </Reveal>
         </DropdownMenuTrigger>
         <DropdownMenuContent side={collapsed ? 'right' : 'top'} align={collapsed ? 'end' : 'start'} className="w-60">
           <DropdownMenuLabel>Тема</DropdownMenuLabel>
@@ -273,15 +281,14 @@ function NavItem({ href, icon: Icon, label, active, collapsed, disabled, onNavig
   return (
     <a href={href} onClick={onNavigate} data-tour={tour} aria-current={active ? 'page' : undefined} aria-disabled={disabled || undefined}
       title={collapsed ? label : undefined}
-      className={cn('relative flex h-8 items-center gap-2.5 rounded-lg text-[13px] font-medium text-sidebar-foreground no-underline transition-colors duration-150 hover:bg-sidebar-accent/70 hover:text-foreground hover:no-underline',
-        collapsed ? 'justify-center px-0' : 'px-2.5',
+      className={cn('relative flex h-8 items-center gap-2.5 overflow-hidden rounded-lg pr-2.5 pl-3.5 text-[13px] font-medium text-sidebar-foreground no-underline transition-colors duration-150 hover:bg-sidebar-accent/70 hover:text-foreground hover:no-underline',
         active && 'text-foreground',
         disabled && 'pointer-events-none opacity-40')}>
       {/* Shared layout highlight slides between items instead of blinking. */}
-      {active && <motion.span layoutId={collapsed ? 'nav-active-rail' : 'nav-active'} className="absolute inset-0 rounded-lg bg-sidebar-accent"
+      {active && <motion.span layoutId="nav-active" className="absolute inset-0 rounded-lg bg-sidebar-accent"
         transition={{ type: 'spring', stiffness: 500, damping: 38 }} />}
       <Icon className={cn('relative size-4 flex-none', active ? 'text-foreground' : 'text-sidebar-muted')} />
-      {!collapsed && <span className="relative truncate">{label}</span>}
+      <Reveal show={!collapsed} className="relative truncate">{label}</Reveal>
     </a>
   )
 }
@@ -289,10 +296,24 @@ function NavItem({ href, icon: Icon, label, active, collapsed, disabled, onNavig
 function SidebarButton({ label, collapsed, onClick, icon: Icon }: { label: string; collapsed: boolean; onClick: () => void; icon: typeof Layers }) {
   return (
     <button type="button" onClick={onClick} aria-label={label} title={collapsed ? label : undefined}
-      className={cn('flex h-8 items-center gap-2.5 rounded-lg text-[13px] text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-foreground',
-        collapsed ? 'justify-center' : 'px-2.5')}>
-      <Icon className="size-4" />{!collapsed && label}
+      className="flex h-8 items-center gap-2.5 overflow-hidden rounded-lg pr-2.5 pl-3.5 text-[13px] text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-foreground">
+      <Icon className="size-4 flex-none" /><Reveal show={!collapsed} className="whitespace-nowrap">{label}</Reveal>
     </button>
+  )
+}
+
+/** Sidebar label that fades and slides in after the rail widens, and out at once when it narrows. */
+function Reveal({ show, className, children }: { show: boolean; className?: string; children: ReactNode }) {
+  return (
+    <AnimatePresence initial={false}>
+      {show && (
+        <motion.span className={className} initial={{ opacity: 0, x: -6 }}
+          animate={{ opacity: 1, x: 0, transition: { duration: 0.22, delay: 0.08, ease: [0.2, 0.7, 0.2, 1] } }}
+          exit={{ opacity: 0, transition: { duration: 0.08 } }}>
+          {children}
+        </motion.span>
+      )}
+    </AnimatePresence>
   )
 }
 
