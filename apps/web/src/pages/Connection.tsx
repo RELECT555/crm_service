@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { ExternalLink, RefreshCw, Trash2 } from 'lucide-react'
 import { api, type ConnectionDetail } from '@/lib/api'
-import { EmptyState, ErrorNotice, Field, LoadingRows, Notice, PageHeader, ProviderMark, Stat, StatusBadge, ToneBadge } from '@/components/common'
+import { EmptyState, ErrorNotice, Field, LoadingRows, Notice, PageHeader, ProviderMark, Stat, StatusBadge, SyncBar, ToneBadge } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -45,7 +45,7 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
       {detail.error && <ErrorNotice message={errorText(detail.error)} onRetry={detail.reload} />}
       {!data && !detail.error && <Card><LoadingRows rows={4} /></Card>}
       {data && (
-        <div className="grid gap-5">
+        <div className="stagger grid gap-5">
           <ConnectionNotice data={data} onReauthorize={reauthorize} />
           <Card className="gap-0 py-0">
             <div className="flex flex-wrap items-center gap-3 border-b px-5 py-4">
@@ -105,10 +105,10 @@ function SyncCoverage({ data }: { data: ConnectionDetail }) {
       <CardHeader className="border-b">
         <CardTitle className="font-semibold">Синхронизация данных</CardTitle>
         <CardDescription>В очереди: {queued} · выполняется: {running}{failed ? ` · с ошибкой: ${failed}` : ''}</CardDescription>
-        <CardAction className="flex flex-wrap gap-1.5">
-          <ToneBadge tone="progress" dot={false}>Коммерческие: {numberFormat.format(totals.commercial)}</ToneBadge>
-          <ToneBadge tone="ok" dot={false}>Работа: {numberFormat.format(totals.work)}</ToneBadge>
-          <ToneBadge dot={false}>Справочные: {numberFormat.format(totals.context)}</ToneBadge>
+        <CardAction className="hidden gap-5 text-right sm:flex">
+          <Total label="коммерческих" value={totals.commercial} />
+          <Total label="действий" value={totals.work} />
+          <Total label="справочных" value={totals.context} />
         </CardAction>
       </CardHeader>
       {kinds.length === 0 ? (
@@ -129,9 +129,7 @@ function SyncCoverage({ data }: { data: ConnectionDetail }) {
                   <TableCell className="text-right tabular-nums">{numberFormat.format(counts.get(kind) ?? 0)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="h-1.5 min-w-20 flex-1 overflow-hidden rounded-full bg-muted">
-                        <div className={cn('h-full rounded-full', done ? 'w-full bg-success' : syncing ? 'w-2/5 animate-pulse bg-primary' : 'w-0')} />
-                      </div>
+                      <SyncBar state={done ? 'done' : syncing ? 'running' : 'waiting'} />
                       <span className="w-24 text-xs text-muted-foreground">{done ? 'Загружено' : syncing ? 'Загружается' : 'Ожидает'}</span>
                     </div>
                   </TableCell>
@@ -143,6 +141,15 @@ function SyncCoverage({ data }: { data: ConnectionDetail }) {
         </Table>
       )}
     </Card>
+  )
+}
+
+function Total({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <div className="text-[15px] font-semibold tabular-nums">{numberFormat.format(value)}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+    </div>
   )
 }
 
@@ -206,7 +213,7 @@ function CommercialSources({ data, tenantId, onChange }: { data: ConnectionDetai
                   <div className="font-mono text-xs text-muted-foreground">{row.amount_field} · {row.currency_field}</div>
                 </TableCell>
                 <TableCell>{row.category_id === '*' ? 'Все' : row.category_id}</TableCell>
-                <TableCell><ToneBadge tone={row.direction === 'purchase' ? 'warn' : 'ok'} dot={false}>{row.direction === 'purchase' ? 'Закупка' : 'Продажа'}</ToneBadge></TableCell>
+                <TableCell><ToneBadge tone={row.direction === 'purchase' ? 'warn' : 'ok'}>{row.direction === 'purchase' ? 'Закупка' : 'Продажа'}</ToneBadge></TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="icon-sm" aria-label="Удалить маппинг" onClick={() => remove(row.entity_type_id, row.category_id)}><Trash2 /></Button>
                 </TableCell>

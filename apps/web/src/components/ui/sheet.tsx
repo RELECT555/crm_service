@@ -9,14 +9,17 @@ function Sheet(props: SheetPrimitive.Root.Props) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
 }
 
-function SheetContent({ className, children, ...props }: SheetPrimitive.Popup.Props) {
+function SheetContent({ className, children, side = "right", ...props }: SheetPrimitive.Popup.Props & { side?: "left" | "right" }) {
   return (
     <SheetPrimitive.Portal>
-      <SheetPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/45 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
+      <SheetPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] transition-opacity duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0" />
       <SheetPrimitive.Popup
         data-slot="sheet-content"
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-xl flex-col bg-card text-card-foreground shadow-2xl ring-1 ring-foreground/10 transition-transform duration-200 outline-none data-ending-style:translate-x-8 data-ending-style:opacity-0 data-starting-style:translate-x-8 data-starting-style:opacity-0",
+          "fixed inset-y-0 z-50 flex h-full w-full flex-col bg-card text-card-foreground shadow-pop ring-1 ring-border transition-[translate,opacity] duration-250 ease-out outline-none data-ending-style:opacity-0 data-starting-style:opacity-0",
+          side === "right"
+            ? "right-0 max-w-xl data-ending-style:translate-x-10 data-starting-style:translate-x-10"
+            : "left-0 max-w-[290px] data-ending-style:-translate-x-10 data-starting-style:-translate-x-10",
           className
         )}
         {...props}

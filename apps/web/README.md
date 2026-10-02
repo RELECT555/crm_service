@@ -11,6 +11,8 @@ npm run check     # tsc + oxlint
 npm run build     # dist/, served by the backend at APP_ORIGIN
 ```
 
+Design rules: [docs/ui-guidelines.md](../../docs/ui-guidelines.md). For UI work without a CRM run `npm run seed:demo` once.
+
 Sign in with the backend's `ADMIN_API_KEY`. The operator types the key at runtime; it is kept in `sessionStorage` for the current tab only and is never part of the bundle or source. It is an operator credential, not customer authentication. Set `ADMIN_ORIGIN=http://localhost:5173` in `apps/api/.env` so the OAuth callback returns the browser to the dev server.
 
 ## Structure
@@ -20,12 +22,13 @@ src/
   App.tsx                 shell (sidebar) + hash routes
   index.css               Tailwind theme and design tokens (light + dark)
   components/ui/          shadcn primitives on Base UI (button, badge, card, dialog, sheet, input, table, ...)
-  components/             app building blocks (common.tsx), provider catalog, connect sheet, toasts
+  components/             app building blocks (common.tsx), Sidebar, ThemeSwitch, provider catalog, connect sheet, toasts
   pages/                  one file per screen; owns its data loading
   lib/api.ts              typed client for /v1 — the only module that calls fetch
   lib/use-resource.ts     data loading + polling hook
   lib/router.ts           hash router
   lib/format.ts           Russian labels, statuses, dates and numbers
+  lib/theme.ts            light/dark/system preference (public/theme-init.js applies it before first paint)
   lib/toast.ts            toast context and error messages
   lib/utils.ts            cn()
 ```

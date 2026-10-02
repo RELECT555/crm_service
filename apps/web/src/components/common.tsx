@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Check, Copy, RefreshCw } from 'lucide-react'
 import type { ConnectionStatus } from '@/lib/api'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,26 +10,44 @@ import { cn } from '@/lib/utils'
 
 // App-level building blocks composed from the shadcn primitives in components/ui.
 
+// Soft tinted pills without borders: color carries meaning, the shape stays quiet.
 const TONES: Record<Tone, string> = {
-  ok: 'border-success/25 bg-success/10 text-success',
-  progress: 'border-info/25 bg-info/10 text-info',
-  warn: 'border-warning/30 bg-warning/10 text-warning',
-  danger: 'border-destructive/25 bg-destructive/10 text-destructive',
-  muted: 'border-border bg-muted text-muted-foreground',
+  ok: 'bg-success/10 text-success dark:bg-success/12',
+  progress: 'bg-info/10 text-info dark:bg-info/12',
+  warn: 'bg-warning/10 text-warning dark:bg-warning/12',
+  danger: 'bg-destructive/10 text-destructive dark:bg-destructive/12',
+  muted: 'bg-muted text-muted-foreground',
 }
 
-export function ToneBadge({ tone = 'muted', dot = true, children }: { tone?: Tone; dot?: boolean; children: ReactNode }) {
+/** Small label for categories and directions. Use StatusBadge for connection states. */
+export function ToneBadge({ tone = 'muted', children }: { tone?: Tone; children: ReactNode }) {
+  return <span className={cn('inline-flex h-6 items-center rounded-md px-2 text-xs font-medium whitespace-nowrap', TONES[tone])}>{children}</span>
+}
+
+/** Connection state: a dot plus text. In-progress states get a soft pulsing halo instead of a blinking dot. */
+export function StatusBadge({ status }: { status: ConnectionStatus }) {
+  const info = STATUS[status] ?? { label: status, tone: 'muted' as const, hint: '' }
   return (
-    <Badge variant="outline" className={cn('h-[22px] px-2', TONES[tone])}>
-      {dot && <span className={cn('size-1.5 rounded-full bg-current', tone === 'progress' && 'animate-pulse')} />}
-      {children}
-    </Badge>
+    <span title={info.hint} className={cn('inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium whitespace-nowrap', TONES[info.tone])}>
+      <span className="relative flex size-1.5">
+        {info.tone === 'progress' && <span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-50" />}
+        <span className="relative inline-flex size-1.5 rounded-full bg-current" />
+      </span>
+      {info.label}
+    </span>
   )
 }
 
-export function StatusBadge({ status }: { status: ConnectionStatus }) {
-  const info = STATUS[status] ?? { label: status, tone: 'muted' as const, hint: '' }
-  return <span title={info.hint}><ToneBadge tone={info.tone}>{info.label}</ToneBadge></span>
+/** Thin progress bar: full when done, a sliding segment while running, empty while waiting. */
+export function SyncBar({ state }: { state: 'done' | 'running' | 'waiting' }) {
+  return (
+    <div className="relative h-1.5 min-w-20 flex-1 overflow-hidden rounded-full bg-muted">
+      <div className={cn('absolute inset-y-0 left-0 rounded-full transition-[width,background-color] duration-700 ease-out',
+        state === 'done' && 'w-full bg-success/80',
+        state === 'running' && 'w-2/5 animate-indeterminate bg-primary',
+        state === 'waiting' && 'w-0')} />
+    </div>
+  )
 }
 
 export function PageHeader({ crumbs, eyebrow, title, subtitle, actions }: {
@@ -94,7 +111,7 @@ export function LoadingRows({ rows = 3 }: { rows?: number }) {
 
 export function Notice({ tone, title, children, action }: { tone: Tone; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
-    <div role={tone === 'danger' ? 'alert' : 'status'} className={cn('flex flex-wrap items-start gap-3 rounded-xl border px-4 py-3', TONES[tone])}>
+    <div role={tone === 'danger' ? 'alert' : 'status'} className={cn('flex animate-enter flex-wrap items-start gap-3 rounded-xl px-4 py-3', TONES[tone])}>
       <div className="min-w-0 flex-1">
         <p className="font-semibold">{title}</p>
         {children && <div className="mt-0.5 text-foreground/80">{children}</div>}

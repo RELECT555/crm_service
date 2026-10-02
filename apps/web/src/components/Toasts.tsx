@@ -16,7 +16,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div role="status" aria-live="polite" className="fixed right-5 bottom-5 z-[60] grid max-w-[calc(100vw-2rem)] gap-2">
         {toasts.map(toast => (
-          <div key={toast.id} className={cn('max-w-sm min-w-64 rounded-lg px-4 py-3 text-sm shadow-xl',
+          <div key={toast.id} className={cn('max-w-sm min-w-64 animate-enter rounded-lg px-4 py-3 text-sm shadow-pop',
             toast.tone === 'error' ? 'bg-destructive text-white' : 'bg-foreground text-background')}>
             {toast.message}
           </div>

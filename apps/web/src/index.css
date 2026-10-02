@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 
 @theme inline {
   --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
@@ -28,6 +30,9 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-muted: var(--sidebar-muted);
   --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-active: var(--sidebar-active);
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
   --color-sidebar-border: var(--sidebar-border);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -35,64 +40,87 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* Design tokens. Components use only these (via Tailwind classes); both themes are required. */
+/* Design tokens. Components use only these (via Tailwind classes); both themes are required.
+   Theme is a class on <html> (.dark), set by lib/theme.ts and public/theme-init.js. */
 :root {
   --radius: 0.625rem;
   --background: #ffffff;
-  --foreground: #22212d;
+  --foreground: #1f1e29;
   --card: #ffffff;
-  --card-foreground: #22212d;
+  --card-foreground: #1f1e29;
   --primary: #785be3;
   --primary-foreground: #ffffff;
   --secondary: #f3f2f7;
   --secondary-foreground: #343340;
   --muted: #f4f3f8;
-  --muted-foreground: #777684;
-  --accent: #f3f0fd;
+  --muted-foreground: #74737f;
+  --accent: #f1edfd;
   --accent-foreground: #503b9b;
-  --border: #e9e8ef;
-  --input: #e9e8ef;
+  --border: #ebeaf0;
+  --input: #e4e3ea;
   --ring: #9b85ec;
-  --destructive: #d95757;
-  --success: #1f9d62;
-  --warning: #c27a12;
-  --info: #3b6fd8;
-  --canvas: #f8f7fb;
-  --sidebar: #191927;
-  --sidebar-foreground: #e6e5ee;
-  --sidebar-muted: #8a89a0;
-  --sidebar-accent: #26253a;
-  --sidebar-border: #2c2b40;
-  color-scheme: light;
+  --destructive: #d14d4d;
+  --success: #198754;
+  --warning: #b86e0b;
+  --info: #3466cc;
+  --canvas: #f7f7fa;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #3b3a47;
+  --sidebar-muted: #8b8a96;
+  --sidebar-accent: #f3f1fb;
+  --sidebar-active: #4e3aa0;
+  --sidebar-border: #ebeaf0;
+  --shadow-card: 0 1px 2px rgb(20 18 40 / 0.04), 0 1px 1px rgb(20 18 40 / 0.03);
+  --shadow-pop: 0 18px 40px -12px rgb(20 18 40 / 0.22);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #14131d;
-    --foreground: #ecebf3;
-    --card: #1b1a27;
-    --card-foreground: #ecebf3;
-    --primary: #8f76ec;
-    --primary-foreground: #ffffff;
-    --secondary: #242333;
-    --secondary-foreground: #dcdbe6;
-    --muted: #222131;
-    --muted-foreground: #9a99ab;
-    --accent: #2a2442;
-    --accent-foreground: #c9bdf7;
-    --border: #2c2b3d;
-    --input: #34334a;
-    --ring: #8f76ec;
-    --destructive: #f07272;
-    --success: #4cc68b;
-    --warning: #f0b14a;
-    --info: #7da3f2;
-    --canvas: #100f17;
-    --sidebar: #0d0c14;
-    --sidebar-accent: #1f1e2e;
-    --sidebar-border: #232233;
-    color-scheme: dark;
-  }
+.dark {
+  --background: #131318;
+  --foreground: #ececf1;
+  --card: #18181e;
+  --card-foreground: #ececf1;
+  --primary: #8b74ee;
+  --primary-foreground: #ffffff;
+  --secondary: #222229;
+  --secondary-foreground: #dedde6;
+  --muted: #1f1f26;
+  --muted-foreground: #9897a4;
+  --accent: #252135;
+  --accent-foreground: #cbbff8;
+  --border: #26262e;
+  --input: #2e2e37;
+  --ring: #8b74ee;
+  --destructive: #ef7474;
+  --success: #4ec98c;
+  --warning: #eeb055;
+  --info: #7ea2f0;
+  --canvas: #0f0f13;
+  --sidebar: #131318;
+  --sidebar-foreground: #c9c8d3;
+  --sidebar-muted: #77767f;
+  --sidebar-accent: #1e1d26;
+  --sidebar-active: #e4ddff;
+  --sidebar-border: #222229;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.02) inset, 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-pop: 0 24px 48px -12px rgb(0 0 0 / 0.7);
+}
+
+/* Motion: short, ease-out, never blocking. Disabled for prefers-reduced-motion below. */
+@keyframes enter-up { from { opacity: 0; transform: translateY(6px); } }
+@keyframes enter-fade { from { opacity: 0; } }
+@keyframes shimmer { to { background-position: -200% 0; } }
+@keyframes indeterminate { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+
+@utility animate-enter { animation: enter-up 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@utility animate-fade { animation: enter-fade 200ms ease-out both; }
+@utility animate-indeterminate { animation: indeterminate 1.3s ease-in-out infinite; }
+@utility stagger { & > * { animation: enter-up 300ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  & > *:nth-child(2) { animation-delay: 40ms; } & > *:nth-child(3) { animation-delay: 80ms; }
+  & > *:nth-child(4) { animation-delay: 120ms; } & > *:nth-child(n + 5) { animation-delay: 160ms; } }
+@utility shimmer {
+  background: linear-gradient(90deg, var(--muted) 25%, color-mix(in oklch, var(--muted), var(--foreground) 6%) 50%, var(--muted) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
 }
 
 @layer base {
@@ -102,7 +130,9 @@
     @apply bg-canvas text-foreground font-sans antialiased;
     font-size: 14px;
     font-feature-settings: "tnum" 1, "cv11" 1;
+    transition: background-color 200ms ease;
   }
+  ::selection { background: color-mix(in oklch, var(--primary), transparent 75%); }
   a { @apply text-primary; }
 }
 

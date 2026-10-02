@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Plus } from 'lucide-react'
 import { api } from '@/lib/api'
-import { EmptyState, ErrorNotice, Field, LoadingRows, PageHeader, ToneBadge } from '@/components/common'
+import { EmptyState, ErrorNotice, Field, LoadingRows, PageHeader } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -48,12 +48,7 @@ export function Workspaces() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{numberFormat.format(tenant.connections)}</TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap gap-1.5">
-                        {tenant.connections === 0 && <ToneBadge dot={false}>Нет подключений</ToneBadge>}
-                        {tenant.live > 0 && <ToneBadge tone="ok">Работают: {tenant.live}</ToneBadge>}
-                        {tenant.attention > 0 && <ToneBadge tone="danger">Требуют внимания: {tenant.attention}</ToneBadge>}
-                        {loading > 0 && <ToneBadge tone="progress">Загружаются: {loading}</ToneBadge>}
-                      </div>
+                      <StateSummary live={tenant.live} attention={tenant.attention} loading={loading} total={tenant.connections} />
                     </TableCell>
                     <TableCell className="text-muted-foreground">{formatDate(tenant.created_at)}</TableCell>
                   </TableRow>
@@ -65,6 +60,25 @@ export function Workspaces() {
       </Card>
       <CreateWorkspace open={creating} onOpenChange={setCreating} />
     </>
+  )
+}
+
+/** Quiet one-line summary: colored dots carry the state, text stays neutral. */
+function StateSummary({ live, attention, loading, total }: { live: number; attention: number; loading: number; total: number }) {
+  if (total === 0) return <span className="text-muted-foreground">Нет подключений</span>
+  const items = [
+    { count: live, label: 'работает', dot: 'bg-success' },
+    { count: loading, label: 'загружается', dot: 'bg-info' },
+    { count: attention, label: 'требует внимания', dot: 'bg-destructive' },
+  ].filter(item => item.count > 0)
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+      {items.map(item => (
+        <span key={item.label} className="inline-flex items-center gap-1.5">
+          <span className={`size-1.5 rounded-full ${item.dot}`} />{item.count} {item.label}
+        </span>
+      ))}
+    </div>
   )
 }
 

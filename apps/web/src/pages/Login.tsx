@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { api, setAdminKey } from '@/lib/api'
 import { Brand } from '@/components/Brand'
+import { ThemeSwitch } from '@/components/ThemeSwitch'
 import { Field } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -26,8 +27,9 @@ export function Login() {
   }
 
   return (
-    <main className="grid min-h-full place-items-center px-4 py-8">
-      <div className="w-full max-w-sm">
+    <main className="relative grid min-h-full place-items-center px-4 py-8">
+      <div className="absolute top-4 right-4"><ThemeSwitch compact /></div>
+      <div className="w-full max-w-sm animate-enter">
         <div className="mb-6"><Brand /></div>
         <Card>
           <CardContent>
