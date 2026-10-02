@@ -1,6 +1,19 @@
 # Delivery models and implementation plan
 
-Status: proposed, 2026-09-30.
+Status: release design proposed on 2026-09-30; prototype checkpoint below reflects code on 2026-10-02. Implemented operator features do not imply customer authentication, production hosting or a verified embedded integration.
+
+## Current prototype checkpoint
+
+| Area | Implemented | Still required for release |
+| --- | --- | --- |
+| Ingestion foundation | Scoped SQLite records, encrypted credentials/payloads, transactional page checkpoints, persisted jobs, restart recovery and reconciliation ([code architecture](code-architecture.md)) | Production storage/coordination, retention, measured quotas and missed-delete policy |
+| Connectors | Bitrix24 and shared Kommo/amoCRM adapter; OAuth, canonical mapping and event handling covered by mocked integration tests | Recorded sandbox evidence per provider/plan; Kommo/amoCRM sandbox verification remains pending ([playbooks](connectors/)) |
+| Operator access | Email/password sessions, scoped built-in/custom roles, users and audit ([access control](access-control.md)) | Customer identity model and multi-instance session/throttle design |
+| Analytics | Workspace metrics v2: sales, purchases, work by manager, signals and coverage ([definitions](metrics.md)) | Time windows, missing-currency/purchase coverage and verified links below; no historical-stage reconstruction |
+| Admin UI | Connection setup/repair, sync status, mappings, analytics, permissions, welcome presentation and guided tour ([onboarding](onboarding.md)) | Validate against real CRM data and record end-to-end sandbox evidence |
+| Delivery | Locally runnable standalone operator UI | Customer-facing release, CRM embedding and production operations remain proposed |
+
+Local tests prove our implementation against fixtures. They do not demonstrate a successful installation, plan entitlement, event delivery or API quota in a real CRM. Vendor research dates are separate from sandbox verification dates.
 
 ## Two delivery models, one backend
 
@@ -11,12 +24,14 @@ Status: proposed, 2026-09-30.
 
 Do not assume arbitrary iframes are accepted by every CRM. Bitrix24 has explicit iframe placements ([official widgets guide](https://apidocs.bitrix24.com/api-reference/widgets/index.html)); HubSpot uses current React UI extensions ([developer platform](https://developers.hubspot.com/developer-platform-basics)); Pipedrive has app panels and actions ([extensions guide](https://pipedrive.readme.io/docs/app-extensions)); Salesforce offers Canvas ([current setup guide](https://developer.salesforce.com/docs/platform/canvas-framework/guide/quick-start-intro-create.html)); Dataverse supports model-driven custom pages ([Microsoft guide](https://learn.microsoft.com/en-us/power-apps/developer/model-driven-apps/clientapi/navigate-to-custom-page-examples)). The embedded shell may call the hosted analytics API and display a compact view or link to the full dashboard. Provider UI code should contain no CRM refresh token.
 
-## Suggested build sequence
+## Original release sequence
+
+This sequence describes the target release, not a list of wholly unimplemented features. The checkpoint above records what already exists; production decisions remain open.
 
 1. **Foundation:** choose tenant identity, hosting region, database, queue, secret store, retention policy, and metric definitions. Implement connection state and scoped credentials.
 2. **First vertical slice:** Bitrix24 OAuth app -> account discovery -> paginated read of deals, contacts, activities, pipelines/stages -> canonical mapping -> a two-axis commercial/work dashboard -> event refetch -> reconciliation. Sales deals are classified as `sale`; purchase processes require an explicit mapping. This is a proposed starting point because Bitrix24 is explicitly in scope and has documented widget placements.
 3. **Second connector:** Kommo, including OAuth, form-encoded webhooks, custom fields, and strict API throttling. Validate that the canonical model holds across two different CRM structures.
-4. **Standalone release:** add user authentication, tenant administration, per-object sync status, connection repair, and metric coverage displays. Only then promise analytics freshness.
+4. **Standalone release:** harden the implemented operator authentication, tenant administration, sync status, repair and coverage displays; choose customer authentication and prove freshness with real data before making a promise.
 5. **First embed:** Bitrix24 CRM tab or app page using the existing analytics API. Verify installation, launch context, session exchange, frame behavior, and navigation in a real test portal.
 6. **Expansion:** prioritize HubSpot, Pipedrive, Salesforce, Zoho, and Dataverse based on actual customer demand, API access, cost, and support burden. Research each embedded experience independently.
 
@@ -30,6 +45,19 @@ Do not assume arbitrary iframes are accepted by every CRM. Bitrix24 has explicit
 - Secrets are absent from browser bundles, API responses, logs, and committed files.
 - A sandbox demonstration covers two customer accounts with no cross-account data exposure.
 - Embedded launch can be completed without a long-lived CRM credential in browser storage.
+
+## Engineering follow-ups
+
+These gaps were found in the current code, rather than inferred from the target design. They need focused implementation changes; metric choices must be explicit before changing results.
+
+| Priority | Gap and evidence | Completion criteria |
+| --- | --- | --- |
+| Before a customer pilot | Server sessions slide by 12 hours, but browser cookies are only issued at sign-in ([authentication](access-control.md#authentication)) | Choose fixed or sliding session lifetime; align cookie and storage expiry. Integration tests cover active use, inactivity, password reset and restart, including `Set-Cookie` behavior |
+| Before relying on monetary comparisons | Currency-free amounts enter sums; other-currency coverage counts sales only; unassigned purchases have no coverage counter ([metrics](metrics.md#currency)) | Define missing-currency and purchase coverage policy, bump the metric version, update UI/definitions, and test mixed currencies, missing currency and purchases without an owner |
+| Before calling activity links verified | `analyticsRows()` counts a stored target id/kind without checking the target record or connection ([metrics](metrics.md#team-metrics)) | Define whether links cover sales, purchases or both; verify tenant + connection + kind + external id against non-deleted targets. Test missing/deleted targets and colliding ids in different connections; update metric version/wording |
+| Before promising synchronization completeness | Verified delete events work; missed deletes, changed permissions and out-of-order delete/restore remain unresolved ([ingestion design](ingestion-contract.md#target-sync-state-machine)) | Choose a provider-supported reconciliation policy, prove it with delete/restore and permission-change fixtures plus a sandbox run, and publish remaining coverage limits |
+| Before connecting customer data | Mocked tests are not live-provider evidence ([connector selection](connectors.md#connector-selection-rule)) | Record provider, plan, date and outcome in the playbook: OAuth refresh/revocation, pagination/restart, subscriptions/polling, duplicates, two-account isolation, mappings and throttling; keep credentials and customer data out of evidence |
+| Before adding time-based analytics | Metrics currently cover all loaded records; timezone is stored but not used for date windows ([metrics](metrics.md#response-time-and-freshness)) | Confirm reporting windows and date meanings, normalize source timestamps, test timezone boundaries, and separate observed stage history from current snapshots |
 
 ## Decisions to confirm
 

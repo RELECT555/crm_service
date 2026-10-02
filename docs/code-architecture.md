@@ -45,11 +45,11 @@ apps/
     scripts/seed-demo.ts       demo workspaces/connections for UI work without a CRM (npm run seed:demo)
   web/                         React 19 + Vite + Tailwind CSS + shadcn (Base UI) + Motion admin UI
     src/
-      main.tsx                 MotionConfig (reduced motion) -> SessionProvider -> OnboardingProvider -> App
+      main.tsx                 MotionConfig (reduced motion) -> ToastProvider -> SessionProvider -> OnboardingProvider -> App
       App.tsx                  hash routes -> page + required permission; lazy page chunks; page transitions
       components/ui/           shadcn primitives (button, card, dialog, sheet, dropdown-menu, table, ...); overlays animated with Motion
       components/              app building blocks composed from ui/: Sidebar, SessionProvider, charts, common
-      components/LoginBackdrop.tsx  decorative sign-in canvas; Motion loop, explicit playback, visibility and context lifecycle
+      components/LoginBackdrop.tsx  decorative sign-in canvas; rAF loop, explicit playback, visibility and context lifecycle
       components/onboarding/   welcome presentation, guided tour, OnboardingProvider (docs/onboarding.md); lazy chunks
       pages/                   one file per screen; owns data loading for that screen
                                Workspaces, Workspace, Connection, Catalog, Analytics, Users, Roles, Audit, Login
@@ -84,7 +84,7 @@ web/components -> web/components/ui, web/lib/*  (components/ui imports only web/
 ```
 
 - **Provider knowledge lives only in `connectors/<provider>/`.** Routes, worker, store and UI never branch on a provider ID or read provider field names. The current exception is listed under Known debt.
-- **SQL lives only in `storage/store.ts`.** Every query that reads customer data filters by `tenant_id` and/or `connection_id`.
+- **SQL lives only in `storage/`.** `store.ts` owns CRM data and jobs; `access.ts` owns identity, grants, sessions, audit and onboarding. Customer-record queries are scoped by tenant/connection; identity queries follow the grant model in [access-control.md](access-control.md).
 - **The worker never inspects provider errors.** Adapters translate failures into `ConnectorAuthError` (stop, require re-authorization), `ConnectorInputError` (operator mistake, HTTP 400) or `ConnectorUpstreamError`/any other error (retry with backoff, then `degraded`).
 - **The browser never sees CRM credentials.** API responses expose `account`, `accountId`, status and counts; never `*_enc` columns, tokens or webhook secrets. `test/admin.test.ts` asserts this.
 
@@ -94,7 +94,7 @@ web/components -> web/components/ui, web/lib/*  (components/ui imports only web/
 2. Static admin UI for non-`/v1` GETs when `apps/web/dist` exists.
 3. Auth router (`/v1/auth/status`, `bootstrap`, `login`, `logout`) — the only `/v1` routes without a principal.
 4. Principal: the `crm_session` cookie (a user) or `x-admin-key` (the system principal, for scripts and first-owner bootstrap). No principal → 401. Cookie requests other than GET/HEAD must carry `x-requested-with: crm-admin` (CSRF guard) or get 403.
-5. Admin + access routers. Every route calls `requirePermission(principal, permission, tenantId?)` before touching data and writes an audit entry for each change; unknown path → 404, wrong method → 405.
+5. Admin + access routers. Business routes call `requirePermission(principal, permission, tenantId?)` before touching data. Catalog/current-user routes require a principal without a named permission; workspace listing filters by `can`. Personal password/onboarding routes require a user principal. Business mutations and login attempts are audited; logout, onboarding and worker writes are not ([access-control.md](access-control.md#audit-log)). After authentication, unknown paths return 404 and wrong methods 405. A wrong method on a public/auth path can fall through to authentication first.
 
 Errors: `HttpError` → its status; `ConnectorInputError` → 400; connector auth/upstream → 502; anything else → 500 with a generic message (details only in server logs, never tokens).
 
@@ -109,17 +109,19 @@ GET /oauth/:provider/callback
   -> known account: rotate tokens, queue full resync (repairs reauthorization_required)
 worker
   bind  -> connector.subscribe(handler URL with secret) -> events_bound = 1
-  bind  returns the events mode: `webhook`, or `polling` when the CRM plan forbids webhooks (hourly reconciliation)
+  bind  returns the events mode: `webhook`, or `polling` when the CRM plan forbids webhooks
   sync  -> connector.listPage -> upsert records + checkpoint + next page job in ONE transaction
   fetch -> connector.fetchRecord (upsert) or tombstone on a verified delete event
   refreshSyncState -> live when no sync job is pending, all checkpoints complete, events bound
-hourly -> connections stale > 24 h get a full reconciliation (polling-mode connections: > 1 h)
+every 15 min -> live connections with last full sync > 24 h get a full reconciliation (polling: > 1 h)
 disconnect -> status `disconnected`, queued jobs cancelled, worker drops jobs that were already running, webhooks answered 202 and ignored
 resume     -> full sync, as for a new connection
 jobs keep `error` (last failure, cleared on success) and `finished_at`; GET …/activity shows the last 30
 ```
 
-Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_required`, `disconnected` (`domain/model.ts`). The admin UI labels them in `web/src/lib.ts`.
+Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_required`, `disconnected` (`domain/model.ts`). The admin UI labels them in `apps/web/src/lib/format.ts`. `discovering` and `catching_up` in the target ingestion design are not runtime statuses.
+
+Jobs persist in SQLite. Startup returns interrupted `running` jobs to `queued`; the single worker processes one job per tick (250 ms timer). Auth failures stop retries and require reauthorization. Other failures back off and fail after at most five job attempts, leaving the connection degraded. Adapter HTTP retries are separate from job retries. Reconciliation thresholds do not guarantee completion time or event delivery.
 
 ## Adding a connector (checklist)
 
@@ -145,10 +147,10 @@ Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_requ
 - Colors come only from tokens in `src/index.css` via Tailwind classes (`bg-primary`, `text-muted-foreground`, `text-success`, ...). Status colors come from `STATUS` in `lib/format.ts`. Light and dark themes are both required.
 - All copy is Russian, concise, and states consequences ("запустит полную пересинхронизацию").
 - Sign-in is by email and password; the session is an HttpOnly cookie the browser script cannot read. `lib/api.ts` sends the CSRF header on every request and fires a session-expired event on 401, which returns the app to the login screen. The operator key is typed only once, on the first-owner bootstrap screen.
-- Sign-in and first-owner setup share a branded card, theme-token fields, and a password visibility control local to `pages/Login.tsx`; native validation and autocomplete are preserved. The background's explicit play/pause choice is saved in `localStorage` (`crm-login-motion`) and controls `LoginBackdrop` (decision 27).
+- Sign-in and first-owner setup share a centered branded card with a centered heading, grouped theme-token fields, an inline sign-in access hint, and a password visibility control local to `pages/Login.tsx`; native validation and autocomplete are preserved (decision 29). The background's play/pause choice is saved in `localStorage` (`crm-login-motion`). `LoginBackdrop` uses an 18-second rAF cycle capped at 30 fps, pauses in hidden tabs and falls back when WebGL fails. It runs under OS reduced motion until explicitly paused (decision 27).
 - Permission-gated UI uses `useCan()`; pages register their required permission in `resolve()` in `App.tsx`.
 - Onboarding: the presentation and tour are data-driven (`lib/onboarding.ts`); a new section adds a `data-tour` anchor and a tour step ([onboarding.md](onboarding.md)).
-- Animations use Motion presets from `lib/motion.ts`; responsive layouts follow the three-layout rule (phone top bar, tablet rail, desktop sidebar). Both are specified in [ui-guidelines.md](ui-guidelines.md).
+- UI transitions use Motion presets from `lib/motion.ts`, with documented onboarding choreography and sign-in shader exceptions; responsive layouts follow the three-layout rule (phone top bar, tablet rail, desktop sidebar). Both are specified in [ui-guidelines.md](ui-guidelines.md).
 
 ## Testing
 
@@ -167,6 +169,8 @@ Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_requ
 - Single-process SQLite and in-process worker; rate limiting is per process (Kommo client spaces requests per connection).
 - Kommo backfill uses page numbers; Bitrix24 uses id keysets. Incremental `updated_at` scans would make polling-mode reconciliation cheaper.
 - Existing databases keep the old `UNIQUE(tenant_id, account_id)` connection key; new databases use `(tenant_id, provider, account_id)`.
+- Forward migrations in `storage/store.ts` retain legacy Bitrix24 defaults and translate the old commercial `entityTypeId` mapping. This compatibility code is the sanctioned provider-specific exception; new runtime branches belong in adapters/registry.
 - `GET …/connections/:id/dashboard` (`store.dashboard`) predates the workspace analytics endpoint and has no UI; remove it once nothing calls it.
 - Analytics has no date filter yet: metrics cover all loaded data (see metrics.md, «Coverage and limits»).
-- Sessions and login throttling live in one process; a multi-instance deployment needs a shared store.
+- Sessions persist in SQLite, but login throttling is in memory and worker coordination is single-process. Multiple instances require an explicit storage/coordination design.
+- The server extends session expiry on use, but does not renew the browser cookie's 12-hour lifetime. Analytics coverage also omits some purchase/currency cases and treats links as recorded references. Concrete acceptance criteria: [engineering follow-ups](delivery-plan.md#engineering-follow-ups).

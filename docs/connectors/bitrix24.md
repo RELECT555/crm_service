@@ -1,6 +1,6 @@
 # Bitrix24 connector playbook
 
-Status: **available** (adapter in `apps/api/src/connectors/bitrix24/`). Research date: 2026-10-02.
+Status: **implemented** (adapter in `apps/api/src/connectors/bitrix24/`); the runtime catalog shows **available** only when app credentials are configured. Research date: 2026-10-02. Local verification and sandbox evidence are distinguished below.
 
 ## Operator setup
 1. Once per service: create a Bitrix24 application (Marketplace or local) with the `crm` scope and register the redirect URI `${APP_ORIGIN}/oauth/bitrix24/callback`. Put the client ID/secret into `BITRIX_CLIENT_ID` / `BITRIX_CLIENT_SECRET`.
@@ -47,3 +47,9 @@ Not yet covered: external tasks (`tasks.task.list`), multi-entity activity bindi
 
 ## Sources
 Linked inline. Re-verify limits and event behavior before production.
+
+## Verification evidence
+
+Local integration coverage: [flow.test.ts](../../apps/api/test/flow.test.ts) (OAuth/account verification, backfill and events), [resume.test.ts](../../apps/api/test/resume.test.ts) (page interruption/retry), [admin.test.ts](../../apps/api/test/admin.test.ts) (catalog, mappings and response secrecy), and [lifecycle.test.ts](../../apps/api/test/lifecycle.test.ts) (disconnect/resume). These use mocked provider responses; they do not prove live plan permissions, quotas or event delivery.
+
+This playbook records no dated sandbox run. Treat live behavior as **unverified here** until an operator records the date, portal edition/plan, tested objects and result. The minimum run covers OAuth refresh/revocation, pagination/restart, event registration and delivery, duplicate/delete events, purchase/custom-activity mappings, and two accounts with no cross-account data exposure. Record observed limits and differences from the linked official documentation without credentials or real customer payloads. Embedded launch, offline events and missed-delete reconciliation remain separate unverified work.

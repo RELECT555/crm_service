@@ -2,6 +2,12 @@
 
 Research date: 2026-09-30, refreshed 2026-10-02. Links point to official vendor documentation. API versions, quotas, subscriptions, editions, and marketplace rules can change; recheck them in a provider sandbox when implementation starts. The entries below describe supported mechanisms, not guaranteed access on every customer plan.
 
+## Implementation and verification status
+
+Bitrix24 and shared Kommo/amoCRM adapters exist in `apps/api/src/connectors/`; the other providers below are research/catalog entries, not empty adapters. Kommo/amoCRM still needs sandbox verification. The capability tables describe vendor research, while [`apps/api/test`](../apps/api/test/) contains implementation checks with mocked responses. Neither a research date nor passing mocks is a live-account verification date.
+
+The runtime catalog reports `available` when an adapter is registered and both app credentials are non-empty, `not_configured` when its credentials are missing, and `planned` when no adapter exists. Placeholder credentials can show `available`; the registry does not validate tokens, plan access or event delivery. Operator setup and observed sandbox evidence belong in the provider playbook. Before implementing a researched provider, use the [selection rule](#connector-selection-rule) below.
+
 ## Capability matrix
 
 | CRM | Authorization and initial read | Change capture | In-CRM presentation | Main implementation caveat |

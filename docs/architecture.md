@@ -2,9 +2,13 @@
 
 Status: proposed design, 2026-09-30.
 
+For the running prototype use [code-architecture.md](code-architecture.md), [api.md](api.md) and [metrics.md](metrics.md). The diagram below includes target components: separate history/snapshot stores and CRM embedding do not exist yet. Current storage combines canonical fields and encrypted minimized payloads in SQLite, and metrics are computed on request. Implemented milestones and release gaps: [delivery-plan.md](delivery-plan.md#current-prototype-checkpoint).
+
 ## Product boundary
 
 Customers connect one or more CRM accounts and authorize read access. The service copies the approved data into a tenant-isolated analytical store, computes consistently defined metrics, and displays results in a standalone dashboard or a CRM extension. An embedded view is a presentation channel: the ingestion and analytics backend remain the same. The first release does not modify CRM records.
+
+Read-only refers to CRM business records. Adapter setup can register change-notification subscriptions; local disconnect does not remove those registrations. Customer-facing login and embedded-session exchange remain proposed; the existing UI authenticates service operators.
 
 The product's analytical model has two axes: **commercial outcomes** (sales, purchases, and later other money-bearing processes) and **non-commercial work** (meetings, calls, visits, negotiations, tasks, and other activities). The central question is how work relates to outcomes over time, by person, customer, and process. A CRM deal is not automatically a purchase; direction must come from an explicit provider mapping or customer configuration.
 
@@ -51,6 +55,8 @@ The first release should avoid storing message bodies, call recordings, attachme
 ## Analytics semantics
 
 Define metrics in versioned code and document their inputs. The first dashboard should show the two axes separately and together: commercial counts/value by direction, currency, pipeline and owner; activity counts by type, owner and completion; and linked work per commercial item. A relationship is causal only if there is evidence and a defined time window—do not label correlation as contribution. For each metric specify denominator, filters, timezone, missing-field behavior, and whether historical changes are available. Currency totals must either be grouped by currency or converted using an explicitly selected rate source and effective date; never silently sum different currencies. Stage history and conversion funnels must start at connection time unless the CRM exposes usable history or the customer imports historical events.
+
+This is the target policy. The current all-time metric v2 selects one currency without conversion, still includes amounts with missing currency, and counts recorded link references without verifying targets. Those limitations are explicit in [metrics.md](metrics.md); changing them requires agreed definitions, a metric-version update and behavior tests.
 
 ## Multi-tenant and operational boundaries
 

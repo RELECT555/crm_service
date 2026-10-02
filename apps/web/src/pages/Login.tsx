@@ -7,7 +7,7 @@ import { LoginBackdrop } from '@/components/LoginBackdrop'
 import { Field } from '@/components/common'
 import { ThemeSwitch } from '@/components/ThemeSwitch'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { dialogSpring } from '@/lib/motion'
@@ -35,7 +35,7 @@ export function Login({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
   return (
     <main className="relative isolate flex min-h-svh flex-col overflow-hidden bg-background">
       <LoginBackdrop animated={animated} />
-      <header className="relative flex justify-end px-4 py-4 sm:px-10 sm:py-6">
+      <header className="absolute top-0 right-0 z-10 px-4 py-4 sm:px-10 sm:py-6">
         <div role="group" aria-label="Оформление экрана" className="flex items-center gap-0.5 rounded-xl bg-card/80 p-1 shadow-card ring-1 ring-border backdrop-blur-sm">
           <Button variant="ghost" size="icon" onClick={toggleMotion} aria-pressed={animated}
             aria-label={animated ? 'Остановить анимацию фона' : 'Включить анимацию фона'}
@@ -46,16 +46,14 @@ export function Login({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
           <ThemeSwitch compact className="size-10 text-muted-foreground" />
         </div>
       </header>
-      <section aria-label="Авторизация" className="relative grid flex-1 grid-cols-1 place-items-center px-4 pt-4 pb-12 sm:pt-8 sm:pb-24">
-        <motion.div className="w-full min-w-0 max-w-[440px]" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, transition: dialogSpring }}>
+      <section aria-label="Авторизация" className="relative grid flex-1 grid-cols-1 place-items-center px-4 py-24">
+        <motion.div className="w-full min-w-0 max-w-[420px]" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, transition: dialogSpring }}>
           <Card className="gap-0 py-0 shadow-pop">
-            <CardHeader className="px-6 pt-6 pb-6 sm:px-8 sm:pt-8">
-              <Brand />
-            </CardHeader>
-            <CardContent className="px-6 pb-6 sm:px-8 sm:pb-8">
+            <CardContent className="p-6 sm:p-8">
               {mode === 'loading' ? (
-                <div role="status" aria-label="Загружаем форму входа" className="grid gap-5">
-                  <Skeleton className="h-16 w-4/5" />
+                <div role="status" aria-label="Загружаем форму входа" className="grid gap-6">
+                  <div className="flex justify-center"><Brand /></div>
+                  <Skeleton className="mx-auto h-16 w-4/5" />
                   <Skeleton className="h-16" />
                   <Skeleton className="h-16" />
                   <Skeleton className="h-11" />
@@ -65,14 +63,6 @@ export function Login({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
                 mode === 'login' ? <LoginForm onSignedIn={onSignedIn} /> : <BootstrapForm onSignedIn={onSignedIn} />
               )}
             </CardContent>
-            {mode === 'login' && (
-              <CardFooter className="block px-6 py-4 sm:px-8">
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  <span className="mb-1 block font-medium text-foreground">Нет доступа?</span>
-                  Попросите администратора создать учётную запись.
-                </p>
-              </CardFooter>
-            )}
           </Card>
         </motion.div>
       </section>
@@ -82,7 +72,8 @@ export function Login({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
 
 function Heading({ first, accent, children }: { first: string; accent?: string; children?: ReactNode }) {
   return (
-    <div className="mb-1">
+    <div className="text-center">
+      <div className="mb-5 flex justify-center"><Brand /></div>
       <h1 className="text-2xl leading-tight font-semibold tracking-tight sm:text-[28px]">
         {first}{accent && <><br /><span className="text-primary">{accent}</span></>}
       </h1>
@@ -93,7 +84,7 @@ function Heading({ first, accent, children }: { first: string; accent?: string; 
 
 function SubmitButton({ busy, children }: { busy: boolean; children: ReactNode }) {
   return (
-    <Button type="submit" size="lg" disabled={busy} className="mt-1 h-11 w-full gap-2">
+    <Button type="submit" size="lg" disabled={busy} className="h-11 w-full gap-2">
       {children}{busy ? <Ellipsis aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}
     </Button>
   )
@@ -131,15 +122,20 @@ function LoginForm({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
     }
   }
   return (
-    <form onSubmit={submit} aria-busy={busy} className="grid gap-5">
+    <form onSubmit={submit} aria-busy={busy} className="grid gap-6">
       <Heading first="С возвращением">Войдите в своё рабочее пространство.</Heading>
-      <Field label="Почта" htmlFor="email">
-        <Input id="email" type="email" autoComplete="username" placeholder="name@example.com" required autoFocus value={email} onChange={event => setEmail(event.target.value)} className={loginInputClass} />
-      </Field>
-      <Field label="Пароль" htmlFor="password" error={error}>
-        <PasswordInput id="password" autoComplete="current-password" placeholder="Введите пароль" required value={password} onChange={event => setPassword(event.target.value)} />
-      </Field>
-      <SubmitButton busy={busy}>{busy ? 'Входим…' : 'Войти'}</SubmitButton>
+      <div className="grid gap-4">
+        <Field label="Почта" htmlFor="email">
+          <Input id="email" type="email" autoComplete="username" placeholder="name@example.com" required autoFocus value={email} onChange={event => setEmail(event.target.value)} className={loginInputClass} />
+        </Field>
+        <Field label="Пароль" htmlFor="password" error={error}>
+          <PasswordInput id="password" autoComplete="current-password" placeholder="Введите пароль" required value={password} onChange={event => setPassword(event.target.value)} />
+        </Field>
+      </div>
+      <div className="grid gap-5">
+        <SubmitButton busy={busy}>{busy ? 'Входим…' : 'Войти'}</SubmitButton>
+        <p className="text-center text-xs leading-relaxed text-muted-foreground">Для доступа обратитесь к администратору.</p>
+      </div>
     </form>
   )
 }
@@ -162,22 +158,24 @@ function BootstrapForm({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
     }
   }
   return (
-    <form onSubmit={submit} aria-busy={busy} className="grid gap-5">
+    <form onSubmit={submit} aria-busy={busy} className="grid gap-6">
       <Heading first="Первый запуск," accent="создайте владельца.">Остальных пользователей владелец добавит сам.</Heading>
-      <Field label="Сервисный ключ" htmlFor="admin-key" hint="ADMIN_API_KEY из apps/api/.env — нужен только сейчас.">
-        <Input id="admin-key" type="password" autoComplete="off" required autoFocus value={form.adminKey} onChange={set('adminKey')} className={loginInputClass} />
-      </Field>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Имя" htmlFor="owner-name">
-          <Input id="owner-name" required maxLength={120} autoComplete="name" value={form.name} onChange={set('name')} className={loginInputClass} />
+      <div className="grid gap-4">
+        <Field label="Сервисный ключ" htmlFor="admin-key" hint="ADMIN_API_KEY из apps/api/.env — нужен только сейчас.">
+          <Input id="admin-key" type="password" autoComplete="off" required autoFocus value={form.adminKey} onChange={set('adminKey')} className={loginInputClass} />
         </Field>
-        <Field label="Почта" htmlFor="owner-email">
-          <Input id="owner-email" type="email" required autoComplete="username" value={form.email} onChange={set('email')} className={loginInputClass} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Имя" htmlFor="owner-name">
+            <Input id="owner-name" required maxLength={120} autoComplete="name" value={form.name} onChange={set('name')} className={loginInputClass} />
+          </Field>
+          <Field label="Почта" htmlFor="owner-email">
+            <Input id="owner-email" type="email" required autoComplete="username" value={form.email} onChange={set('email')} className={loginInputClass} />
+          </Field>
+        </div>
+        <Field label="Пароль" htmlFor="owner-password" hint="Не короче 10 символов." error={error}>
+          <PasswordInput id="owner-password" required minLength={10} autoComplete="new-password" value={form.password} onChange={set('password')} />
         </Field>
       </div>
-      <Field label="Пароль" htmlFor="owner-password" hint="Не короче 10 символов." error={error}>
-        <PasswordInput id="owner-password" required minLength={10} autoComplete="new-password" value={form.password} onChange={set('password')} />
-      </Field>
       <SubmitButton busy={busy}>{busy ? 'Создаём…' : 'Создать владельца и войти'}</SubmitButton>
     </form>
   )

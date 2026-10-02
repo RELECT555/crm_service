@@ -31,7 +31,7 @@ For demo data, choose an unused `DB_PATH` and run `npm run seed:demo` **before s
 
 Start `npm run dev:api` (API on `:3000`) and `npm run dev:web` (hot reload on `:5173`) in separate terminals. Open `http://localhost:5173`, or the API origin after a build. A fresh database asks for `ADMIN_API_KEY` once to create the first owner; after that everyone signs in with email/password. Demo login: `owner@example.com` / `demo-password-1`.
 
-Sign-in and first-owner setup share a centered branded card with comfortable fields, themed autofill and a password visibility control over a theme-aware WebGL background. The play/pause control beside the theme switch saves the background playback choice. Browsers without WebGL show a static fallback ([UI rules](docs/ui-guidelines.md), decisions 25–28).
+Sign-in and first-owner setup share a centered branded card with a centered heading, grouped fields, themed autofill and a password visibility control over a theme-aware WebGL background. The sign-in access hint sits below the button. The play/pause control beside the theme switch saves the background playback choice. Browsers without WebGL show a static fallback ([UI rules](docs/ui-guidelines.md), decisions 25–29).
 
 The prototype stores encrypted OAuth tokens and raw CRM payloads in a local SQLite file. Do not reuse this single-process SQLite deployment as a production architecture without a storage, authentication, and operations review.
 

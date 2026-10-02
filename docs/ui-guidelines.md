@@ -47,15 +47,15 @@ Themes: light, dark and "as system" («Авто»). `lib/theme.ts` is a single s
 - Numbers use `tabular-nums`; labels above values in `text-xs text-muted-foreground`.
 - No gradients, glows, emojis or decorative illustrations.
 
-The sign-in screen is the explicit exception (decisions 25, 26): one centered form, no right-hand product panel or security footer, with a decorative WebGL silk background in `--background`, `--primary` and `--accent`. The login heading is just «С возвращением». Its 18-second loop is a plain `requestAnimationFrame` loop in `LoginBackdrop.tsx` (Motion would skip it under OS reduced motion) and stops in hidden tabs. The background always moves, including under reduced motion; the pause button next to the theme switch stops it, saved in `localStorage` (`crm-login-motion`). A static token-based CSS background covers unavailable or lost WebGL contexts. Keep this treatment on sign-in; working screens retain the quiet surface rules above.
+The sign-in screen is the explicit exception (decisions 25, 27): one centered form, no right-hand product panel or security footer, with a decorative WebGL silk background in `--background`, `--primary` and `--accent`. The login heading is just «С возвращением». Its 18-second `requestAnimationFrame` loop in `LoginBackdrop.tsx` stops in hidden tabs. The background always moves, including under reduced motion; the pause button next to the theme switch stops it, saved in `localStorage` (`crm-login-motion`). A static token-based CSS background covers unavailable or lost WebGL contexts. Keep this treatment on sign-in; working screens retain the quiet surface rules above.
 
-The sign-in and first-owner forms share a 440px-wide branded `Card`: `Brand` in `CardHeader`, heading and fields in `CardContent`, and the access hint in `CardFooter` on sign-in. Use 24px padding on phones and 32px from `sm`, 44px-high inputs and submit buttons, neutral token-based input backgrounds, and themed autofill text and fill. Password visibility uses an explicitly labelled button inside the field; keep native autocomplete and validation. Theme and playback controls share a compact group in the top-right corner (decision 28).
+The sign-in and first-owner forms share a 420px-wide `Card`, centered in the viewport independently of the top-right theme/playback controls. `CardContent` holds one composition: centered `Brand`, heading and subtitle, then left-aligned fields and the primary action. The access hint is centered below the sign-in button, without a separate footer surface. Use 24px padding on phones and 32px from `sm`, 24px between form groups and 16px between fields. Inputs and submit buttons are 44px high, with neutral token-based input backgrounds and themed autofill text and fill. Password visibility uses an explicitly labelled button inside the field; keep native autocomplete and validation (decisions 28–29).
 
 ## Motion
 
 Two layers, each with one job:
 
-1. **Motion (`motion/react`)** — everything that enters, leaves or changes size: menus, dialogs, sheets, page transitions, staggered lists, the sidebar width, the KPI count-up. Presets live in `lib/motion.ts`; use them instead of inline numbers. The one exception is the onboarding presentation, whose slower keynote choreography lives in `components/onboarding/` and is described in [onboarding.md](onboarding.md#presentation).
+1. **Motion (`motion/react`)** — everything that enters, leaves or changes size: menus, dialogs, sheets, page transitions, staggered lists, the sidebar width, the KPI count-up. Presets live in `lib/motion.ts`; use them instead of inline numbers. The onboarding presentation has its own choreography in `components/onboarding/` ([onboarding.md](onboarding.md#presentation)). The sign-in shader has a separate rAF renderer and explicit playback control (decision 27).
 2. **CSS utilities in `src/index.css`** — ambient, looping or purely decorative effects: `animate-indeterminate` (running progress), `shimmer` (skeletons), `animate-enter` / `stagger` / `animate-fade` in older screens and toasts.
 
 | Preset (`lib/motion.ts`) | Where |
@@ -81,7 +81,7 @@ const [open, setOpen] = useState(false)            // hoist open state out of Ba
 
 Base UI owns focus, keyboard, dismissal and ARIA; Motion only owns the visuals. Never re-implement focus traps or outside-click handling for an animation.
 
-Rules: springs without bounce for anything work-related (menus may have a tiny overshoot); durations 120–360 ms; hover lifts ≤ 2px; never animate layout-affecting properties of large lists (animate `opacity`/`transform`). **Reduced motion:** `<MotionConfig reducedMotion="user">` in `main.tsx` turns transforms off globally; components that animate values by hand (`AnimatedNumber`) also read `useReducedMotion()` and show the final value immediately; CSS utilities are disabled under `prefers-reduced-motion`.
+Rules: springs without bounce for anything work-related (menus may have a tiny overshoot); durations 120–360 ms; hover lifts ≤ 2px; never animate layout-affecting properties of large lists (animate `opacity`/`transform`). **Reduced motion:** `<MotionConfig reducedMotion="user">` in `main.tsx` disables transform/layout animations within Motion; components that animate values by hand (`AnimatedNumber`) also read `useReducedMotion()` and show the final value immediately; CSS utilities are disabled under `prefers-reduced-motion`. The sign-in shader is the explicit exception above; its play/pause control remains available.
 
 ## Responsive layout
 
