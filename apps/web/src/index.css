@@ -139,3 +139,10 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Applied for 300 ms by lib/theme.ts while switching themes. */
+@media (prefers-reduced-motion: no-preference) {
+  .theme-transition, .theme-transition *, .theme-transition *::before, .theme-transition *::after {
+    transition: background-color 250ms ease, border-color 250ms ease, color 200ms ease, fill 200ms ease, box-shadow 250ms ease !important;
+  }
+}

@@ -20,7 +20,7 @@ All colors are CSS variables in `src/index.css`, exposed to Tailwind through `@t
 | `success`, `info`, `warning`, `destructive` | state colors only: done / in progress / needs attention / failed |
 | `bg-sidebar`, `sidebar-*` | sidebar surface and text |
 
-Themes: light, dark and "as system". The choice is stored in `localStorage` (`crm-theme`) and applied as the `.dark` class on `<html>` by `lib/theme.ts`; `public/theme-init.js` applies it before first paint. Every screen must be checked in both themes. Dark theme uses neutral graphite surfaces with low-contrast borders; do not tint large surfaces with the primary color.
+Themes: light, dark and "as system" («Авто»). `lib/theme.ts` is a single shared store (all switches stay in sync, also across tabs and with OS changes); it stores the choice in `localStorage` (`crm-theme`), sets the `.dark` class on `<html>`, and cross-fades colors for 300 ms. `public/theme-init.js` applies the same rule before first paint. The compact switch (collapsed sidebar, login) always flips the visible theme light ↔ dark. Every screen must be checked in both themes. Dark theme uses neutral graphite surfaces with low-contrast borders; do not tint large surfaces with the primary color.
 
 ## Components
 
@@ -52,7 +52,7 @@ Durations: 150–300 ms for UI feedback, up to 700 ms for progress bar fills. Ho
 
 ## Layout
 
-- Sidebar: 252px, collapsible to 72px (stored in `localStorage`), a top bar with a left sheet below the `lg` breakpoint.
+- Sidebar: 264px, collapsible to 72px (stored in `localStorage`), a top bar with a left sheet below the `lg` breakpoint.
 - Content: max width 1160px, 32px side padding on desktop, 16px on phones. Must work at 360px with no horizontal page scroll; wide tables scroll inside their card.
 - Page structure: breadcrumbs → `PageHeader` (eyebrow, title, one-sentence subtitle, actions on the right) → cards.
 

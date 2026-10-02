@@ -38,7 +38,7 @@ export function Sidebar({ route }: { route: string[] }) {
         </SheetContent>
       </Sheet>
       <aside className={cn('sticky top-0 hidden h-screen flex-none border-r bg-sidebar transition-[width] duration-300 ease-out lg:block',
-        collapsed ? 'w-[72px]' : 'w-[252px]')}>
+        collapsed ? 'w-[72px]' : 'w-[264px]')}>
         <SidebarContent route={route} collapsed={collapsed} onToggle={toggle} />
       </aside>
     </>
@@ -92,7 +92,7 @@ function SidebarContent({ route, collapsed, onToggle, onNavigate }: {
               <span className="grid size-8 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">ОП</span>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-medium text-foreground">Оператор</div>
-                <div className="truncate text-xs text-sidebar-muted">CRM только на чтение</div>
+                <div className="truncate text-xs text-sidebar-muted">Только чтение CRM</div>
               </div>
             </>
           )}

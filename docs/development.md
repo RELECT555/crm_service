@@ -55,6 +55,7 @@ Follow [connectors/bitrix24.md](connectors/bitrix24.md). In short: expose the AP
 | --- | --- |
 | `Unable to resolve @typescript/typescript-linux-x64` | The lockfile was produced on another OS. Run `npm install --no-save @typescript/typescript-linux-x64@<typescript version>`; do not commit lockfile churn. A plain `npm install` removes it again. |
 | `package-lock.json` changes after `npm install` with no dependency change | Different npm version rewrote metadata (`libc` fields). Revert the file. |
+| Admin UI on the API origin looks outdated after `git pull` (missing features, old styles) | The API serves `apps/web/dist`, which is not in git. Run `npm run build`, or use `npm run dev:web`. |
 | Admin UI shows «Ключ администратора не подошёл» | The key differs from `ADMIN_API_KEY`, or the API restarted with a new `.env`. |
 | «Сервер недоступен» in the UI | API not running on the port the Vite proxy expects (`API_TARGET`, default `http://localhost:3000`). |
 | OAuth callback ends on the API origin instead of the dev server | `ADMIN_ORIGIN` not set. |
