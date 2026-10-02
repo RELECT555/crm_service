@@ -8,6 +8,9 @@ import { HttpError, json, readJson } from "../respond.ts";
 import type { Router } from "../router.ts";
 import { normalizeEmail, personName, validPassword } from "./auth.ts";
 
+/** Audit action prefixes (`auth.login` → `auth`) accepted by the `GET /v1/audit?type=` filter. */
+const AUDIT_GROUPS = new Set(["auth", "user", "role", "workspace", "connection", "mapping"]);
+
 /** Current user, users, roles, the permission catalog and the audit log. Rules: docs/access-control.md. */
 export function accessRoutes(router: Router, { store }: AppContext): Router {
   const access = store.access;
@@ -275,7 +278,9 @@ export function accessRoutes(router: Router, { store }: AppContext): Router {
   router.on("GET", "/v1/audit", ({ res, url, principal }) => {
     requirePermission(principal, "audit.view");
     const before = Number(url.searchParams.get("before")) || undefined;
-    const entries = access.listAudit(50, before);
+    const groups = (url.searchParams.get("type") ?? "").split(",").filter(Boolean);
+    if (groups.some(group => !AUDIT_GROUPS.has(group))) throw new HttpError(400, `type must be a comma-separated subset of: ${[...AUDIT_GROUPS].join(", ")}`);
+    const entries = access.listAudit(50, before, groups);
     json(res, 200, { entries, next: entries.length === 50 ? entries.at(-1)!.id : null });
   });
   return router;

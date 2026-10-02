@@ -92,7 +92,7 @@ Permissions: [access-control.md](access-control.md#users-roles-audit-api).
 | `POST /v1/roles` | `{ name, description?, permissions }` → `201 { role }` |
 | `PATCH /v1/roles/:id` | `{ name?, description?, permissions? }` → `200 { role }` |
 | `DELETE /v1/roles/:id` | `200 { deleted: true }` |
-| `GET /v1/audit?before=<id>` | `200 { entries, next }`; 50 entries maximum, descending id; `before` is exclusive, `next` is the cursor or null |
+| `GET /v1/audit?before=<id>&type=<groups>` | `200 { entries, next }`; 50 entries maximum, descending id; `before` is exclusive, `next` is the cursor or null. Optional `type` is a comma-separated subset of `auth`, `user`, `role`, `workspace`, `connection`, `mapping` (the action prefix); anything else → 400 |
 
 Assignments are `[{ roleId, tenantId: string | null }]`, maximum 50. `null` means all workspaces (stored as `*`); supplied assignments **replace** existing grants. Custom role names are trimmed, 1–60 characters, descriptions ≤ 300 characters, permissions a non-empty list of known ids. Escalation/self/last-owner guards still apply even with the right route permission. Duplicate user email or a forbidden state change gets 409 or 403 as defined in the access reference.
 

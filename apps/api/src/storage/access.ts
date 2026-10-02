@@ -203,9 +203,11 @@ export class AccessStore {
       VALUES (?,?,?,?,?,?,?,?)`).run(Date.now(), entry.actor_id, entry.actor_label, entry.action, entry.target_type,
       entry.target_id, entry.tenant_id, entry.details === undefined ? null : JSON.stringify(entry.details));
   }
-  listAudit(limit: number, before?: number): AuditEntry[] {
-    return this.db.prepare(`SELECT * FROM audit_log WHERE id < ? ORDER BY id DESC LIMIT ?`)
-      .all(before ?? Number.MAX_SAFE_INTEGER, limit).map(row => {
+  /** Newest first. `groups` keeps only actions whose prefix (before the dot) is listed, e.g. `["user", "role"]`. */
+  listAudit(limit: number, before?: number, groups: string[] = []): AuditEntry[] {
+    const filter = groups.length ? ` AND substr(action, 1, instr(action, '.') - 1) IN (${groups.map(() => "?").join(",")})` : "";
+    return this.db.prepare(`SELECT * FROM audit_log WHERE id < ?${filter} ORDER BY id DESC LIMIT ?`)
+      .all(before ?? Number.MAX_SAFE_INTEGER, ...groups, limit).map(row => {
         const value = plain<AuditEntry & { details: string | null }>(row);
         return { ...value, details: value.details ? JSON.parse(value.details) : null };
       });

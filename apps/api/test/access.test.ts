@@ -119,7 +119,14 @@ test("access control: bootstrap, sessions, workspace-scoped roles, escalation gu
       assert.ok(auditLog.some(entry => entry.action === action), `audit has ${action}`);
     }
     assert.ok(!auditLog.some(entry => entry.action.includes("onboarding")), "onboarding is a preference, not audited");
+    const people = (await owner.call("/v1/audit?type=user,role")).data.entries as Array<{ action: string }>;
+    assert.ok(people.some(entry => entry.action === "role.create") && people.some(entry => entry.action === "user.create"));
+    assert.ok(people.every(entry => /^(user|role)\./.test(entry.action)), "type keeps only the listed action groups");
+    const logins = (await owner.call("/v1/audit?type=auth")).data.entries as Array<{ action: string }>;
+    assert.ok(logins.length > 0 && logins.every(entry => entry.action.startsWith("auth.")));
+    assert.equal((await owner.call("/v1/audit?type=auth,secrets")).status, 400, "unknown group is rejected");
     assert.equal((await integrator.call("/v1/audit")).status, 403);
+    assert.equal((await integrator.call("/v1/audit?type=auth")).status, 403);
 
     for (let attempt = 0; attempt < 8; attempt++) await client().login("v@example.com", "bad-password");
     assert.equal((await client().login("v@example.com", "viewer-password")).status, 429, "throttled after repeated failures");

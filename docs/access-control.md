@@ -101,7 +101,7 @@ Browser verification on 2026-10-02: Chromium with synthetic local accounts; ligh
 | `PATCH /v1/users/:id` `{ name?, email?, status?, password?, assignments? }` | `users.manage` |
 | `DELETE /v1/users/:id` | `users.manage` |
 | `POST /v1/roles`, `PATCH /v1/roles/:id`, `DELETE /v1/roles/:id` | `roles.manage` |
-| `GET /v1/audit?before=<id>` | `audit.view` |
+| `GET /v1/audit?before=<id>&type=<groups>` | `audit.view` |
 
 Workspace and connection routes and their permissions are listed in [api.md](api.md).
 

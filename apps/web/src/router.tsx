@@ -7,6 +7,9 @@ import { Workspaces } from '@/pages/Workspaces'
 // Each page declares the permission it needs in `staticData`; the layout checks it, the server enforces the same rule.
 // Every page except the start page is its own chunk, so the first paint does not wait for screens nobody opened.
 
+const AUDIT_FILTERS = ['auth', 'people', 'workspace', 'connection', 'mapping'] as const
+export type AuditFilter = typeof AUDIT_FILTERS[number]
+
 const rootRoute = createRootRoute({ component: Layout, notFoundComponent: NotFound })
 
 const workspacesRoute = createRoute({
@@ -30,6 +33,9 @@ const rolesRoute = createRoute({
 })
 const auditRoute = createRoute({
   getParentRoute: () => rootRoute, path: 'audit', staticData: { permission: 'audit.view' },
+  // `#/audit?type=people` opens the log filtered to one kind of event (filters in pages/Audit.tsx).
+  validateSearch: (search: Record<string, unknown>): { type?: AuditFilter } =>
+    (AUDIT_FILTERS.includes(search.type as AuditFilter) ? { type: search.type as AuditFilter } : {}),
   component: lazyRouteComponent(() => import('@/pages/Audit'), 'Audit'),
 })
 const workspaceRoute = createRoute({

@@ -224,7 +224,11 @@ export const api = {
   updateRole: (id: string, body: Partial<{ name: string; description: string; permissions: string[] }>) =>
     request<{ role: Role }>(`/v1/roles/${id}`, { method: 'PATCH', body }),
   deleteRole: (id: string) => request(`/v1/roles/${id}`, { method: 'DELETE' }),
-  audit: (before?: number) => request<{ entries: AuditEntry[]; next: number | null }>(`/v1/audit${before ? `?before=${before}` : ''}`),
+  /** `type` is a comma-separated list of action groups (`auth`, `user`, `role`, `workspace`, `connection`, `mapping`). */
+  audit: (before?: number, type?: string) => {
+    const query = new URLSearchParams({ ...(before ? { before: String(before) } : {}), ...(type ? { type } : {}) }).toString()
+    return request<{ entries: AuditEntry[]; next: number | null }>(`/v1/audit${query ? `?${query}` : ''}`)
+  },
 
   // --- Workspaces ---
   analytics: (tenantId: string) => request<WorkspaceAnalytics>(`/v1/tenants/${tenantId}/analytics`),
