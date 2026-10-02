@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, PageHeader } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDate, numberFormat } from '@/lib/format'
@@ -114,7 +114,10 @@ function CreateWorkspace({ open, onOpenChange }: { open: boolean; onOpenChange: 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <form onSubmit={submit}>
-          <DialogHeader><DialogTitle>Новое пространство</DialogTitle></DialogHeader>
+          <DialogHeader icon={Building2}>
+            <DialogTitle>Новое пространство</DialogTitle>
+            <DialogDescription>Пространство — это клиент. Внутри него подключаются CRM, данные изолированы от других клиентов.</DialogDescription>
+          </DialogHeader>
           <DialogBody>
             <Field label="Название клиента" htmlFor="tenant-name" error={error} hint="Например, юридическое название или бренд.">
               <Input id="tenant-name" required maxLength={120} autoFocus value={name} onChange={event => setName(event.target.value)} />

@@ -7,7 +7,7 @@ import {
 import { Brand } from '@/components/Brand'
 import { Avatar, Field } from '@/components/common'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuLinkItem,
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -243,7 +243,10 @@ function ChangePassword({ open, onOpenChange }: { open: boolean; onOpenChange: (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <form onSubmit={submit}>
-          <DialogHeader><DialogTitle>Смена пароля</DialogTitle></DialogHeader>
+          <DialogHeader icon={KeyRound}>
+            <DialogTitle>Смена пароля</DialogTitle>
+            <DialogDescription>Остальные ваши сессии завершатся, эта останется активной.</DialogDescription>
+          </DialogHeader>
           <DialogBody className="grid gap-4">
             <Field label="Текущий пароль" htmlFor="current-password">
               <Input id="current-password" type="password" autoComplete="current-password" required autoFocus value={current} onChange={e => setCurrent(e.target.value)} />

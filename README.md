@@ -8,45 +8,50 @@ This repository contains a TypeScript backend prototype, an operator admin UI, a
 | `apps/web` | React admin UI (Vite, Tailwind CSS, shadcn on Base UI, Motion): workspaces, CRM connection wizard, sync status, mappings, team analytics, users/roles/audit |
 | `docs/` | Product design, connector research and per-CRM playbooks |
 
-## Run the Bitrix24 prototype
+## Run locally
 
-Requirements: Node.js 24.17+ and a Bitrix24 application with the `crm` scope. Configure its redirect URI as `https://your-public-app.example/oauth/bitrix24/callback`. The app origin must be a public HTTPS address for Bitrix24 event delivery. The current portal allowlist accepts `*.bitrix24.com` and `*.bitrix24.ru`.
+Requirements: Node.js 24.17+ and npm 10+. No CRM account or database server is needed for local UI work. Full setup, environment variables, alternate ports and troubleshooting: [development guide](docs/development.md).
 
 ```powershell
 npm install
-Copy-Item apps/api/.env.example apps/api/.env
+Copy-Item apps/api/.env.example apps/api/.env # only if .env does not already exist
 ```
 
-Set `APP_ORIGIN`, `BITRIX_CLIENT_ID`, `BITRIX_CLIENT_SECRET`, `ADMIN_API_KEY` (at least 32 random characters), and `DATA_KEY_BASE64` (32 random bytes encoded as Base64) in `apps/api/.env`. Keep `.env` private. Generate the encryption key with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`. Then run:
+In `apps/api/.env`, set `APP_ORIGIN=http://localhost:3000`, `ADMIN_ORIGIN=http://localhost:5173`, `ADMIN_API_KEY` (at least 32 random characters), and `DATA_KEY_BASE64` (32 random bytes encoded as Base64). Generate the keys with the commands in the development guide; keep `.env` private. Leave both values of every OAuth credential pair empty, including the Bitrix24 placeholders, until connecting a real CRM.
+
+Check and build from the repository root:
 
 ```powershell
 npm run check     # API typecheck + web typecheck/lint
 npm test          # API integration tests
 npm run build     # admin UI -> apps/web/dist, served by the API at APP_ORIGIN
-npm run dev:api   # API on :3000
-npm run dev:web   # optional: admin UI with hot reload on :5173 (set ADMIN_ORIGIN=http://localhost:5173)
-npm run seed:demo # optional: demo workspaces and connections for UI work without a CRM
 ```
 
-Open the API origin (or the Vite dev server). On a fresh database the UI asks for `ADMIN_API_KEY` once to create the first owner; after that everyone signs in with email and password (demo data: `owner@example.com` / `demo-password-1`). In the admin UI: create a workspace → *Подключить CRM* → pick Bitrix24 → enter the portal → authorize in Bitrix24. You return to the connection page, which shows sync progress per object, the event subscription, errors, and the purchase/activity mappings.
+For demo data, choose an unused `DB_PATH` and run `npm run seed:demo` **before starting the API**. The seed adds data; `--force` does not reset an existing database. See the [demo workflow](docs/development.md#working-on-the-admin-ui-without-a-crm).
+
+Start `npm run dev:api` (API on `:3000`) and `npm run dev:web` (hot reload on `:5173`) in separate terminals. Open `http://localhost:5173`, or the API origin after a build. A fresh database asks for `ADMIN_API_KEY` once to create the first owner; after that everyone signs in with email/password. Demo login: `owner@example.com` / `demo-password-1`.
 
 Sign-in and first-owner setup share a centered branded card with comfortable fields, themed autofill and a password visibility control over a theme-aware WebGL background. The play/pause control beside the theme switch saves the background playback choice. Browsers without WebGL show a static fallback ([UI rules](docs/ui-guidelines.md), decisions 25–28).
 
 The prototype stores encrypted OAuth tokens and raw CRM payloads in a local SQLite file. Do not reuse this single-process SQLite deployment as a production architecture without a storage, authentication, and operations review.
 
+## Connect a real CRM
+
+Follow the [Bitrix24](docs/connectors/bitrix24.md) or [Kommo/amoCRM](docs/connectors/kommo.md) playbook for app credentials, registered callback and public HTTPS event delivery. In the UI: create a workspace → *Подключить CRM* → choose the provider → enter the account → authorize. The connection page shows sync progress, subscriptions, errors and purchase/activity mappings. A catalog status of `available` means an adapter and app credentials are present; it does not validate the credentials or prove sandbox coverage. Tests use mocked CRM responses.
+
 ## API flow
 
-`/v1` routes need a principal: the admin UI's session cookie (plus the `x-requested-with: crm-admin` header on writes) or, for scripts, the `x-admin-key` header. Every route checks a permission ([access-control.md](docs/access-control.md)); the full list is in [docs/api.md](docs/api.md).
+Except for `/v1/auth/*`, `/v1` routes need a principal: the admin UI's session cookie (plus `x-requested-with: crm-admin` on protected writes) or, for scripts, `x-admin-key`. Business routes check their permission; catalogs and current-user routes need a principal, and the workspace list filters by access. Full authentication, permissions and request/response bodies: [access control](docs/access-control.md) and [API reference](docs/api.md).
 
 1. `GET /v1/providers` returns the connector catalog (available and planned CRMs, setup steps, data per axis, limits, callback URL).
-2. `POST /v1/tenants` with optional `{"name":"Acme"}` creates a workspace; `GET /v1/tenants` lists them. `GET /v1/tenants/{tenantId}` returns the workspace and its connections with record counts and backfill progress; `PATCH` updates `name`, `timezone` (IANA) and `currency` (ISO 4217, `null` clears).
+2. `POST /v1/tenants` with optional `{"name":"Acme"}` creates a workspace; `GET /v1/tenants` lists them. `GET /v1/tenants/{tenantId}` returns the workspace and its connections with record counts and backfill progress; `PATCH` updates `name`, `timezone` (runtime-supported IANA name) and `currency` (three uppercase letters; no currency-registry lookup). `null` clears timezone/currency.
 3. `POST /v1/tenants/{tenantId}/connect/{provider}` (`bitrix24`, `kommo`, `amocrm`) with `{"account":"your-portal.bitrix24.com"}` returns `authorizeUrl`. Open it as the authorized CRM user.
 4. The CRM returns to `/oauth/{provider}/callback`; the service exchanges the code, verifies the account, queues the event subscription and backfill, and redirects a browser to the connection page (API clients get JSON). Authorizing the same portal again repairs the existing connection.
 5. `GET /v1/tenants/{tenantId}/connections/{connectionId}` reports status, sync coverage per object, queue, record counts and mappings. No credentials are returned.
 6. `POST …/commercial-sources` marks a source kind (optionally one pipeline) as `sale` or `purchase`, e.g. `{"sourceKind":"smart:128","direction":"purchase","amountField":"purchaseValue","currencyField":"purchaseCurrency"}` or `{"sourceKind":"deal","categoryId":2,"direction":"purchase"}`. Allowed kinds and whether amount/currency fields apply come from the connector (`mappingOptions` in the connection detail). `DELETE …/commercial-sources/{sourceKind}/{categoryId|*}` removes it.
 7. `POST …/action-types` maps a provider activity code, e.g. `{"providerTypeId":"TRAVEL","actionType":"visit"}`; `DELETE …/action-types/{providerTypeId}` removes it.
 8. `POST …/disconnect` stops syncing locally (pending jobs cancelled, CRM events ignored, data and mappings kept; nothing changes in the CRM); `POST …/resume` restarts with a full sync. `GET …/activity` returns the last 30 jobs with their errors.
-9. `POST …/resync` starts a full reconciliation. The worker also schedules one after a live connection becomes 24 hours stale.
+9. `POST …/resync` queues a full reconciliation. Every 15 minutes the worker checks live connections: a full sync older than 24 hours triggers another read, or older than one hour in polling mode. These are scheduling thresholds, not a freshness SLA.
 10. `GET /v1/tenants/{tenantId}/analytics` returns team and per-manager metrics on both axes with weak-spot signals and coverage notes ([metrics.md](docs/metrics.md)). The older per-connection `GET …/dashboard` read model remains for compatibility and has no UI.
 
 Bitrix24 deals are classified as sales processes by default; deal opportunity amounts are pipeline values, not booked revenue. Purchases require explicit mappings. Activity counts currently include Bitrix CRM activities; external tasks and multi-entity activity bindings are not yet fully covered. The API reports links as relationships, not proof that an activity caused a commercial outcome. A missed delete event can leave a stale record because an absent record may also mean changed read permissions; confirmed delete events are handled, while reliable delete reconciliation remains open.

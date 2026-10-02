@@ -4,7 +4,7 @@ import { api, type ConnectionDetail, type JobSummary } from '@/lib/api'
 import { EmptyState, ErrorNotice, Field, LoadingRows, Notice, PageHeader, ProviderMark, Stat, StatusBadge, SyncBar, ToneBadge } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
@@ -93,11 +93,11 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
       )}
       <Dialog open={confirmDisconnect} onOpenChange={setConfirmDisconnect}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Отключить подключение?</DialogTitle></DialogHeader>
-          <DialogBody>
-            <p className="text-muted-foreground">Синхронизация остановится, события из CRM будут игнорироваться. Загруженные данные и разметка
-              сохранятся — подключение можно возобновить в любой момент. В самой CRM ничего не меняется.</p>
-          </DialogBody>
+          <DialogHeader icon={PowerOff} tone="destructive">
+            <DialogTitle>Отключить подключение?</DialogTitle>
+            <DialogDescription>Синхронизация остановится, события из CRM будут игнорироваться. Загруженные данные и разметка
+              сохранятся — подключение можно возобновить в любой момент. В самой CRM ничего не меняется.</DialogDescription>
+          </DialogHeader>
           <DialogFooter>
             <Button variant="outline" size="lg" onClick={() => setConfirmDisconnect(false)}>Отмена</Button>
             <Button variant="destructive" size="lg" onClick={() => { setConfirmDisconnect(false); void run(() => api.disconnect(tenantId, connectionId), 'Подключение отключено, данные сохранены') }}>Отключить</Button>
@@ -409,10 +409,10 @@ function ResyncDialog({ tenantId, connectionId, open, onOpenChange, onDone }: {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Запустить полную синхронизацию?</DialogTitle></DialogHeader>
-        <DialogBody>
-          <p className="text-muted-foreground">Все объекты будут перечитаны из CRM с начала, подписка на события будет проверена заново. Это расходует лимит запросов к API клиента; уже загруженные данные остаются доступны.</p>
-        </DialogBody>
+        <DialogHeader icon={RefreshCw}>
+          <DialogTitle>Запустить полную синхронизацию?</DialogTitle>
+          <DialogDescription>Все объекты будут перечитаны из CRM с начала, подписка на события будет проверена заново. Это расходует лимит запросов к API клиента; уже загруженные данные остаются доступны.</DialogDescription>
+        </DialogHeader>
         <DialogFooter>
           <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>Отмена</Button>
           <Button size="lg" disabled={busy} onClick={run}>Запустить</Button>

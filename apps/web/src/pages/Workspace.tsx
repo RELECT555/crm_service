@@ -6,7 +6,7 @@ import { ConnectSheet } from '@/components/ConnectSheet'
 import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, PageHeader, ProviderMark, StatusBadge, SyncBar } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
@@ -261,7 +261,10 @@ function RenameWorkspace({ tenantId, current, open, onOpenChange, onDone }: {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <form onSubmit={submit}>
-          <DialogHeader><DialogTitle>Переименовать пространство</DialogTitle></DialogHeader>
+          <DialogHeader icon={Pencil}>
+            <DialogTitle>Переименовать пространство</DialogTitle>
+            <DialogDescription>Название видно только в этой админке, в CRM клиента ничего не меняется.</DialogDescription>
+          </DialogHeader>
           <DialogBody>
             <Field label="Название" htmlFor="rename" error={error}>
               <Input id="rename" required maxLength={120} autoFocus value={name} onChange={event => setName(event.target.value)} />

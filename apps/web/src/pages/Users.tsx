@@ -5,7 +5,7 @@ import { api, type AssignmentInput, type Role, type TenantSummary, type UserView
 import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, PageHeader, ToneBadge } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
@@ -89,9 +89,11 @@ export function Users() {
       <ResetPassword key={resetFor?.id ?? 'none'} user={resetFor} onClose={() => setResetFor(null)} />
       <Dialog open={!!deleteFor} onOpenChange={open => { if (!open) setDeleteFor(null) }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Удалить пользователя?</DialogTitle></DialogHeader>
-          <DialogBody><p className="text-muted-foreground">{deleteFor?.name} ({deleteFor?.email}) потеряет доступ. Записи журнала действий сохранятся.
-            Если доступ может понадобиться снова, лучше заблокировать.</p></DialogBody>
+          <DialogHeader icon={Trash2} tone="destructive">
+            <DialogTitle>Удалить пользователя?</DialogTitle>
+            <DialogDescription>{deleteFor?.name} ({deleteFor?.email}) потеряет доступ. Записи журнала действий сохранятся.
+              Если доступ может понадобиться снова, лучше заблокировать.</DialogDescription>
+          </DialogHeader>
           <DialogFooter>
             <Button variant="outline" size="lg" onClick={() => setDeleteFor(null)}>Отмена</Button>
             <Button variant="destructive" size="lg" onClick={() => { const user = deleteFor!; setDeleteFor(null); void run(() => api.deleteUser(user.id), 'Пользователь удалён') }}>Удалить</Button>
@@ -247,9 +249,12 @@ function ResetPassword({ user, onClose }: { user: UserView | null; onClose: () =
     <Dialog open={!!user} onOpenChange={open => { if (!open) onClose() }}>
       <DialogContent>
         <form onSubmit={submit}>
-          <DialogHeader><DialogTitle>Новый пароль для {user?.name}</DialogTitle></DialogHeader>
+          <DialogHeader icon={KeyRound}>
+            <DialogTitle>Новый пароль</DialogTitle>
+            <DialogDescription>Для {user?.name}. Все сессии пользователя завершатся.</DialogDescription>
+          </DialogHeader>
           <DialogBody>
-            <Field label="Пароль" htmlFor="reset-password" hint="Не короче 10 символов. Все сессии пользователя завершатся." error={error}>
+            <Field label="Пароль" htmlFor="reset-password" hint="Не короче 10 символов." error={error}>
               <Input id="reset-password" type="password" required minLength={10} autoComplete="new-password" autoFocus value={password} onChange={e => setPassword(e.target.value)} />
             </Field>
           </DialogBody>
