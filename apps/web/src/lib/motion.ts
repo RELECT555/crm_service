@@ -14,7 +14,7 @@ export const exitFast: Transition = { duration: 0.12, ease: [0.4, 0, 1, 1] }
 /** Page content on route change. */
 export const pageTransition: Transition = { duration: 0.28, ease: [0.2, 0.7, 0.2, 1] }
 /** Decorative sign-in shader: one seamless, slow cycle; the renderer caps drawing at 30 fps. */
-export const loginShaderDrift: Transition = { duration: 48, ease: 'linear', repeat: Infinity }
+export const loginShaderDrift: Transition = { duration: 18, ease: 'linear', repeat: Infinity }
 
 /** Parent of a list whose items appear one after another. */
 export const staggerList: Variants = {

@@ -1,9 +1,9 @@
 import { motion } from 'motion/react'
-import { AlertTriangle, Info, TrendingUp } from 'lucide-react'
+import { AlertTriangle, BarChart3, Info, TrendingUp } from 'lucide-react'
 import { api, type ManagerMetrics, type WorkspaceAnalytics } from '@/lib/api'
 import { AnimatedNumber, BarList, Legend, MeterBar, MixBar } from '@/components/charts'
 import { SERIES, SERIES_OTHER } from '@/lib/chart-colors'
-import { Avatar, EmptyState, ErrorNotice, LoadingRows, ProviderMark, StatusBadge } from '@/components/common'
+import { Avatar, EmptyState, ErrorNotice, LoadingRows, PageHeader, ProviderMark, StatusBadge } from '@/components/common'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { actionLabel, formatAgo, formatDateTime, numberFormat } from '@/lib/format'
@@ -36,18 +36,10 @@ export function Analytics({ tenantId }: { tenantId: string }) {
   const name = tenant.data?.tenant.name ?? 'Пространство'
   return (
     <>
-      <nav aria-label="Навигация" className="mb-5 flex items-center gap-2 text-[13px] text-muted-foreground">
-        <a href="#/" className="text-muted-foreground hover:text-foreground">Пространства</a><span aria-hidden="true">/</span>
-        <a href={`#/tenants/${tenantId}`} className="truncate text-muted-foreground hover:text-foreground">{name}</a><span aria-hidden="true">/</span>
-        <span className="text-foreground">Аналитика</span>
-      </nav>
-      <header className="mb-7 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Аналитика команды</h1>
-          <p className="mt-1 max-w-2xl text-muted-foreground">Результат и работа каждого менеджера рядом — чтобы видеть, кому чего не хватает.</p>
-        </div>
-        {data.data && <span className="text-xs text-muted-foreground">Рассчитано {formatDateTime(data.data.generatedAt)} · версия метрик {data.data.metricVersion}</span>}
-      </header>
+      <PageHeader icon={BarChart3} title="Аналитика команды"
+        crumbs={[{ label: 'Пространства', href: '#/' }, { label: name, href: `#/tenants/${tenantId}` }, { label: 'Аналитика' }]}
+        subtitle="Результат и работа каждого менеджера рядом — чтобы видеть, кому чего не хватает."
+        meta={data.data && `Рассчитано ${formatDateTime(data.data.generatedAt)} · версия метрик ${data.data.metricVersion}`} />
       {data.error && <ErrorNotice message={errorText(data.error)} onRetry={data.reload} />}
       {!data.data && !data.error && <Card><LoadingRows rows={6} /></Card>}
       {data.data && (data.data.managers.length === 0

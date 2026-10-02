@@ -3,7 +3,7 @@ import { ArrowUpRight, BarChart3, MoreHorizontal, Pencil, Plus, RefreshCw, Setti
 import { useCan } from '@/lib/session'
 import { api, type ConnectionSummary, type Provider, type Tenant } from '@/lib/api'
 import { ConnectSheet } from '@/components/ConnectSheet'
-import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, ProviderMark, StatusBadge, SyncBar } from '@/components/common'
+import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, PageHeader, ProviderMark, StatusBadge, SyncBar } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -37,21 +37,11 @@ export function Workspace({ tenantId }: { tenantId: string }) {
 
   return (
     <>
-      <nav aria-label="Навигация" className="mb-5 flex items-center gap-2 text-[13px] text-muted-foreground">
-        <a href="#/" className="text-muted-foreground hover:text-foreground">Пространства</a><span aria-hidden="true">/</span>
-        <span className="truncate text-foreground">{name}</span>
-      </nav>
-
-      <header className="mb-8 flex flex-wrap items-center gap-4">
-        <Avatar name={name} large />
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold tracking-tight break-words sm:truncate">{name}</h1>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
-            {[`Создано ${formatDate(data.tenant.created_at)}`, data.tenant.timezone, data.tenant.currency && `валюта ${data.tenant.currency}`]
-              .filter(Boolean).join(' · ')}
-          </p>
-        </div>
-        <div className="flex basis-full flex-wrap gap-2 sm:basis-auto">
+      <PageHeader title={name} leading={<Avatar name={name} large />}
+        crumbs={[{ label: 'Пространства', href: '#/' }, { label: name }]}
+        meta={[`Создано ${formatDate(data.tenant.created_at)}`, data.tenant.timezone, data.tenant.currency && `валюта ${data.tenant.currency}`]
+          .filter(Boolean).join(' · ')}
+        actions={<>
           {can('analytics.view', tenantId) && (
             <Button variant="outline" size="lg" className="flex-1 sm:flex-none" onClick={() => navigate(`/tenants/${tenantId}/analytics`)}><BarChart3 />Аналитика</Button>
           )}
@@ -67,8 +57,7 @@ export function Workspace({ tenantId }: { tenantId: string }) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>}
-        </div>
-      </header>
+        </>} />
 
       <Overview connections={connections} />
 

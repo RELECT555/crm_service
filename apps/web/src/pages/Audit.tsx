@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { History } from 'lucide-react'
 import { motion } from 'motion/react'
 import { api, type AuditEntry } from '@/lib/api'
 import { EmptyState, ErrorNotice, LoadingRows, PageHeader } from '@/components/common'
@@ -56,7 +57,7 @@ export function Audit() {
   }
   return (
     <>
-      <PageHeader eyebrow="Администрирование" title="Журнал действий" subtitle="Кто, когда и что сделал в админке. Пароли и токены сюда не попадают." />
+      <PageHeader eyebrow="Администрирование" icon={History} title="Журнал действий" subtitle="Кто, когда и что сделал в админке. Пароли и токены сюда не попадают." />
       {error && <ErrorNotice message={errorText(error)} onRetry={() => void load()} />}
       {next === undefined && !error && <Card><LoadingRows rows={6} /></Card>}
       {next !== undefined && entries.length === 0 && <Card><EmptyState title="Записей пока нет" /></Card>}

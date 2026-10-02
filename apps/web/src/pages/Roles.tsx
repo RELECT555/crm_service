@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { motion } from 'motion/react'
-import { Check, Lock, Plus, Trash2 } from 'lucide-react'
+import { Check, Lock, Plus, ShieldCheck, Trash2 } from 'lucide-react'
 import { api, type PermissionInfo, type Role } from '@/lib/api'
 import { ErrorNotice, Field, LoadingRows, PageHeader, ToneBadge } from '@/components/common'
 import { Button } from '@/components/ui/button'
@@ -25,7 +25,7 @@ export function Roles() {
   const manage = can('roles.manage')
   return (
     <>
-      <PageHeader eyebrow="Администрирование" title="Роли и права"
+      <PageHeader eyebrow="Администрирование" icon={ShieldCheck} title="Роли и права"
         subtitle="Встроенные роли идут по нарастающей: каждая включает права предыдущей. Свои роли собираются из отдельных прав."
         actions={manage && <Button size="lg" onClick={() => setEditor({ role: null })}><Plus />Новая роль</Button>} />
       {(roles.error || permissions.error) && <ErrorNotice message={errorText(roles.error ?? permissions.error)} onRetry={roles.reload} />}

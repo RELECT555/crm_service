@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { motion } from 'motion/react'
-import { KeyRound, Lock, MoreHorizontal, Pencil, Plus, Trash2, Unlock, X } from 'lucide-react'
+import { KeyRound, Lock, MoreHorizontal, Pencil, Plus, Trash2, Unlock, UsersRound, X } from 'lucide-react'
 import { api, type AssignmentInput, type Role, type TenantSummary, type UserView } from '@/lib/api'
 import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, PageHeader, ToneBadge } from '@/components/common'
 import { Button } from '@/components/ui/button'
@@ -37,7 +37,7 @@ export function Users() {
 
   return (
     <>
-      <PageHeader eyebrow="Администрирование" title="Пользователи"
+      <PageHeader eyebrow="Администрирование" icon={UsersRound} title="Пользователи"
         subtitle="Кто работает в админке и с какими правами. Роль можно выдать на все пространства или на одно." actions={add} />
       {users.error && <ErrorNotice message={errorText(users.error)} onRetry={users.reload} />}
       <Card className="gap-0 py-0">

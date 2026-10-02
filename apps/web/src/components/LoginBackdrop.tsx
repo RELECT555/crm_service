@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react'
-import { animate, useReducedMotion } from 'motion/react'
+import { animate } from 'motion/react'
 import { createLoginShader, type LoginShader } from '@/lib/login-shader'
 import { loginShaderDrift } from '@/lib/motion'
 import { useTheme } from '@/lib/theme'
 
 /** Decorative only: no pointer events, tab stops, or React updates on animation frames. */
-export function LoginBackdrop() {
+export function LoginBackdrop({ animated }: { animated: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const reducedMotion = useReducedMotion()
+  const phaseRef = useRef(0)
   const { resolved } = useTheme()
 
   useEffect(() => {
@@ -16,7 +16,8 @@ export function LoginBackdrop() {
     let shader: LoginShader | null = null
     let playback: ReturnType<typeof animate> | undefined
     let lastDraw = 0
-    let phase = 0
+    const initialPhase = phaseRef.current
+    let phase = initialPhase
 
     const resize = () => {
       shader?.resize()
@@ -32,11 +33,14 @@ export function LoginBackdrop() {
       canvas.style.opacity = shader ? '1' : '0'
       if (!shader) return
       resize()
-      if (reducedMotion) return
+      if (!animated) return
       playback = animate(0, 1, {
         ...loginShaderDrift,
         onUpdate(value) {
-          phase = value
+          // Motion can still emit the held value while paused; do not submit GPU work.
+          if (document.hidden) return
+          phase = (initialPhase + value) % 1
+          phaseRef.current = phase
           const now = performance.now()
           if (now - lastDraw < 1000 / 30) return
           lastDraw = now
@@ -68,7 +72,7 @@ export function LoginBackdrop() {
       canvas.removeEventListener('webglcontextrestored', restored)
       shader?.dispose()
     }
-  }, [resolved, reducedMotion])
+  }, [resolved, animated])
 
   return (
     <div aria-hidden="true" className="login-backdrop pointer-events-none absolute inset-0 -z-10 overflow-hidden">

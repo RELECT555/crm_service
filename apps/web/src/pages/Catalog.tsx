@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Plug } from 'lucide-react'
 import { api, type Provider } from '@/lib/api'
 import { ErrorNotice, LoadingRows, PageHeader } from '@/components/common'
 import { ProviderDetails } from '@/components/ProviderDetails'
@@ -14,7 +15,7 @@ export function Catalog() {
   const available = providers.data?.filter(provider => provider.status === 'available').length ?? 0
   return (
     <>
-      <PageHeader eyebrow="Интеграции" title="Поддерживаемые CRM"
+      <PageHeader eyebrow="Интеграции" icon={Plug} title="Поддерживаемые CRM"
         subtitle={providers.data
           ? `Готово к подключению: ${available} из ${providers.data.length}. Для остальных CRM API изучено, адаптеры в разработке.`
           : 'Какие CRM поддерживаются и что из них забирается.'} />

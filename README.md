@@ -30,7 +30,7 @@ npm run seed:demo # optional: demo workspaces and connections for UI work withou
 
 Open the API origin (or the Vite dev server). On a fresh database the UI asks for `ADMIN_API_KEY` once to create the first owner; after that everyone signs in with email and password (demo data: `owner@example.com` / `demo-password-1`). In the admin UI: create a workspace → *Подключить CRM* → pick Bitrix24 → enter the portal → authorize in Bitrix24. You return to the connection page, which shows sync progress per object, the event subscription, errors, and the purchase/activity mappings.
 
-Sign-in and first-owner setup use a centered form over a theme-aware WebGL background. Reduced motion keeps the background still; browsers without WebGL show a static fallback ([UI rules](docs/ui-guidelines.md), decision 25).
+Sign-in and first-owner setup use a centered form over a theme-aware WebGL background. Reduced motion keeps the background still by default; the play/pause control beside the theme switch saves an explicit choice. Browsers without WebGL show a static fallback ([UI rules](docs/ui-guidelines.md), decisions 25–26).
 
 The prototype stores encrypted OAuth tokens and raw CRM payloads in a local SQLite file. Do not reuse this single-process SQLite deployment as a production architecture without a storage, authentication, and operations review.
 

@@ -24,14 +24,14 @@ void main() {
   vec2 uv = gl_FragCoord.xy / u_resolution;
   vec2 p = (uv - 0.5) * vec2(u_resolution.x / u_resolution.y, 1.0);
   float t = u_phase * 6.283185;
-  float bend = 0.12 * sin(p.x * 3.2 + sin(t))
-    + 0.05 * sin(p.x * 6.0 - cos(t));
+  float bend = 0.16 * sin(p.x * 3.2 + t)
+    + 0.065 * sin(p.x * 6.0 - t);
   float flow = p.y + p.x * 0.42 + bend;
-  float upper = flow - 0.46 - 0.045 * sin(t);
-  float lower = flow + 0.46 + 0.045 * cos(t);
+  float upper = flow - 0.46 - 0.08 * sin(t);
+  float lower = flow + 0.46 + 0.08 * cos(t);
   float haze = band(upper, 0.13) + band(lower, 0.13);
   float silk = band(upper, 0.012) + band(lower, 0.018);
-  float folds = pow(0.5 + 0.5 * sin(flow * 95.0 + p.x * 5.0), 12.0);
+  float folds = pow(0.5 + 0.5 * sin(flow * 95.0 + p.x * 5.0 - t), 12.0);
   float detail = folds * (band(upper, 0.035) + band(lower, 0.035));
   float center = 1.0 - 0.72 * exp(-dot(p * vec2(1.3, 1.8), p * vec2(1.3, 1.8)) * 3.0);
   vec3 color = mix(u_background, u_accent, clamp(haze * 0.7, 0.0, 1.0));

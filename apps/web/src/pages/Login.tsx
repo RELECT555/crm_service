@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { motion } from 'motion/react'
-import { ArrowRight, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Pause, Play } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Brand } from '@/components/Brand'
 import { LoginBackdrop } from '@/components/LoginBackdrop'
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { dialogSpring } from '@/lib/motion'
 import { errorText } from '@/lib/toast'
+import { useMediaQuery } from '@/lib/use-media'
 
 /**
  * Sign-in, or — when the service has no users yet — creation of the first owner with the service key.
@@ -19,15 +20,35 @@ import { errorText } from '@/lib/toast'
  */
 export function Login({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
   const [mode, setMode] = useState<'loading' | 'login' | 'bootstrap'>('loading')
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+  const [motionPreference, setMotionPreference] = useState<boolean | null>(() => {
+    try {
+      const value = localStorage.getItem('crm-login-motion')
+      return value === 'on' ? true : value === 'off' ? false : null
+    } catch { return null } // Blocked storage: follow the system preference.
+  })
+  const animated = motionPreference ?? !reducedMotion
+  const toggleMotion = () => {
+    setMotionPreference(!animated)
+    try { localStorage.setItem('crm-login-motion', animated ? 'off' : 'on') } catch { /* choice lasts for this page */ }
+  }
   useEffect(() => {
     api.authStatus().then(status => setMode(status.hasUsers ? 'login' : 'bootstrap')).catch(() => setMode('login'))
   }, [])
   return (
     <main className="relative isolate flex min-h-svh flex-col overflow-hidden bg-background">
-      <LoginBackdrop />
+      <LoginBackdrop animated={animated} />
       <header className="relative flex items-center justify-between px-5 py-5 sm:px-10 sm:py-7">
         <Brand />
-        <ThemeSwitch compact className="bg-background/70 backdrop-blur-sm" />
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" onClick={toggleMotion} aria-pressed={animated}
+            aria-label={animated ? 'Остановить анимацию фона' : 'Включить анимацию фона'}
+            title={animated ? 'Остановить анимацию фона' : 'Включить анимацию фона'}
+            className="size-9 bg-background/70 text-sidebar-muted backdrop-blur-sm">
+            {animated ? <Pause aria-hidden="true" className="size-4" /> : <Play aria-hidden="true" className="size-4" />}
+          </Button>
+          <ThemeSwitch compact className="bg-background/70 backdrop-blur-sm" />
+        </div>
       </header>
       <section aria-label="Авторизация" className="relative grid flex-1 grid-cols-1 place-items-center px-4 py-8 sm:py-12">
         <motion.div className="w-full min-w-0 max-w-[460px]" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, transition: dialogSpring }}>
@@ -48,19 +69,15 @@ export function Login({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
           </Card>
         </motion.div>
       </section>
-      <footer className="relative flex items-center justify-center gap-2 px-6 pt-4 pb-6 text-center text-xs leading-relaxed text-muted-foreground sm:pb-8">
-        <ShieldCheck aria-hidden="true" className="size-3.5 flex-none" />
-        <p>Доступ к CRM только на чтение · токены хранятся зашифрованно</p>
-      </footer>
     </main>
   )
 }
 
-function Heading({ first, accent, children }: { first: string; accent: string; children?: ReactNode }) {
+function Heading({ first, accent, children }: { first: string; accent?: string; children?: ReactNode }) {
   return (
     <div className="mb-8">
       <h1 className="text-[28px] leading-[1.2] font-semibold tracking-tight">
-        {first}<br /><span className="text-primary">{accent}</span>
+        {first}{accent && <><br /><span className="text-primary">{accent}</span></>}
       </h1>
       {children && <p className="mt-2 text-muted-foreground">{children}</p>}
     </div>
@@ -94,7 +111,7 @@ function LoginForm({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
   }
   return (
     <form onSubmit={submit} className="grid gap-4">
-      <Heading first="С возвращением," accent="войдите в аналитику." />
+      <Heading first="С возвращением" />
       <Field label="Почта" htmlFor="email">
         <Input id="email" type="email" autoComplete="username" required autoFocus value={email} onChange={event => setEmail(event.target.value)} />
       </Field>

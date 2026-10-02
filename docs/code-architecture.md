@@ -49,7 +49,7 @@ apps/
       App.tsx                  hash routes -> page + required permission; lazy page chunks; page transitions
       components/ui/           shadcn primitives (button, card, dialog, sheet, dropdown-menu, table, ...); overlays animated with Motion
       components/              app building blocks composed from ui/: Sidebar, SessionProvider, charts, common
-      components/LoginBackdrop.tsx  decorative sign-in canvas; Motion loop, reduced motion, visibility and context lifecycle
+      components/LoginBackdrop.tsx  decorative sign-in canvas; Motion loop, explicit playback, visibility and context lifecycle
       components/onboarding/   welcome presentation, guided tour, OnboardingProvider (docs/onboarding.md); lazy chunks
       pages/                   one file per screen; owns data loading for that screen
                                Workspaces, Workspace, Connection, Catalog, Analytics, Users, Roles, Audit, Login
@@ -145,6 +145,7 @@ Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_requ
 - Colors come only from tokens in `src/index.css` via Tailwind classes (`bg-primary`, `text-muted-foreground`, `text-success`, ...). Status colors come from `STATUS` in `lib/format.ts`. Light and dark themes are both required.
 - All copy is Russian, concise, and states consequences ("запустит полную пересинхронизацию").
 - Sign-in is by email and password; the session is an HttpOnly cookie the browser script cannot read. `lib/api.ts` sends the CSRF header on every request and fires a session-expired event on 401, which returns the app to the login screen. The operator key is typed only once, on the first-owner bootstrap screen.
+- The sign-in background follows reduced motion by default; its explicit play/pause choice is saved in `localStorage` (`crm-login-motion`) and controls `LoginBackdrop`.
 - Permission-gated UI uses `useCan()`; pages register their required permission in `resolve()` in `App.tsx`.
 - Onboarding: the presentation and tour are data-driven (`lib/onboarding.ts`); a new section adds a `data-tour` anchor and a tour step ([onboarding.md](onboarding.md)).
 - Animations use Motion presets from `lib/motion.ts`; responsive layouts follow the three-layout rule (phone top bar, tablet rail, desktop sidebar). Both are specified in [ui-guidelines.md](ui-guidelines.md).

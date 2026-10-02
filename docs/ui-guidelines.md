@@ -47,7 +47,7 @@ Themes: light, dark and "as system" («Авто»). `lib/theme.ts` is a single s
 - Numbers use `tabular-nums`; labels above values in `text-xs text-muted-foreground`.
 - No gradients, glows, emojis or decorative illustrations.
 
-The sign-in screen is the explicit exception (decision 25): one centered form, no right-hand product panel, with a decorative WebGL silk background in `--background`, `--primary` and `--accent`. Its slow loop uses `loginShaderDrift` from `lib/motion.ts`, pauses in hidden tabs and renders a still frame with reduced motion. A static token-based CSS background covers unavailable or lost WebGL contexts. Keep this treatment on sign-in; working screens retain the quiet surface rules above.
+The sign-in screen is the explicit exception (decisions 25, 26): one centered form, no right-hand product panel or security footer, with a decorative WebGL silk background in `--background`, `--primary` and `--accent`. The login heading is just «С возвращением». Its 18-second loop uses `loginShaderDrift` from `lib/motion.ts` and pauses in hidden tabs. By default reduced motion renders a still frame; the play/pause button next to the theme switch lets the user explicitly enable or stop the background, saved in `localStorage` (`crm-login-motion`). A static token-based CSS background covers unavailable or lost WebGL contexts. Keep this treatment on sign-in; working screens retain the quiet surface rules above.
 
 ## Motion
 

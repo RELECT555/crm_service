@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Check, Copy, RefreshCw } from 'lucide-react'
+import { Check, ChevronRight, Copy, RefreshCw, type LucideIcon } from 'lucide-react'
 import type { ConnectionStatus } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,30 +50,45 @@ export function SyncBar({ state }: { state: 'done' | 'running' | 'waiting' }) {
   )
 }
 
-export function PageHeader({ crumbs, eyebrow, title, subtitle, actions }: {
-  crumbs?: Array<{ label: string; href?: string }>; eyebrow?: string; title: ReactNode; subtitle?: ReactNode; actions?: ReactNode
+/**
+ * The one page header used by every screen: breadcrumb trail (or a section eyebrow), a leading icon tile,
+ * title with description, actions on the right, and a hairline separating it from the content.
+ */
+export function PageHeader({ crumbs, eyebrow, icon: Icon, leading, title, subtitle, meta, actions }: {
+  crumbs?: Array<{ label: string; href?: string }>; eyebrow?: string
+  /** Page icon rendered in an accent tile; `leading` replaces the tile with custom content (avatar, provider mark). */
+  icon?: LucideIcon; leading?: ReactNode
+  title: ReactNode; subtitle?: ReactNode; meta?: ReactNode; actions?: ReactNode
 }) {
+  const trail = crumbs ?? (eyebrow ? [{ label: eyebrow }] : [])
   return (
-    <div className="mb-6">
-      {crumbs && (
-        <nav aria-label="Навигация" className="mb-3 flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
-          {crumbs.map((crumb, index) => (
-            <span key={index} className="flex items-center gap-2">
-              {index > 0 && <span aria-hidden="true">/</span>}
-              {crumb.href ? <a href={crumb.href} className="text-muted-foreground hover:text-foreground">{crumb.label}</a> : <span className="text-foreground">{crumb.label}</span>}
+    <header className="mb-7 border-b border-border pb-6">
+      {trail.length > 0 && (
+        <nav aria-label="Навигация" className="mb-4 flex min-w-0 flex-wrap items-center gap-1.5 text-[13px] text-muted-foreground">
+          {trail.map((crumb, index) => (
+            <span key={index} className="flex min-w-0 items-center gap-1.5">
+              {index > 0 && <ChevronRight aria-hidden="true" className="size-3.5 flex-none text-muted-foreground/50" />}
+              {crumb.href
+                ? <a href={crumb.href} className="truncate text-muted-foreground transition-colors hover:text-foreground">{crumb.label}</a>
+                : <span className={cn('truncate', crumbs && index === trail.length - 1 ? 'text-foreground' : 'font-medium')}>{crumb.label}</span>}
             </span>
           ))}
         </nav>
       )}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          {eyebrow && <div className="mb-1 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{eyebrow}</div>}
-          <h1 className="text-2xl leading-tight font-semibold tracking-tight">{title}</h1>
-          {subtitle && <p className="mt-1 max-w-2xl text-muted-foreground">{subtitle}</p>}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-4">
+        {leading ?? (Icon && (
+          <span className="grid size-11 flex-none place-items-center rounded-xl bg-accent text-primary ring-1 ring-primary/15">
+            <Icon className="size-5" strokeWidth={1.75} />
+          </span>
+        ))}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-[22px] leading-tight font-semibold tracking-tight break-words">{title}</h1>
+          {subtitle && <p className="mt-1 max-w-2xl text-[13.5px] text-muted-foreground">{subtitle}</p>}
+          {meta && <div className="mt-1 text-[13px] text-muted-foreground">{meta}</div>}
         </div>
-        {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+        {actions && <div className="flex basis-full flex-wrap gap-2 sm:basis-auto">{actions}</div>}
       </div>
-    </div>
+    </header>
   )
 }
 

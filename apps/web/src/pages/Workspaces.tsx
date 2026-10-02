@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Plus } from 'lucide-react'
+import { Building2, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, PageHeader } from '@/components/common'
 import { Button } from '@/components/ui/button'
@@ -25,7 +25,7 @@ export function Workspaces() {
 
   return (
     <>
-      <PageHeader eyebrow="Клиенты" title="Пространства"
+      <PageHeader eyebrow="Клиенты" icon={Building2} title="Пространства"
         subtitle="Пространство — это клиент сервиса. Внутри него подключаются CRM-аккаунты; данные разных пространств изолированы."
         actions={create} />
       {tenants.error && <div className="mb-5"><ErrorNotice message={errorText(tenants.error)} onRetry={tenants.reload} /></div>}

@@ -48,7 +48,8 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
       <PageHeader
         crumbs={[{ label: 'Пространства', href: '#/' }, { label: tenant.data?.tenant.name ?? 'Пространство', href: `#/tenants/${tenantId}` },
           { label: data?.connection.account ?? '…' }]}
-        title={data ? <span className="flex items-center gap-3"><ProviderMark provider={data.connection.provider} large /><span className="min-w-0 break-all">{data.connection.account}</span></span> : 'Подключение'}
+        leading={data && <ProviderMark provider={data.connection.provider} large />}
+        title={data ? <span className="break-all">{data.connection.account}</span> : 'Подключение'}
         actions={data && can('connections.manage', tenantId) && <>
           {data.connection.status === 'disconnected'
             ? <Button size="lg" onClick={() => run(() => api.resume(tenantId, connectionId), 'Подключение возобновлено')}><Power />Возобновить</Button>
