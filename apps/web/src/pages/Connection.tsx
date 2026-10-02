@@ -1,10 +1,11 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { ExternalLink, RefreshCw, Trash2 } from 'lucide-react'
-import { api, type ConnectionDetail } from '@/lib/api'
+import { ExternalLink, MoreHorizontal, Power, PowerOff, RefreshCw, Trash2 } from 'lucide-react'
+import { api, type ConnectionDetail, type JobSummary } from '@/lib/api'
 import { EmptyState, ErrorNotice, Field, LoadingRows, Notice, PageHeader, ProviderMark, Stat, StatusBadge, SyncBar, ToneBadge } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -24,8 +25,13 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
     data => isSyncing(data) ? 3000 : null)
   const tenant = useResource(() => api.tenant(tenantId), [tenantId])
   const [confirmResync, setConfirmResync] = useState(false)
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false)
   const toast = useToast()
   const data = detail.data
+  const run = async (action: () => Promise<unknown>, done: string) => {
+    try { await action(); toast.show(done); detail.reload() }
+    catch (failure) { toast.show(errorText(failure), 'error') }
+  }
 
   const reauthorize = async () => {
     if (!data) return
@@ -42,8 +48,19 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
           { label: data?.connection.account ?? '…' }]}
         title={data ? <span className="flex items-center gap-3"><ProviderMark provider={data.connection.provider} large /><span className="min-w-0 break-all">{data.connection.account}</span></span> : 'Подключение'}
         actions={data && <>
-          <Button variant="outline" size="lg" onClick={reauthorize}><ExternalLink />Переавторизовать</Button>
-          <Button variant="outline" size="lg" onClick={() => setConfirmResync(true)} disabled={isSyncing(data)}><RefreshCw />Полная синхронизация</Button>
+          {data.connection.status === 'disconnected'
+            ? <Button size="lg" onClick={() => run(() => api.resume(tenantId, connectionId), 'Подключение возобновлено')}><Power />Возобновить</Button>
+            : <Button variant="outline" size="lg" onClick={() => setConfirmResync(true)} disabled={isSyncing(data)}><RefreshCw />Полная синхронизация</Button>}
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="outline" size="icon-lg" aria-label="Действия с подключением" />}><MoreHorizontal /></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={reauthorize}><ExternalLink />Переавторизовать в CRM</DropdownMenuItem>
+              {data.connection.status !== 'disconnected' && <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={() => setConfirmDisconnect(true)}><PowerOff />Отключить</DropdownMenuItem>
+              </>}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </>} />
       {detail.error && <ErrorNotice message={errorText(detail.error)} onRetry={detail.reload} />}
       {!data && !detail.error && <Card><LoadingRows rows={4} /></Card>}
@@ -68,8 +85,22 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
             <CommercialSources data={data} tenantId={tenantId} onChange={detail.reload} />
             <ActionTypes data={data} tenantId={tenantId} onChange={detail.reload} />
           </div>
+          <ActivityLog tenantId={tenantId} connectionId={connectionId} live={isSyncing(data)} />
         </div>
       )}
+      <Dialog open={confirmDisconnect} onOpenChange={setConfirmDisconnect}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Отключить подключение?</DialogTitle></DialogHeader>
+          <DialogBody>
+            <p className="text-muted-foreground">Синхронизация остановится, события из CRM будут игнорироваться. Загруженные данные и разметка
+              сохранятся — подключение можно возобновить в любой момент. В самой CRM ничего не меняется.</p>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" size="lg" onClick={() => setConfirmDisconnect(false)}>Отмена</Button>
+            <Button variant="destructive" size="lg" onClick={() => { setConfirmDisconnect(false); void run(() => api.disconnect(tenantId, connectionId), 'Подключение отключено, данные сохранены') }}>Отключить</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ResyncDialog tenantId={tenantId} connectionId={connectionId} open={confirmResync} onOpenChange={setConfirmResync}
         onDone={() => { setConfirmResync(false); detail.reload() }} />
     </>
@@ -78,6 +109,13 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
 
 function ConnectionNotice({ data, onReauthorize }: { data: ConnectionDetail; onReauthorize: () => void }) {
   const { status, lastError } = data.connection
+  if (status === 'disconnected') {
+    return (
+      <Notice tone="muted" title="Подключение отключено">
+        <p>Синхронизация остановлена, события из CRM игнорируются. Данные и разметка сохранены — нажмите «Возобновить», чтобы перечитать всё заново.</p>
+      </Notice>
+    )
+  }
   if (status === 'reauthorization_required') {
     return (
       <Notice tone="danger" title="CRM отклонила доступ" action={<Button size="lg" onClick={onReauthorize}>Авторизоваться</Button>}>
@@ -378,5 +416,53 @@ function ResyncDialog({ tenantId, connectionId, open, onOpenChange, onDone }: {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+const JOB_LABELS: Record<JobSummary['type'], string> = { sync: 'Загрузка', fetch: 'Изменение из CRM', bind: 'Подписка на события' }
+const JOB_STATUS: Record<JobSummary['status'], { label: string; dot: string }> = {
+  queued: { label: 'В очереди', dot: 'bg-muted-foreground/40' },
+  running: { label: 'Выполняется', dot: 'bg-info' },
+  done: { label: 'Готово', dot: 'bg-success' },
+  failed: { label: 'Ошибка', dot: 'bg-destructive' },
+  cancelled: { label: 'Отменено', dot: 'bg-muted-foreground/40' },
+}
+
+/** Recent jobs with their last error: the first place to look when a connection misbehaves. */
+function ActivityLog({ tenantId, connectionId, live }: { tenantId: string; connectionId: string; live: boolean }) {
+  const jobs = useResource(() => api.activity(tenantId, connectionId), [tenantId, connectionId], () => live ? 4000 : null)
+  return (
+    <Card className="gap-0 pb-0">
+      <CardHeader className="border-b">
+        <CardTitle className="font-semibold">Журнал синхронизации</CardTitle>
+        <CardDescription>Последние 30 заданий. Ошибки повторяются автоматически, после пяти неудач подключение помечается как сбойное.</CardDescription>
+      </CardHeader>
+      {jobs.error && <div className="p-5"><ErrorNotice message={errorText(jobs.error)} onRetry={jobs.reload} /></div>}
+      {!jobs.data && !jobs.error && <LoadingRows />}
+      {jobs.data?.length === 0 && <EmptyState title="Заданий пока не было" />}
+      {!!jobs.data?.length && (
+        <Table>
+          <TableHeader><TableRow><TableHead>Время</TableHead><TableHead>Задание</TableHead><TableHead>Статус</TableHead><TableHead>Подробности</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {jobs.data.map(job => {
+              const status = JOB_STATUS[job.status]
+              return (
+                <TableRow key={job.id}>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(job.finished_at ?? job.created_at)}</TableCell>
+                  <TableCell>{JOB_LABELS[job.type]}{job.type !== 'bind' && <span className="text-muted-foreground"> · {kindLabel(job.kind)}</span>}</TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><span className={cn('size-1.5 rounded-full', status.dot)} />{status.label}</span>
+                  </TableCell>
+                  <TableCell className="max-w-md text-xs text-muted-foreground">
+                    {job.error ? <span className="font-mono break-words text-destructive/90">{job.error}</span>
+                      : job.attempts > 1 ? `с ${job.attempts}-й попытки` : ''}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      )}
+    </Card>
   )
 }

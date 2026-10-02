@@ -8,6 +8,8 @@ import { HttpError, json, readJson } from "../respond.ts";
 import type { Router } from "../router.ts";
 
 const FIELD = /^[A-Za-z][A-Za-z0-9_]{0,100}$/;
+/** Workspace time zone drives future metric day boundaries; validated against the runtime's IANA list. */
+const TIMEZONES = new Set([...Intl.supportedValuesOf("timeZone"), "UTC"]);
 
 function tenantName(value: unknown, required: boolean): string | null {
   if (value === undefined && !required) return null;
@@ -50,7 +52,23 @@ export function adminRoutes(router: Router, { config, store, registry }: AppCont
 
   router.on("PATCH", "/v1/tenants/:uuid", async ({ req, res, params: [tenantId] }) => {
     tenantOr404(tenantId);
-    store.renameTenant(tenantId, tenantName((await readJson(req)).name, true)!);
+    const body = await readJson(req);
+    const fields: { name?: string; timezone?: string | null; currency?: string | null } = {};
+    if (body.name !== undefined) fields.name = tenantName(body.name, true)!;
+    if (body.timezone !== undefined) {
+      if (body.timezone !== null && (typeof body.timezone !== "string" || !TIMEZONES.has(body.timezone))) {
+        throw new HttpError(400, "timezone must be an IANA time zone");
+      }
+      fields.timezone = body.timezone;
+    }
+    if (body.currency !== undefined) {
+      if (body.currency !== null && (typeof body.currency !== "string" || !/^[A-Z]{3}$/.test(body.currency))) {
+        throw new HttpError(400, "currency must be an ISO 4217 code");
+      }
+      fields.currency = body.currency;
+    }
+    if (Object.keys(fields).length === 0) throw new HttpError(400, "Nothing to update");
+    store.updateTenant(tenantId, fields);
     json(res, 200, { tenant: store.getTenant(tenantId), connections: store.listConnections(tenantId) });
   });
 
@@ -97,8 +115,32 @@ export function adminRoutes(router: Router, { config, store, registry }: AppCont
 
   router.on("POST", "/v1/tenants/:uuid/connections/:uuid/resync", ({ res, params: [tenantId, connectionId] }) => {
     const connection = connectionOr404(tenantId, connectionId);
+    if (connection.status === "disconnected") throw new HttpError(409, "Connection is disconnected");
     if (!queueFullSync(store, registry, connection.id)) throw new HttpError(409, "A full sync is already running");
     json(res, 202, { queued: true });
+  });
+
+  // Disconnecting is local and reversible: CRM data and mappings stay, sync stops, incoming events are ignored.
+  // Nothing is written to the CRM (read-only release), so its webhook registration is left in place.
+  router.on("POST", "/v1/tenants/:uuid/connections/:uuid/disconnect", ({ res, params: [tenantId, connectionId] }) => {
+    const connection = connectionOr404(tenantId, connectionId);
+    const cancelled = store.transaction(() => {
+      store.setConnectionStatus(connection.id, "disconnected");
+      return store.cancelPendingJobs(connection.id);
+    });
+    json(res, 200, { status: "disconnected", cancelledJobs: cancelled });
+  });
+
+  router.on("POST", "/v1/tenants/:uuid/connections/:uuid/resume", ({ res, params: [tenantId, connectionId] }) => {
+    const connection = connectionOr404(tenantId, connectionId);
+    if (connection.status !== "disconnected") throw new HttpError(409, "Connection is not disconnected");
+    if (!queueFullSync(store, registry, connection.id)) throw new HttpError(409, "A full sync is already running");
+    json(res, 202, { status: "backfilling" });
+  });
+
+  router.on("GET", "/v1/tenants/:uuid/connections/:uuid/activity", ({ res, params: [tenantId, connectionId] }) => {
+    const connection = connectionOr404(tenantId, connectionId);
+    json(res, 200, { jobs: store.listJobs(connection.id) });
   });
 
   // --- Mappings ---

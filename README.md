@@ -37,14 +37,15 @@ The prototype stores encrypted OAuth tokens and raw CRM payloads in a local SQLi
 All `/v1` routes require the `x-admin-key` header. This is a development-only operator credential, not customer authentication. The admin UI uses exactly these routes.
 
 1. `GET /v1/providers` returns the connector catalog (available and planned CRMs, setup steps, data per axis, limits, callback URL).
-2. `POST /v1/tenants` with optional `{"name":"Acme"}` creates a workspace; `GET /v1/tenants`, `GET`/`PATCH /v1/tenants/{tenantId}` list, read and rename.
+2. `POST /v1/tenants` with optional `{"name":"Acme"}` creates a workspace; `GET /v1/tenants` lists them. `GET /v1/tenants/{tenantId}` returns the workspace and its connections with record counts and backfill progress; `PATCH` updates `name`, `timezone` (IANA) and `currency` (ISO 4217, `null` clears).
 3. `POST /v1/tenants/{tenantId}/connect/{provider}` (`bitrix24`, `kommo`, `amocrm`) with `{"account":"your-portal.bitrix24.com"}` returns `authorizeUrl`. Open it as the authorized CRM user.
 4. The CRM returns to `/oauth/{provider}/callback`; the service exchanges the code, verifies the account, queues the event subscription and backfill, and redirects a browser to the connection page (API clients get JSON). Authorizing the same portal again repairs the existing connection.
 5. `GET /v1/tenants/{tenantId}/connections/{connectionId}` reports status, sync coverage per object, queue, record counts and mappings. No credentials are returned.
 6. `POST …/commercial-sources` marks a source kind (optionally one pipeline) as `sale` or `purchase`, e.g. `{"sourceKind":"smart:128","direction":"purchase","amountField":"purchaseValue","currencyField":"purchaseCurrency"}` or `{"sourceKind":"deal","categoryId":2,"direction":"purchase"}`. Allowed kinds and whether amount/currency fields apply come from the connector (`mappingOptions` in the connection detail). `DELETE …/commercial-sources/{sourceKind}/{categoryId|*}` removes it.
 7. `POST …/action-types` maps a provider activity code, e.g. `{"providerTypeId":"TRAVEL","actionType":"visit"}`; `DELETE …/action-types/{providerTypeId}` removes it.
-8. `POST …/resync` starts a full reconciliation. The worker also schedules one after a live connection becomes 24 hours stale.
-9. `GET …/dashboard` returns the prototype two-axis read model (commercial/work groups, `byOwner`, linked work, coverage, limitations). It has no UI yet.
+8. `POST …/disconnect` stops syncing locally (pending jobs cancelled, CRM events ignored, data and mappings kept; nothing changes in the CRM); `POST …/resume` restarts with a full sync. `GET …/activity` returns the last 30 jobs with their errors.
+9. `POST …/resync` starts a full reconciliation. The worker also schedules one after a live connection becomes 24 hours stale.
+10. `GET …/dashboard` returns the prototype two-axis read model (commercial/work groups, `byOwner`, linked work, coverage, limitations). It has no UI yet.
 
 Bitrix24 deals are classified as sales processes by default; deal opportunity amounts are pipeline values, not booked revenue. Purchases require explicit mappings. Activity counts currently include Bitrix CRM activities; external tasks and multi-entity activity bindings are not yet fully covered. The API reports links as relationships, not proof that an activity caused a commercial outcome. A missed delete event can leave a stale record because an absent record may also mean changed read permissions; confirmed delete events are handled, while reliable delete reconciliation remains open.
 

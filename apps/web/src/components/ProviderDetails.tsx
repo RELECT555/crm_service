@@ -1,59 +1,56 @@
-import type { ReactNode } from 'react'
+import { ChevronDown } from 'lucide-react'
 import type { Provider } from '@/lib/api'
 import { CopyField } from '@/components/common'
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible'
 
-/** Everything an operator needs to know before connecting a CRM; data comes from the backend catalog. */
+/** Setup first, reference details folded away: the sheet should read in a few seconds. */
 export function ProviderDetails({ provider }: { provider: Provider }) {
-  const rows: Array<{ label: string; value: ReactNode }> = [
-    { label: 'Коммерческие данные', value: <List items={provider.commercialData} /> },
-    { label: 'Работа менеджеров', value: <List items={provider.workData} /> },
-    { label: 'Права доступа', value: <Chips items={provider.scopes} /> },
-    { label: 'Получение изменений', value: provider.changeCapture },
-    { label: 'Ограничения API', value: provider.limits },
-    { label: 'Встраивание в CRM', value: provider.embed },
-    { label: 'Авторизация', value: provider.auth === 'oauth2' ? 'OAuth 2.0, только чтение' : 'API-ключ с правами только на чтение, хранится зашифрованным' },
-    { label: 'Документация', value: <a href={provider.docsUrl} target="_blank" rel="noreferrer">Официальная документация ↗</a> },
+  const details: Array<[string, string]> = [
+    ['Продажи и закупки', provider.commercialData.join('; ')],
+    ['Работа менеджеров', provider.workData.join('; ')],
+    ['Изменения', provider.changeCapture],
+    ['Ограничения API', provider.limits],
+    ['Встраивание', provider.embed],
   ]
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-6">
       <section>
-        <h3 className="mb-3 text-[13px] font-semibold">Как подключить</h3>
-        <ol className="grid gap-3">
+        <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">Как подключить</h3>
+        <ol className="grid gap-2.5">
           {provider.setupSteps.map((step, index) => (
-            <li key={step} className="grid grid-cols-[26px_1fr] gap-3 text-muted-foreground">
-              <span className="grid size-[26px] place-items-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">{index + 1}</span>
-              <span className="pt-0.5">{step}</span>
+            <li key={step} className="flex gap-3 text-[13.5px] leading-relaxed">
+              <span className="w-4 flex-none pt-px text-right text-[12px] font-medium text-muted-foreground tabular-nums">{index + 1}</span>
+              <span>{step}</span>
             </li>
           ))}
         </ol>
       </section>
       {provider.callbackUrl && (
         <section className="grid gap-1.5">
-          <span className="text-[13px] font-medium">Redirect URI для приложения в CRM</span>
+          <h3 className="text-[13px] font-medium text-muted-foreground">Redirect URI</h3>
           <CopyField value={provider.callbackUrl} label="Redirect URI" />
         </section>
       )}
-      <div className="h-px bg-border" />
-      <dl className="grid gap-x-4 gap-y-3 text-[13.5px] sm:grid-cols-[170px_1fr]">
-        {rows.map(({ label, value }) => (
-          <div key={label} className="contents">
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="mb-2 sm:mb-0">{value}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  )
-}
-
-function List({ items }: { items: string[] }) {
-  return <ul className="grid list-disc gap-1 pl-4">{items.map(item => <li key={item}>{item}</li>)}</ul>
-}
-
-function Chips({ items }: { items: string[] }) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {items.map(item => <span key={item} className="rounded-full border bg-muted px-2 py-0.5 text-xs text-muted-foreground">{item}</span>)}
+      <Collapsible className="border-t pt-4">
+        <CollapsibleTrigger className="group flex w-full items-center justify-between rounded-md text-[13px] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
+          Подробнее о данных и ограничениях
+          <ChevronDown className="size-4 transition-transform duration-200 group-data-panel-open:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsiblePanel>
+          <dl className="grid gap-3 pt-4 text-[13px]">
+            {details.map(([label, value]) => (
+              <div key={label} className="grid gap-0.5 sm:grid-cols-[150px_1fr] sm:gap-4">
+                <dt className="text-muted-foreground">{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+            <div className="grid gap-0.5 sm:grid-cols-[150px_1fr] sm:gap-4">
+              <dt className="text-muted-foreground">Документация</dt>
+              <dd><a href={provider.docsUrl} target="_blank" rel="noreferrer">Открыть ↗</a></dd>
+            </div>
+          </dl>
+        </CollapsiblePanel>
+      </Collapsible>
     </div>
   )
 }

@@ -178,3 +178,18 @@ export function Stat({ label, value, title }: { label: string; value: string; ti
     </div>
   )
 }
+
+const AVATAR_STOPWORDS = /^(ооо|ао|зао|пао|ип|llc|inc|ltd|gmbh)$/i
+
+/** Initials avatar for workspaces; color is neutral on purpose (names are not brands). */
+export function Avatar({ name, small, large, muted }: { name: string; small?: boolean; large?: boolean; muted?: boolean }) {
+  const words = name.replace(/[«»"'()]/g, '').split(/\s+/).filter(word => word && !AVATAR_STOPWORDS.test(word))
+  const initials = (words.slice(0, 2).map(word => word[0]).join('') || name.slice(0, 2)).toUpperCase()
+  return (
+    <span aria-hidden="true" className={cn('grid flex-none place-items-center rounded-lg font-semibold tracking-tight',
+      muted ? 'bg-muted text-muted-foreground' : 'bg-foreground/[0.07] text-foreground dark:bg-foreground/10',
+      small ? 'size-5 rounded-md text-[9px]' : large ? 'size-12 rounded-xl text-base' : 'size-7 text-[11px]')}>
+      {initials}
+    </span>
+  )
+}

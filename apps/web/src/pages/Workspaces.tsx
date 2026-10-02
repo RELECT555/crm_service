@@ -1,20 +1,24 @@
 import { useState, type FormEvent } from 'react'
 import { Plus } from 'lucide-react'
 import { api } from '@/lib/api'
-import { EmptyState, ErrorNotice, Field, LoadingRows, PageHeader } from '@/components/common'
+import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, PageHeader } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDate, numberFormat } from '@/lib/format'
-import { navigate } from '@/lib/router'
+import { navigate, useHashQuery } from '@/lib/router'
 import { errorText, useToast } from '@/lib/toast'
 import { useResource } from '@/lib/use-resource'
 
 export function Workspaces() {
   const tenants = useResource(() => api.tenants(), [])
-  const [creating, setCreating] = useState(false)
+  const query = useHashQuery()
+  const [creatingLocal, setCreatingLocal] = useState(false)
+  // `#/?new=1` (from the workspace switcher) opens the dialog; closing it clears the parameter.
+  const creating = creatingLocal || query.get('new') === '1'
+  const setCreating = (open: boolean) => { setCreatingLocal(open); if (!open && query.get('new')) navigate('/') }
   const create = <Button size="lg" onClick={() => setCreating(true)}><Plus />Новое пространство</Button>
 
   return (
@@ -43,8 +47,13 @@ export function Workspaces() {
                   <TableRow key={tenant.id} tabIndex={0} onClick={open} onKeyDown={event => { if (event.key === 'Enter') open() }}
                     className="cursor-pointer hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none">
                     <TableCell>
-                      <div className="font-medium">{tenant.name ?? 'Без названия'}</div>
-                      <div className="font-mono text-xs text-muted-foreground">{tenant.id}</div>
+                      <div className="flex items-center gap-3">
+                        <Avatar name={tenant.name ?? '?'} />
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{tenant.name ?? 'Без названия'}</div>
+                          <div className="font-mono text-[11px] text-muted-foreground">{tenant.id.slice(0, 8)}</div>
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{numberFormat.format(tenant.connections)}</TableCell>
                     <TableCell>

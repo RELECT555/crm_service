@@ -65,6 +65,8 @@ export function publicRoutes(router: Router, { config, store, registry }: AppCon
     const connector = registry.get(provider);
     if (!connection || !connector || connection.provider !== provider) throw new HttpError(404, "Unknown webhook");
     const body = await readBody(req);
+    // A disconnected connection ignores CRM events (the CRM may still deliver them); acknowledge so it stops retrying.
+    if (connection.status === "disconnected") return json(res, 202, { accepted: false });
     const events = connector.parseEvents(body);
     if (events.length === 0 || events.some(event => event.accountId !== connection.account_id)) {
       throw new HttpError(400, "Invalid event");

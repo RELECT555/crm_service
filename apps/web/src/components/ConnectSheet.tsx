@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { api, type Provider } from '@/lib/api'
-import { ErrorNotice, Field, LoadingRows, Notice, ProviderMark } from '@/components/common'
+import { ErrorNotice, Field, LoadingRows, ProviderMark } from '@/components/common'
 import { ProviderDetails } from '@/components/ProviderDetails'
 import { ProviderGrid } from '@/components/ProviderGrid'
 import { Button } from '@/components/ui/button'
@@ -11,9 +11,11 @@ import { errorText } from '@/lib/toast'
 import { useResource } from '@/lib/use-resource'
 
 /** Two-step connect flow: pick a CRM, then enter the account and go to the provider's consent screen. */
-export function ConnectSheet({ tenantId, open, onOpenChange }: { tenantId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function ConnectSheet({ tenantId, open, onOpenChange, initialProvider = null }: {
+  tenantId: string; open: boolean; onOpenChange: (open: boolean) => void; initialProvider?: Provider | null
+}) {
   const providers = useResource(() => api.providers(), [])
-  const [selected, setSelected] = useState<Provider | null>(null)
+  const [selected, setSelected] = useState<Provider | null>(initialProvider)
   const [account, setAccount] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -38,10 +40,13 @@ export function ConnectSheet({ tenantId, open, onOpenChange }: { tenantId: strin
     <Sheet open={open} onOpenChange={next => { onOpenChange(next); if (!next) back() }}>
       <SheetContent>
         <SheetHeader>
-          <SheetTitle>{selected ? selected.name : 'Подключить CRM'}</SheetTitle>
+          <SheetTitle className="flex items-center gap-3">
+            {selected && <ProviderMark provider={selected.id} />}
+            {selected ? selected.name : 'Подключить CRM'}
+          </SheetTitle>
           <SheetDescription>
             {!selected ? 'Выберите систему клиента' : available ? 'Подключение аккаунта клиента'
-              : selected.status === 'not_configured' ? 'Коннектор готов, нужны ключи приложения' : 'Коннектор в разработке'}
+              : selected.status === 'not_configured' ? 'Нужны ключи приложения на сервере' : 'Коннектор в разработке'}
           </SheetDescription>
         </SheetHeader>
         <SheetBody>
@@ -54,21 +59,14 @@ export function ConnectSheet({ tenantId, open, onOpenChange }: { tenantId: strin
           )}
           {selected && (
             <div className="grid gap-6">
-              <div className="flex items-start gap-3">
-                <ProviderMark provider={selected.id} large />
-                <p className="text-muted-foreground">
-                  {available
-                    ? 'Сервис получит доступ только на чтение. Учётные данные CRM хранятся на сервере в зашифрованном виде и не попадают в браузер.'
-                    : selected.status === 'not_configured'
-                      ? 'Коннектор реализован, но на сервере не заданы ключи OAuth-приложения. Как только они появятся, подключение станет доступно.'
-                      : 'Исследование API завершено, адаптер ещё не реализован. Ниже — что понадобится для подключения.'}
-                </p>
-              </div>
               {selected.status === 'not_configured' && <SetupNotice provider={selected} />}
+              {selected.status === 'planned' && (
+                <p className="text-[13px] text-muted-foreground">API изучено, коннектор ещё не реализован. Ниже — что понадобится для подключения.</p>
+              )}
               {available && (
                 <form id="connect-form" onSubmit={submit}>
                   <Field label={selected.accountLabel} htmlFor="account" error={error}
-                    hint={`Например: ${selected.accountHint}. После входа в CRM вы вернётесь на страницу подключения.`}>
+                    hint="Доступ только на чтение. Ключи CRM хранятся на сервере в зашифрованном виде.">
                     <Input id="account" required autoFocus value={account} autoComplete="off" spellCheck={false}
                       placeholder={selected.accountHint} onChange={event => setAccount(event.target.value)} />
                   </Field>
@@ -92,11 +90,9 @@ export function ConnectSheet({ tenantId, open, onOpenChange }: { tenantId: strin
 /** What the server operator must add before this CRM can be connected. */
 function SetupNotice({ provider }: { provider: Provider }) {
   return (
-    <Notice tone="warn" title="Нужна настройка сервера">
-      <p>Добавьте в <code className="font-mono text-xs">apps/api/.env</code> и перезапустите API:</p>
-      <pre className="mt-2 overflow-x-auto rounded-md bg-card px-3 py-2 font-mono text-xs text-foreground ring-1 ring-border">
-        {(provider.requiredEnv ?? []).map(name => `${name}=…`).join('\n')}
-      </pre>
-    </Notice>
+    <div className="rounded-xl bg-warning/8 px-4 py-3 text-[13px]">
+      <p className="font-medium text-foreground">Добавьте ключи в <code className="font-mono text-xs">apps/api/.env</code> и перезапустите API</p>
+      <p className="mt-1 font-mono text-xs text-muted-foreground">{(provider.requiredEnv ?? []).join(' · ')}</p>
+    </div>
   )
 }

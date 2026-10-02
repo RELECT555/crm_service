@@ -13,3 +13,9 @@ export function useRoute(): string[] {
 export function navigate(path: string): void {
   window.location.hash = `#${path}`
 }
+
+/** Query parameters after `?` in the hash, e.g. `#/?new=1`. */
+export function useHashQuery(): URLSearchParams {
+  const hash = useSyncExternalStore(subscribeHash, () => window.location.hash)
+  return new URLSearchParams(hash.split('?')[1] ?? '')
+}

@@ -38,6 +38,25 @@ export type ConnectionSummary = {
   last_sync: number | null
   last_error: string | null
   created_at: number | null
+  events_mode: 'webhook' | 'polling' | null
+  records: number
+  commercial: number
+  work: number
+  kinds_done: number
+  kinds_total: number
+}
+
+export type Tenant = { id: string; name: string | null; created_at: number; timezone: string | null; currency: string | null }
+
+export type JobSummary = {
+  id: string
+  type: 'sync' | 'fetch' | 'bind'
+  kind: string
+  status: 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
+  attempts: number
+  error: string | null
+  created_at: number
+  finished_at: number | null
 }
 
 export type CommercialSource = {
@@ -132,14 +151,18 @@ export const api = {
   providers: () => request<{ providers: Provider[] }>('/v1/providers').then(r => r.providers),
   tenants: () => request<{ tenants: TenantSummary[] }>('/v1/tenants').then(r => r.tenants),
   createTenant: (name: string) => request<{ tenantId: string }>('/v1/tenants', { method: 'POST', body: { name } }),
-  tenant: (id: string) =>
-    request<{ tenant: { id: string; name: string | null; created_at: number }; connections: ConnectionSummary[] }>(`/v1/tenants/${id}`),
-  renameTenant: (id: string, name: string) => request(`/v1/tenants/${id}`, { method: 'PATCH', body: { name } }),
+  tenant: (id: string) => request<{ tenant: Tenant; connections: ConnectionSummary[] }>(`/v1/tenants/${id}`),
+  updateTenant: (id: string, fields: Partial<Pick<Tenant, 'name' | 'timezone' | 'currency'>>) =>
+    request(`/v1/tenants/${id}`, { method: 'PATCH', body: fields }),
   connect: (tenantId: string, provider: string, account: string) =>
     request<{ authorizeUrl: string; redirectUri: string; account: string }>(
       `/v1/tenants/${tenantId}/connect/${provider}`, { method: 'POST', body: { account } }),
   connection: (tenantId: string, connectionId: string) => request<ConnectionDetail>(base(tenantId, connectionId)),
   resync: (tenantId: string, connectionId: string) => request(`${base(tenantId, connectionId)}/resync`, { method: 'POST' }),
+  disconnect: (tenantId: string, connectionId: string) => request(`${base(tenantId, connectionId)}/disconnect`, { method: 'POST' }),
+  resume: (tenantId: string, connectionId: string) => request(`${base(tenantId, connectionId)}/resume`, { method: 'POST' }),
+  activity: (tenantId: string, connectionId: string) =>
+    request<{ jobs: JobSummary[] }>(`${base(tenantId, connectionId)}/activity`).then(r => r.jobs),
   addCommercialSource: (tenantId: string, connectionId: string, body: Record<string, unknown>) =>
     request(`${base(tenantId, connectionId)}/commercial-sources`, { method: 'POST', body }),
   // Kinds are [a-z:0-9] and safe in a path segment; encoding ':' would not match the server route.

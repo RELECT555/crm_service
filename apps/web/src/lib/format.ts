@@ -31,7 +31,7 @@ export const STATUS: Record<ConnectionStatus, { label: string; tone: Tone; hint:
   live: { label: 'Работает', tone: 'ok', hint: 'Данные загружены, изменения поступают по событиям и сверкам.' },
   degraded: { label: 'Сбои синхронизации', tone: 'warn', hint: 'Часть заданий не выполнилась после повторов. Проверьте ошибку и запустите пересинхронизацию.' },
   reauthorization_required: { label: 'Нужна авторизация', tone: 'danger', hint: 'CRM отклонила токен доступа. Повторите авторизацию тем же аккаунтом.' },
-  disconnected: { label: 'Отключено', tone: 'muted', hint: 'Подключение отключено.' },
+  disconnected: { label: 'Отключено', tone: 'muted', hint: 'Синхронизация остановлена оператором; данные сохранены.' },
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -56,4 +56,13 @@ export const ACTION_TYPES: Array<{ id: string; label: string }> = [
 ]
 export function actionLabel(id: string): string {
   return ACTION_TYPES.find(type => type.id === id)?.label ?? id
+}
+
+/** Russian plural form: plural(3, 'подключение', 'подключения', 'подключений'). */
+export function plural(count: number, one: string, few: string, many: string): string {
+  const mod10 = count % 10
+  const mod100 = count % 100
+  if (mod10 === 1 && mod100 !== 11) return one
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few
+  return many
 }

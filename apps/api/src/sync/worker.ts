@@ -78,13 +78,13 @@ export class Worker {
         const message = error instanceof Error ? error.message.slice(0, 200) : "Unknown sync error";
         console.error("Sync job failed", { type: job.type, kind: job.kind, attempts: job.attempts, message });
         if (error instanceof ConnectorAuthError) {
-          this.store.failJob(job.id);
+          this.store.failJob(job.id, message);
           this.store.setConnectionStatus(job.connection_id, "reauthorization_required", message);
         } else if (job.attempts >= MAX_ATTEMPTS) {
-          this.store.failJob(job.id);
+          this.store.failJob(job.id, message);
           this.store.setConnectionStatus(job.connection_id, "degraded", message);
         } else {
-          this.store.retryJob(job, Math.min(60_000, 500 * 2 ** job.attempts));
+          this.store.retryJob(job, Math.min(60_000, 500 * 2 ** job.attempts), message);
         }
       }
       return true;
@@ -94,6 +94,8 @@ export class Worker {
   private async run(job: Job): Promise<void> {
     const connection = this.store.getConnection(job.connection_id);
     if (!connection) throw new Error("Connection missing");
+    // A disconnected connection keeps its data but does no CRM calls; jobs created before disconnecting are dropped.
+    if (connection.status === "disconnected") { this.store.cancelJob(job.id); return; }
     const connector = this.registry.require(connection.provider);
     const seal = (payload: unknown) => encrypt(this.config.dataKey, JSON.stringify(payload));
     if (job.type === "bind") {

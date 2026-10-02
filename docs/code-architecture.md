@@ -92,7 +92,10 @@ worker
   sync  -> connector.listPage -> upsert records + checkpoint + next page job in ONE transaction
   fetch -> connector.fetchRecord (upsert) or tombstone on a verified delete event
   refreshSyncState -> live when no sync job is pending, all checkpoints complete, events bound
-hourly -> connections stale > 24 h get a full reconciliation
+hourly -> connections stale > 24 h get a full reconciliation (polling-mode connections: > 1 h)
+disconnect -> status `disconnected`, queued jobs cancelled, worker drops jobs that were already running, webhooks answered 202 and ignored
+resume     -> full sync, as for a new connection
+jobs keep `error` (last failure, cleared on success) and `finished_at`; GET …/activity shows the last 30
 ```
 
 Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_required`, `disconnected` (`domain/model.ts`). The admin UI labels them in `web/src/lib.ts`.

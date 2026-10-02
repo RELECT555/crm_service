@@ -19,4 +19,6 @@ Short records of decisions that shape the code. Add an entry when you make a cho
 | 13 | 2026-10-02 | Commercial mappings keyed by connector object kind (`deal`, `smart:128`) + pipeline; connectors describe mappable kinds via `mappingOptions()`. Legacy rows migrate automatically. | Second connector (Kommo) needs the same rules without Bitrix IDs. | accepted |
 | 14 | 2026-10-02 | Kommo and amoCRM share one adapter with two registrations and separate credentials. | Same API v4, separate platforms and app registrations. | accepted |
 | 15 | 2026-10-02 | Provider app credentials are optional; adapters without them show as «Нужна настройка» with the env vars and redirect URI. | Operators can see what to configure without code changes. | accepted |
+| 17 | 2026-10-02 | «Отключить» is local and reversible: sync stops, events are ignored, data stays; the CRM-side webhook registration is not removed. | The first release never writes to a CRM. | accepted |
+| 18 | 2026-10-02 | Each workspace stores a time zone and a base currency, both optional and explicit. | Metric day boundaries and currency handling must be recorded, never guessed. | accepted |
 | 16 | 2026-10-02 | A connection whose CRM plan forbids webhook registration runs in `polling` mode (hourly reconciliation) instead of failing. | Kommo restricts webhook API to higher plans. | accepted |

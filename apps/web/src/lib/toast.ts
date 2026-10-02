@@ -22,6 +22,10 @@ export function errorText(error: unknown): string {
     'Provider is not available yet': 'Коннектор для этой CRM ещё в разработке.',
     'name must be 1-120 characters': 'Название — от 1 до 120 символов.',
     'Mapping not found': 'Маппинг уже удалён.',
+    'Connection is disconnected': 'Подключение отключено — сначала возобновите его.',
+    'Connection is not disconnected': 'Подключение уже активно.',
+    'timezone must be an IANA time zone': 'Выберите часовой пояс из списка.',
+    'currency must be an ISO 4217 code': 'Валюта — трёхбуквенный код, например RUB.',
   }
   if (known[message]) return known[message]
   if (/(Portal|Account) must be/.test(message)) return 'Проверьте адрес аккаунта: он должен совпадать с примером под полем.'

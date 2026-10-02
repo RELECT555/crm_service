@@ -21,7 +21,13 @@ export type Connection = {
 };
 export type EventsMode = "webhook" | "polling";
 export type ConnectionSummary = Pick<Connection, "id" | "provider" | "account_id" | "account" | "status" |
-  "last_sync" | "last_error" | "created_at" | "events_mode">;
+  "last_sync" | "last_error" | "created_at" | "events_mode"> & {
+  /** Live (not deleted) records per axis and backfill progress, for overview cards. */
+  records: number; commercial: number; work: number; kinds_done: number; kinds_total: number;
+};
+export type Tenant = { id: string; name: string | null; created_at: number; timezone: string | null; currency: string | null };
+export type JobSummary = { id: string; type: string; kind: string; status: string; attempts: number;
+  error: string | null; created_at: number; finished_at: number | null };
 /** Operator rule: records of `source_kind` (optionally one pipeline) are sales or purchases. */
 export type CommercialMapping = { source_kind: string; category_id: string; direction: "sale" | "purchase";
   amount_field: string | null; currency_field: string | null };
@@ -91,6 +97,10 @@ export class Store {
     this.addColumn("connections", "created_at", "INTEGER");
     this.addColumn("connections", "events_mode", "TEXT");
     this.addColumn("connections", "settings", "TEXT");
+    this.addColumn("tenants", "timezone", "TEXT");
+    this.addColumn("tenants", "currency", "TEXT");
+    this.addColumn("jobs", "error", "TEXT");
+    this.addColumn("jobs", "finished_at", "INTEGER");
     this.migrateCommercialSources();
   }
 
@@ -127,8 +137,12 @@ export class Store {
     this.db.prepare("INSERT INTO tenants (id,created_at,name) VALUES (?,?,?)").run(id, Date.now(), name);
     return id;
   }
-  renameTenant(id: string, name: string): void {
-    this.db.prepare("UPDATE tenants SET name=? WHERE id=?").run(name, id);
+  /** Updates only the provided fields; `null` clears timezone or currency. */
+  updateTenant(id: string, fields: Partial<Pick<Tenant, "name" | "timezone" | "currency">>): void {
+    for (const [column, value] of Object.entries(fields)) {
+      if (!["name", "timezone", "currency"].includes(column) || value === undefined) continue;
+      this.db.prepare(`UPDATE tenants SET ${column}=? WHERE id=?`).run(value, id);
+    }
   }
   listTenants(): TenantSummary[] {
     return this.db.prepare(`SELECT t.id,t.name,t.created_at,COUNT(c.id) AS connections,
@@ -137,9 +151,9 @@ export class Store {
       FROM tenants t LEFT JOIN connections c ON c.tenant_id=t.id
       GROUP BY t.id ORDER BY t.created_at DESC`).all() as TenantSummary[];
   }
-  getTenant(id: string): { id: string; name: string | null; created_at: number } | null {
-    return (this.db.prepare("SELECT id,name,created_at FROM tenants WHERE id=?").get(id) as
-      { id: string; name: string | null; created_at: number } | undefined) ?? null;
+  getTenant(id: string): Tenant | null {
+    const row = this.db.prepare("SELECT id,name,created_at,timezone,currency FROM tenants WHERE id=?").get(id);
+    return row ? { ...row } as Tenant : null;
   }
   tenantExists(id: string): boolean {
     return !!this.db.prepare("SELECT 1 FROM tenants WHERE id=?").get(id);
@@ -184,8 +198,15 @@ export class Store {
     return (this.db.prepare("SELECT * FROM connections WHERE webhook_secret_hash=?").get(hash) as Connection | undefined) ?? null;
   }
   listConnections(tenantId: string): ConnectionSummary[] {
-    return this.db.prepare(`SELECT id,provider,account_id,account,status,last_sync,last_error,created_at,events_mode
-      FROM connections WHERE tenant_id=? ORDER BY created_at`).all(tenantId) as ConnectionSummary[];
+    return this.db.prepare(`SELECT c.id,c.provider,c.account_id,c.account,c.status,c.last_sync,c.last_error,c.created_at,c.events_mode,
+        COALESCE(r.records,0) AS records, COALESCE(r.commercial,0) AS commercial, COALESCE(r.work,0) AS work,
+        COALESCE(k.done,0) AS kinds_done, COALESCE(k.total,0) AS kinds_total
+      FROM connections c
+      LEFT JOIN (SELECT connection_id, COUNT(*) AS records, SUM(axis='commercial') AS commercial, SUM(axis='work') AS work
+        FROM records WHERE tenant_id=? AND deleted=0 GROUP BY connection_id) r ON r.connection_id=c.id
+      LEFT JOIN (SELECT connection_id, SUM(completed_at IS NOT NULL) AS done, COUNT(*) AS total
+        FROM checkpoints GROUP BY connection_id) k ON k.connection_id=c.id
+      WHERE c.tenant_id=? ORDER BY c.created_at`).all(tenantId, tenantId).map(row => ({ ...row })) as ConnectionSummary[];
   }
   connectionOverview(tenantId: string, connectionId: string): unknown {
     const records = this.db.prepare(`SELECT kind,axis,COUNT(*) AS count,MAX(observed_at) AS observed_at FROM records
@@ -250,13 +271,26 @@ export class Store {
     this.db.prepare("UPDATE jobs SET status='queued' WHERE status='running'").run();
   }
   completeJob(id: string): void {
-    this.db.prepare("UPDATE jobs SET status='done' WHERE id=?").run(id);
+    this.db.prepare("UPDATE jobs SET status='done',error=NULL,finished_at=? WHERE id=?").run(Date.now(), id);
   }
-  retryJob(job: Job, delayMs: number): void {
-    this.db.prepare("UPDATE jobs SET status='queued',run_after=? WHERE id=?").run(Date.now() + delayMs, job.id);
+  retryJob(job: Job, delayMs: number, error: string): void {
+    this.db.prepare("UPDATE jobs SET status='queued',run_after=?,error=? WHERE id=?").run(Date.now() + delayMs, error, job.id);
   }
-  failJob(id: string): void {
-    this.db.prepare("UPDATE jobs SET status='failed' WHERE id=?").run(id);
+  failJob(id: string, error: string): void {
+    this.db.prepare("UPDATE jobs SET status='failed',error=?,finished_at=? WHERE id=?").run(error, Date.now(), id);
+  }
+  /** Stops pending work for a disconnected connection; a job already running finishes and is ignored by the worker. */
+  cancelPendingJobs(connectionId: string): number {
+    return Number(this.db.prepare("UPDATE jobs SET status='cancelled',finished_at=? WHERE connection_id=? AND status='queued'")
+      .run(Date.now(), connectionId).changes);
+  }
+  cancelJob(id: string): void {
+    this.db.prepare("UPDATE jobs SET status='cancelled',finished_at=? WHERE id=?").run(Date.now(), id);
+  }
+  /** Most recent jobs first, for the connection activity log. */
+  listJobs(connectionId: string, limit = 30): JobSummary[] {
+    return this.db.prepare(`SELECT id,type,kind,status,attempts,error,created_at,finished_at FROM jobs
+      WHERE connection_id=? ORDER BY created_at DESC, rowid DESC LIMIT ?`).all(connectionId, limit).map(row => ({ ...row })) as JobSummary[];
   }
   recordEvent(connectionId: string, eventDigest: string): boolean {
     const result = this.db.prepare("INSERT OR IGNORE INTO ingest_events VALUES (?,?,?)")

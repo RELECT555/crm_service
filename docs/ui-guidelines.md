@@ -20,13 +20,16 @@ All colors are CSS variables in `src/index.css`, exposed to Tailwind through `@t
 | `success`, `info`, `warning`, `destructive` | state colors only: done / in progress / needs attention / failed |
 | `bg-sidebar`, `sidebar-*` | sidebar surface and text |
 
-Themes: light, dark and "as system" («Авто»). `lib/theme.ts` is a single shared store (all switches stay in sync, also across tabs and with OS changes); it stores the choice in `localStorage` (`crm-theme`), sets the `.dark` class on `<html>`, and cross-fades colors for 300 ms. `public/theme-init.js` applies the same rule before first paint. The compact switch (collapsed sidebar, login) always flips the visible theme light ↔ dark. Every screen must be checked in both themes. Dark theme uses neutral graphite surfaces with low-contrast borders; do not tint large surfaces with the primary color.
+Themes: light, dark and "as system" («Авто»). `lib/theme.ts` is a single shared store (all switches stay in sync, also across tabs and with OS changes); it stores the choice in `localStorage` (`crm-theme`), sets the `.dark` class on `<html>`, and cross-fades colors for 300 ms. `public/theme-init.js` applies the same rule before first paint. The theme is chosen in the user menu (radio items); the compact switch on the login screen always flips the visible theme light ↔ dark. Every screen must be checked in both themes. Dark theme uses neutral graphite surfaces with low-contrast borders; do not tint large surfaces with the primary color.
 
 ## Components
 
 - Primitives live in `components/ui` (shadcn style). Add a new primitive there rather than styling a raw element in a page.
 - App building blocks live in `components/common.tsx`: `PageHeader`, `Field`, `EmptyState`, `Notice`, `ErrorNotice`, `CopyField`, `ProviderMark`, `Stat`, `StatusBadge`, `ToneBadge`, `SyncBar`, `LoadingRows`.
 - Overlays: `Dialog` for confirmations and short forms, `Sheet` (right) for multi-step flows and reference panels, `Sheet side="left"` for the mobile menu.
+- Menus: `DropdownMenu` (Base UI Menu) for secondary actions behind a `…` button, the workspace switcher and the user menu. Destructive items use `variant="destructive"`, sit after a separator and open a confirmation `Dialog` when they stop work.
+- Brand: `BrandMark` (two bars = two analytical axes) on a graphite tile. Do not reintroduce colored gradient squares or generic chart icons.
+- Workspaces are shown with `Avatar` initials in neutral color; provider marks are the only colored tiles.
 
 ## Badges and status (low visual noise)
 
@@ -35,6 +38,13 @@ Themes: light, dark and "as system" («Авто»). `lib/theme.ts` is a single s
 - Counts and totals are plain text (number + muted label), not badges.
 - In tables, prefer a colored dot + neutral text (see `StateSummary` on the workspaces page) over several pills in one cell.
 - Never show more than two badges side by side.
+
+## Cards and sheets (keep them quiet)
+
+- One job per card. Connection cards: provider mark, account, status, then two numbers or a progress line, and a footer with freshness. Actions live in the `…` menu, not as buttons on the card.
+- Provider sheet: setup steps (≤ 3 short lines), the redirect URI, and the rest folded under «Подробнее». No chips, no repeated badges, no paragraphs that restate the title.
+- Numbers use `tabular-nums`; labels above values in `text-xs text-muted-foreground`.
+- No gradients, glows, emojis or decorative illustrations.
 
 ## Motion
 
@@ -52,7 +62,7 @@ Durations: 150–300 ms for UI feedback, up to 700 ms for progress bar fills. Ho
 
 ## Layout
 
-- Sidebar: 264px, collapsible to 72px (stored in `localStorage`), a top bar with a left sheet below the `lg` breakpoint.
+- Sidebar: 256px, collapsible to 68px (stored in `localStorage`); a top bar with a left sheet below the `lg` breakpoint. Top to bottom: brand, workspace switcher (remembers the last workspace), navigation («Обзор» of the current workspace, «Все пространства», «Интеграции»), collapse button, user menu (theme, sign out).
 - Content: max width 1160px, 32px side padding on desktop, 16px on phones. Must work at 360px with no horizontal page scroll; wide tables scroll inside their card.
 - Page structure: breadcrumbs → `PageHeader` (eyebrow, title, one-sentence subtitle, actions on the right) → cards.
 
