@@ -1,9 +1,12 @@
 import { randomBytes } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 export type Config = {
   port: number;
   dbPath: string;
   appOrigin: string;
+  adminOrigin?: string;
+  webDist?: string;
   bitrixClientId: string;
   bitrixClientSecret: string;
   adminApiKey: string;
@@ -26,8 +29,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (adminApiKey.length < 32) throw new Error("ADMIN_API_KEY must be at least 32 characters");
   const port = Number(env.PORT ?? 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid PORT");
+  const adminOrigin = env.ADMIN_ORIGIN ? new URL(env.ADMIN_ORIGIN).origin : undefined;
   return {
     port,
+    adminOrigin,
+    webDist: env.WEB_DIST ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
     dbPath: env.DB_PATH ?? "./data/crm.sqlite",
     appOrigin: appOrigin.origin,
     bitrixClientId: required("BITRIX_CLIENT_ID"),

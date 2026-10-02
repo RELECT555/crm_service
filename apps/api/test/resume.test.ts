@@ -2,18 +2,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import type { Config } from "../src/config.ts";
-import { encrypt, digest } from "../src/crypto.ts";
-import { Store } from "../src/store.ts";
-import { BitrixClient } from "../src/bitrix.ts";
-import { Worker } from "../src/worker.ts";
+import { encrypt, digest } from "../src/security/crypto.ts";
+import { Store } from "../src/storage/store.ts";
+import { Bitrix24Connector } from "../src/connectors/bitrix24/index.ts";
+import { ConnectorRegistry } from "../src/connectors/registry.ts";
+import { Worker } from "../src/sync/worker.ts";
 
 test("a claimed backfill page is recovered and keyset pagination reaches the final page", async () => {
   const config: Config = { port: 3000, dbPath: ":memory:", appOrigin: "http://localhost:3000",
     bitrixClientId: "id", bitrixClientSecret: "secret", adminApiKey: "a".repeat(40), dataKey: randomBytes(32) };
   const store = new Store(":memory:");
   const tenantId = store.createTenant();
-  store.saveConnection({ id: "connection", tenant_id: tenantId, member_id: "member",
-    portal: "demo.bitrix24.com", access_token_enc: encrypt(config.dataKey, "access"),
+  store.saveConnection({ id: "connection", tenant_id: tenantId, provider: "bitrix24", account_id: "member",
+    account: "demo.bitrix24.com", access_token_enc: encrypt(config.dataKey, "access"),
     refresh_token_enc: encrypt(config.dataKey, "refresh"), expires_at: Date.now() + 3600_000,
     webhook_secret_hash: digest("hook"), webhook_secret_enc: encrypt(config.dataKey, "hook") });
   const requestedAfter: number[] = [];
@@ -25,8 +26,7 @@ test("a claimed backfill page is recovered and keyset pagination reaches the fin
       opportunity: 1, currencyId: "USD", categoryId: 0, stageId: "NEW" }));
     return Response.json({ result: { items: all.filter(item => item.id > after).slice(0, 50) } });
   }) as typeof fetch;
-  const client = new BitrixClient(config, store, crmFetch);
-  const worker = new Worker(config, store, client);
+  const worker = new Worker(config, store, new ConnectorRegistry([new Bitrix24Connector(config, store, crmFetch)]));
   try {
     store.enqueue("connection", "sync", "deal");
     assert.ok(store.claimJob()); // simulate a process stopping after claiming but before committing
@@ -48,8 +48,8 @@ test("an expired Bitrix token rotates once and is reused across calls", async ()
     bitrixClientId: "id", bitrixClientSecret: "secret", adminApiKey: "a".repeat(40), dataKey: randomBytes(32) };
   const store = new Store(":memory:");
   const tenantId = store.createTenant();
-  store.saveConnection({ id: "connection", tenant_id: tenantId, member_id: "member",
-    portal: "demo.bitrix24.com", access_token_enc: encrypt(config.dataKey, "expired"),
+  store.saveConnection({ id: "connection", tenant_id: tenantId, provider: "bitrix24", account_id: "member",
+    account: "demo.bitrix24.com", access_token_enc: encrypt(config.dataKey, "expired"),
     refresh_token_enc: encrypt(config.dataKey, "old-refresh"), expires_at: Date.now() - 1,
     webhook_secret_hash: digest("hook"), webhook_secret_enc: encrypt(config.dataKey, "hook") });
   let renewals = 0;
@@ -67,7 +67,7 @@ test("an expired Bitrix token rotates once and is reused across calls", async ()
   }) as typeof fetch;
   try {
     const connection = store.getConnection("connection")!;
-    const client = new BitrixClient(config, store, crmFetch);
+    const client = new Bitrix24Connector(config, store, crmFetch).client;
     await client.call(connection, "event.bind", { event: "ONCRMDEALADD", handler: "https://example.com" });
     await client.call(connection, "event.bind", { event: "ONCRMDEALUPDATE", handler: "https://example.com" });
     assert.equal(renewals, 1);

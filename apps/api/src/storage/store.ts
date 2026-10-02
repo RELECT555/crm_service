@@ -2,24 +2,27 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
+import type { CanonicalRecord } from "../domain/model.ts";
 
 export type Connection = {
-  id: string; tenant_id: string; member_id: string; portal: string;
+  id: string; tenant_id: string; provider: string;
+  /** Stable provider account identity (Bitrix24 member_id, HubSpot portal ID, ...). */
+  account_id: string;
+  /** Normalized account address shown to operators (portal host, subdomain, org URL). */
+  account: string;
   access_token_enc: string; refresh_token_enc: string; expires_at: number;
   webhook_secret_hash: string; webhook_secret_enc: string; events_bound: number;
   status: string; last_sync: number | null;
-  last_error: string | null;
+  last_error: string | null; created_at: number | null;
 };
+export type ConnectionSummary = Pick<Connection, "id" | "provider" | "account_id" | "account" | "status" |
+  "last_sync" | "last_error" | "created_at">;
+export type TenantSummary = { id: string; name: string | null; created_at: number;
+  connections: number; live: number; attention: number };
 export type Job = {
   id: string; connection_id: string; type: "sync" | "fetch" | "bind";
   kind: string; cursor: string | null; external_id: string | null;
   operation: string | null; attempts: number;
-};
-export type Normalized = {
-  kind: string; externalId: string; axis: "commercial" | "work" | "context";
-  direction?: string; actionType?: string; status?: string; ownerId?: string;
-  targetKind?: string; targetId?: string; amount?: number; currency?: string;
-  label?: string; sourceUpdatedAt?: string; payload: unknown;
 };
 
 export class Store {
@@ -31,14 +34,14 @@ export class Store {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS tenants (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS oauth_states (
-        state_hash TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, portal TEXT NOT NULL,
+        state_hash TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, account TEXT NOT NULL,
         created_at INTEGER NOT NULL, FOREIGN KEY(tenant_id) REFERENCES tenants(id));
       CREATE TABLE IF NOT EXISTS connections (
-        id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, member_id TEXT NOT NULL,
-        portal TEXT NOT NULL, access_token_enc TEXT NOT NULL, refresh_token_enc TEXT NOT NULL,
+        id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, account_id TEXT NOT NULL,
+        account TEXT NOT NULL, access_token_enc TEXT NOT NULL, refresh_token_enc TEXT NOT NULL,
         expires_at INTEGER NOT NULL, webhook_secret_hash TEXT NOT NULL, webhook_secret_enc TEXT NOT NULL,
         status TEXT NOT NULL, events_bound INTEGER NOT NULL DEFAULT 0, last_sync INTEGER, last_error TEXT,
-        UNIQUE(tenant_id, member_id), FOREIGN KEY(tenant_id) REFERENCES tenants(id));
+        UNIQUE(tenant_id, account_id), FOREIGN KEY(tenant_id) REFERENCES tenants(id));
       CREATE TABLE IF NOT EXISTS jobs (
         id TEXT PRIMARY KEY, connection_id TEXT NOT NULL, type TEXT NOT NULL,
         kind TEXT NOT NULL, cursor TEXT, external_id TEXT, operation TEXT,
@@ -69,6 +72,24 @@ export class Store {
         connection_id TEXT NOT NULL, provider_type_id TEXT NOT NULL, action_type TEXT NOT NULL,
         PRIMARY KEY(connection_id, provider_type_id));
     `);
+    // Forward-only migrations for databases created by earlier prototype versions.
+    this.renameColumn("connections", "member_id", "account_id");
+    this.renameColumn("connections", "portal", "account");
+    this.renameColumn("oauth_states", "portal", "account");
+    this.addColumn("oauth_states", "provider", "TEXT NOT NULL DEFAULT 'bitrix24'");
+    this.addColumn("tenants", "name", "TEXT");
+    this.addColumn("connections", "provider", "TEXT NOT NULL DEFAULT 'bitrix24'");
+    this.addColumn("connections", "created_at", "INTEGER");
+  }
+
+  private columns(table: string): string[] {
+    return (this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map(row => row.name);
+  }
+  private renameColumn(table: string, from: string, to: string): void {
+    if (this.columns(table).includes(from)) this.db.exec(`ALTER TABLE ${table} RENAME COLUMN ${from} TO ${to}`);
+  }
+  private addColumn(table: string, column: string, definition: string): void {
+    if (!this.columns(table).includes(column)) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
 
   transaction<T>(fn: () => T): T {
@@ -77,32 +98,53 @@ export class Store {
     catch (error) { this.db.exec("ROLLBACK"); throw error; }
   }
 
-  createTenant(): string {
+  createTenant(name: string | null = null): string {
     const id = randomUUID();
-    this.db.prepare("INSERT INTO tenants VALUES (?, ?)").run(id, Date.now());
+    this.db.prepare("INSERT INTO tenants (id,created_at,name) VALUES (?,?,?)").run(id, Date.now(), name);
     return id;
+  }
+  renameTenant(id: string, name: string): void {
+    this.db.prepare("UPDATE tenants SET name=? WHERE id=?").run(name, id);
+  }
+  listTenants(): TenantSummary[] {
+    return this.db.prepare(`SELECT t.id,t.name,t.created_at,COUNT(c.id) AS connections,
+      COALESCE(SUM(c.status='live'),0) AS live,
+      COALESCE(SUM(c.status IN ('degraded','reauthorization_required','disconnected')),0) AS attention
+      FROM tenants t LEFT JOIN connections c ON c.tenant_id=t.id
+      GROUP BY t.id ORDER BY t.created_at DESC`).all() as TenantSummary[];
+  }
+  getTenant(id: string): { id: string; name: string | null; created_at: number } | null {
+    return (this.db.prepare("SELECT id,name,created_at FROM tenants WHERE id=?").get(id) as
+      { id: string; name: string | null; created_at: number } | undefined) ?? null;
   }
   tenantExists(id: string): boolean {
     return !!this.db.prepare("SELECT 1 FROM tenants WHERE id=?").get(id);
   }
-  saveState(hash: string, tenantId: string, portal: string): void {
-    this.db.prepare("INSERT INTO oauth_states VALUES (?,?,?,?)").run(hash, tenantId, portal, Date.now());
+  saveState(hash: string, tenantId: string, provider: string, account: string): void {
+    this.db.prepare("INSERT INTO oauth_states (state_hash,tenant_id,account,created_at,provider) VALUES (?,?,?,?,?)")
+      .run(hash, tenantId, account, Date.now(), provider);
   }
-  consumeState(hash: string): { tenant_id: string; portal: string } | null {
+  /** Single-use: the state row is deleted on read and expires after 10 minutes. */
+  consumeState(hash: string): { tenant_id: string; provider: string; account: string } | null {
     return this.transaction(() => {
-      const row = this.db.prepare("SELECT tenant_id,portal,created_at FROM oauth_states WHERE state_hash=?").get(hash) as
-        { tenant_id: string; portal: string; created_at: number } | undefined;
+      const row = this.db.prepare("SELECT tenant_id,provider,account,created_at FROM oauth_states WHERE state_hash=?").get(hash) as
+        { tenant_id: string; provider: string; account: string; created_at: number } | undefined;
       this.db.prepare("DELETE FROM oauth_states WHERE state_hash=?").run(hash);
       if (!row || Date.now() - row.created_at > 10 * 60_000) return null;
-      return { tenant_id: row.tenant_id, portal: row.portal };
+      return { tenant_id: row.tenant_id, provider: row.provider, account: row.account };
     });
   }
-  saveConnection(input: Omit<Connection, "status" | "events_bound" | "last_sync" | "last_error">): void {
+  saveConnection(input: Omit<Connection, "status" | "events_bound" | "last_sync" | "last_error" | "created_at">): void {
     this.db.prepare(`INSERT INTO connections
-      (id,tenant_id,member_id,portal,access_token_enc,refresh_token_enc,expires_at,webhook_secret_hash,webhook_secret_enc,status)
-      VALUES (?,?,?,?,?,?,?,?,?,?)`).run(input.id, input.tenant_id, input.member_id, input.portal,
+      (id,tenant_id,provider,account_id,account,access_token_enc,refresh_token_enc,expires_at,webhook_secret_hash,webhook_secret_enc,status,created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(input.id, input.tenant_id, input.provider, input.account_id, input.account,
       input.access_token_enc, input.refresh_token_enc, input.expires_at, input.webhook_secret_hash,
-      input.webhook_secret_enc, "backfilling");
+      input.webhook_secret_enc, "backfilling", Date.now());
+  }
+  getConnectionByAccount(tenantId: string, provider: string, accountId: string): Connection | null {
+    return (this.db.prepare("SELECT * FROM connections WHERE tenant_id=? AND provider=? AND account_id=?")
+      .get(tenantId, provider, accountId) as
+      Connection | undefined) ?? null;
   }
   getConnection(id: string): Connection | null {
     return (this.db.prepare("SELECT * FROM connections WHERE id=?").get(id) as Connection | undefined) ?? null;
@@ -113,23 +155,34 @@ export class Store {
   getConnectionByWebhookHash(hash: string): Connection | null {
     return (this.db.prepare("SELECT * FROM connections WHERE webhook_secret_hash=?").get(hash) as Connection | undefined) ?? null;
   }
-  listConnections(tenantId: string): Array<Pick<Connection, "id" | "member_id" | "portal" | "status" | "last_sync" | "last_error">> {
-    return this.db.prepare("SELECT id,member_id,portal,status,last_sync,last_error FROM connections WHERE tenant_id=?")
-      .all(tenantId) as Array<Pick<Connection, "id" | "member_id" | "portal" | "status" | "last_sync" | "last_error">>;
+  listConnections(tenantId: string): ConnectionSummary[] {
+    return this.db.prepare(`SELECT id,provider,account_id,account,status,last_sync,last_error,created_at
+      FROM connections WHERE tenant_id=? ORDER BY created_at`).all(tenantId) as ConnectionSummary[];
+  }
+  connectionOverview(tenantId: string, connectionId: string): unknown {
+    const records = this.db.prepare(`SELECT kind,axis,COUNT(*) AS count,MAX(observed_at) AS observed_at FROM records
+      WHERE tenant_id=? AND connection_id=? AND deleted=0 GROUP BY kind,axis ORDER BY axis,kind`).all(tenantId, connectionId);
+    const jobs = this.db.prepare(`SELECT status,COUNT(*) AS count FROM jobs WHERE connection_id=? AND status<>'done'
+      GROUP BY status`).all(connectionId) as Array<{ status: string; count: number }>;
+    const coverage = this.db.prepare("SELECT kind,cursor,completed_at FROM checkpoints WHERE connection_id=? ORDER BY kind")
+      .all(connectionId);
+    const pending = this.db.prepare(`SELECT DISTINCT kind FROM jobs WHERE connection_id=? AND type='sync'
+      AND status IN ('queued','running') ORDER BY kind`).all(connectionId) as Array<{ kind: string }>;
+    return { records, coverage, syncingKinds: pending.map(row => row.kind),
+      queue: Object.fromEntries(jobs.map(row => [row.status, row.count])) };
   }
   updateTokens(id: string, access: string, refresh: string, expiresAt: number): void {
     this.db.prepare("UPDATE connections SET access_token_enc=?,refresh_token_enc=?,expires_at=? WHERE id=?")
       .run(access, refresh, expiresAt, id);
   }
-  updatePortal(id: string, portal: string): void {
-    this.db.prepare("UPDATE connections SET portal=? WHERE id=?").run(portal, id);
+  updateAccount(id: string, account: string): void {
+    this.db.prepare("UPDATE connections SET account=? WHERE id=?").run(account, id);
   }
   setConnectionStatus(id: string, status: string, error: string | null = null): void {
     this.db.prepare("UPDATE connections SET status=?,last_error=? WHERE id=?").run(status, error, id);
   }
   markEventsBound(connectionId: string): void {
     this.db.prepare("UPDATE connections SET events_bound=1 WHERE id=?").run(connectionId);
-    this.maybeMarkLive(connectionId);
   }
   resetEventsBound(connectionId: string): void {
     this.db.prepare("UPDATE connections SET events_bound=0 WHERE id=?").run(connectionId);
@@ -195,13 +248,17 @@ export class Store {
       .get(connectionId, entityTypeId, categoryId, categoryId) as
       { direction: string; amount_field: string; currency_field: string } | undefined) ?? null;
   }
+  deleteCommercialSource(connectionId: string, entityTypeId: number, categoryId: string): boolean {
+    return this.db.prepare("DELETE FROM commercial_sources WHERE connection_id=? AND entity_type_id=? AND category_id=?")
+      .run(connectionId, entityTypeId, categoryId).changes === 1;
+  }
   hasCommercialType(connectionId: string, entityTypeId: number): boolean {
     return !!this.db.prepare("SELECT 1 FROM commercial_sources WHERE connection_id=? AND entity_type_id=?")
       .get(connectionId, entityTypeId);
   }
   listCommercialSources(connectionId: string): unknown[] {
-    return this.db.prepare("SELECT entity_type_id,category_id,direction,amount_field,currency_field FROM commercial_sources WHERE connection_id=?")
-      .all(connectionId);
+    return this.db.prepare(`SELECT entity_type_id,category_id,direction,amount_field,currency_field FROM commercial_sources
+      WHERE connection_id=? ORDER BY entity_type_id,category_id`).all(connectionId);
   }
   listSmartTypeIds(connectionId: string): number[] {
     return (this.db.prepare("SELECT DISTINCT entity_type_id FROM commercial_sources WHERE connection_id=? AND entity_type_id>=128")
@@ -217,12 +274,20 @@ export class Store {
       ON CONFLICT(connection_id,provider_type_id) DO UPDATE SET action_type=excluded.action_type`)
       .run(connectionId, providerTypeId, actionType);
   }
+  listActionTypes(connectionId: string): unknown[] {
+    return this.db.prepare("SELECT provider_type_id,action_type FROM action_types WHERE connection_id=? ORDER BY provider_type_id")
+      .all(connectionId);
+  }
+  deleteActionType(connectionId: string, providerTypeId: string): boolean {
+    return this.db.prepare("DELETE FROM action_types WHERE connection_id=? AND provider_type_id=?")
+      .run(connectionId, providerTypeId).changes === 1;
+  }
   getActionType(connectionId: string, providerTypeId: string): string | null {
     const row = this.db.prepare("SELECT action_type FROM action_types WHERE connection_id=? AND provider_type_id=?")
       .get(connectionId, providerTypeId) as { action_type: string } | undefined;
     return row?.action_type ?? null;
   }
-  upsertRecord(connection: Connection, item: Normalized, encryptedPayload: string): void {
+  upsertRecord(connection: Connection, item: CanonicalRecord, encryptedPayload: string): void {
     this.db.prepare(`INSERT INTO records
       (tenant_id,connection_id,kind,external_id,axis,direction,action_type,status,owner_id,
        target_kind,target_id,amount,currency,label,source_updated_at,payload_enc,deleted,observed_at)
@@ -246,13 +311,18 @@ export class Store {
     this.db.prepare(`INSERT INTO checkpoints VALUES (?,?,?,?)
       ON CONFLICT(connection_id,kind) DO UPDATE SET cursor=excluded.cursor,completed_at=excluded.completed_at`)
       .run(connectionId, kind, cursor, complete ? Date.now() : null);
-    if (complete) this.maybeMarkLive(connectionId);
   }
-  private maybeMarkLive(connectionId: string): void {
-    const result = this.db.prepare("SELECT COUNT(*) AS count FROM checkpoints WHERE connection_id=? AND completed_at IS NOT NULL")
-      .get(connectionId) as { count: number };
-    const expected = 5 + this.listSmartTypeIds(connectionId).length;
-    if (result.count >= expected) this.db.prepare(`UPDATE connections
+  /**
+   * Called after a sync or subscribe job commits. A connection becomes live once no sync job is pending,
+   * every started kind has a completed checkpoint, and change notifications are registered.
+   */
+  refreshSyncState(connectionId: string): void {
+    const pending = this.db.prepare(`SELECT 1 FROM jobs WHERE connection_id=? AND type='sync'
+      AND status IN ('queued','running') LIMIT 1`).get(connectionId);
+    const incomplete = this.db.prepare("SELECT 1 FROM checkpoints WHERE connection_id=? AND completed_at IS NULL LIMIT 1")
+      .get(connectionId);
+    if (pending || incomplete) return;
+    this.db.prepare(`UPDATE connections
       SET last_sync=?,status=CASE WHEN status='backfilling' AND events_bound=1 THEN 'live' ELSE status END
       WHERE id=?`).run(Date.now(), connectionId);
   }

@@ -4,8 +4,8 @@ import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import type { Config } from "../src/config.ts";
-import { Store } from "../src/store.ts";
-import { makeApp } from "../src/server.ts";
+import { Store } from "../src/storage/store.ts";
+import { makeApp } from "../src/app.ts";
 
 test("Bitrix OAuth, two-axis sync, mapping, event updates, and tenant isolation", async () => {
   const config: Config = {
@@ -69,7 +69,7 @@ test("Bitrix OAuth, two-axis sync, mapping, event updates, and tenant isolation"
   try {
     const tenant = (await api("/v1/tenants", "POST")).data.tenantId as string;
     const other = (await api("/v1/tenants", "POST")).data.tenantId as string;
-    const started = await api(`/v1/tenants/${tenant}/bitrix24/start`, "POST", { portal: "demo.bitrix24.com" });
+    const started = await api(`/v1/tenants/${tenant}/connect/bitrix24`, "POST", { account: "demo.bitrix24.com" });
     assert.equal(started.status, 200);
     const state = new URL(started.data.authorizeUrl).searchParams.get("state");
     const callback = await api(`/oauth/bitrix24/callback?code=one-use-code&state=${state}&domain=demo.bitrix24.com&member_id=member-1`, "GET", undefined, false);
