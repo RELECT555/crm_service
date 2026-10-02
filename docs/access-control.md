@@ -67,11 +67,11 @@ Lists are filtered, not refused: `GET /v1/tenants` returns only workspaces the c
 | `POST /v1/me/password` | user | Requires the current password; ends the user's other sessions |
 | `POST /v1/me/onboarding` | user | Marks presentation/tour ids as offered to this user; a preference, not audited ([onboarding.md](onboarding.md)) |
 
-Sessions: a random 256-bit token in the `crm_session` cookie (`HttpOnly; SameSite=Strict; Path=/`, plus `Secure` on HTTPS). Only its SHA-256 hash is stored. 12-hour sliding expiry. Disabling a user or resetting their password ends their sessions.
+Sessions: a random 256-bit token in the `crm_session` cookie (`HttpOnly; SameSite=Strict; Path=/`, plus `Secure` when `APP_ORIGIN` is HTTPS). Only its SHA-256 hash is stored in SQLite. `touchSession()` extends the **server record** by 12 hours from each use. The cookie's `Max-Age=43200` is set at login/bootstrap and is not renewed by protected responses, so a normal browser can require sign-in 12 hours after login even while active. Persisted sessions survive an API restart; the in-memory login throttle does not. Disabling/deleting a user or resetting their password ends their sessions; changing your own password retains the current session and ends the others.
 
-CSRF: cookie-authenticated requests other than GET/HEAD must send `x-requested-with: crm-admin` (the admin UI client always does; cross-site forms cannot). `SameSite=Strict` is the first line of defense.
+CSRF: cookie-authenticated **protected** routes other than GET/HEAD must send `x-requested-with: crm-admin` (the admin UI client always does; cross-site forms cannot). The anonymous `/v1/auth/*` router runs before principal resolution and this header check; bootstrap separately verifies `x-admin-key`. `SameSite=Strict` is the first line of defense. When the service-key header is present it is checked first, even if a valid session cookie is also present.
 
-Passwords: scrypt (N=2^15, r=8, p=1, 16-byte salt), stored as `scrypt$N$r$p$salt$hash`; minimum 10 characters.
+Passwords: scrypt (N=2^15, r=8, p=1, 16-byte salt), stored as `scrypt$N$r$p$salt$hash`; new passwords are 10–200 characters. Authentication request bodies and response shapes are in [api.md](api.md#authentication-and-current-user).
 
 ## Users, roles, audit API
 
@@ -89,10 +89,11 @@ Workspace and connection routes and their permissions are listed in [api.md](api
 
 ## Audit log
 
-Every mutation writes `{ at, actor_id, actor_label, action, target_type, target_id, tenant_id, details }`. Actions: `auth.login`, `auth.login_failed`, `user.bootstrap_owner`, `user.create|update|delete|password_changed`, `role.create|update|delete`, `workspace.create|update`, `connection.connected|reauthorized|resync|disconnect|resume`, `mapping.commercial_set|commercial_delete|action_set|action_delete`. The OAuth callback is public, so the actor who started the connection is stored with the single-use OAuth state and written when the callback completes. Details never contain passwords or tokens.
+Business mutations and login attempts write `{ at, actor_id, actor_label, action, target_type, target_id, tenant_id, details }`. Actions: `auth.login`, `auth.login_failed`, `user.bootstrap_owner`, `user.create|update|delete|password_changed`, `role.create|update|delete`, `workspace.create|update`, `connection.connected|reauthorized|resync|disconnect|resume`, `mapping.commercial_set|commercial_delete|action_set|action_delete`. Logout, onboarding preferences and worker record/token updates do not create those admin audit entries. The OAuth callback is public, so the actor who started the connection is stored with the single-use OAuth state and written when the callback completes. Details never contain passwords or tokens. `/v1/audit` returns at most 50 entries per page, newest ids first; use its `next` value as `before` for the next page.
 
 ## Known limits
 
-- Single-process: login throttling and sessions live in this process and its SQLite file.
+- Single-process: login throttling is in memory; session records and access grants are in SQLite. There is no multi-instance session/throttle coordination.
+- Server-side sliding expiry and browser cookie lifetime are not aligned yet; continuous browser-session renewal needs implementation and an integration test.
 - No invitations or password-reset email: an administrator sets the initial password and the user changes it.
 - Customer (end-client) login for the analytics UI is a separate decision (see delivery-plan.md).

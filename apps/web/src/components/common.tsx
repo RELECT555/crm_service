@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Check, ChevronRight, Copy, RefreshCw, type LucideIcon } from 'lucide-react'
+import { Check, Copy, House, RefreshCw, type LucideIcon } from 'lucide-react'
 import type { ConnectionStatus } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,6 +51,49 @@ export function SyncBar({ state }: { state: 'done' | 'running' | 'waiting' }) {
 }
 
 /**
+ * Breadcrumb trail: a home link, links with a soft hover surface, thin slash separators,
+ * and the current page as a quiet chip. Long labels truncate with the full text in a tooltip.
+ */
+function Breadcrumbs({ trail, lastIsPage }: { trail: Array<{ label: string; href?: string }>; lastIsPage: boolean }) {
+  const item = 'inline-flex h-7 max-w-[16rem] min-w-0 items-center rounded-md px-2'
+  return (
+    <nav aria-label="Навигация" className="-ml-2 mb-4">
+      <ol className="flex min-w-0 flex-wrap items-center gap-0.5 text-[13px] text-muted-foreground">
+        {/* Home link, unless the trail already starts at the home page (Пространства). */}
+        {trail[0]?.href !== '#/' && (
+          <li className="flex items-center">
+            <a href="#/" aria-label="Главная" title="Главная"
+              className={cn(item, 'px-1.5 transition-colors hover:bg-muted hover:text-foreground')}>
+              <House className="size-[15px]" strokeWidth={1.75} />
+            </a>
+          </li>
+        )}
+        {trail.map((crumb, index) => {
+          const current = lastIsPage && index === trail.length - 1
+          const separated = index > 0 || trail[0]?.href !== '#/'
+          return (
+            <li key={index} className="flex min-w-0 items-center gap-0.5">
+              {separated && <span aria-hidden="true" className="px-0.5 text-muted-foreground/40 select-none">/</span>}
+              {crumb.href ? (
+                <a href={crumb.href} title={crumb.label}
+                  className={cn(item, 'transition-colors hover:bg-muted hover:text-foreground')}>
+                  <span className="truncate">{crumb.label}</span>
+                </a>
+              ) : (
+                <span title={crumb.label} aria-current={current ? 'page' : undefined}
+                  className={cn(item, current ? 'bg-muted font-medium text-foreground' : 'font-medium text-foreground/80')}>
+                  <span className="truncate">{crumb.label}</span>
+                </span>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    </nav>
+  )
+}
+
+/**
  * The one page header used by every screen: breadcrumb trail (or a section eyebrow), a leading icon tile,
  * title with description, actions on the right, and a hairline separating it from the content.
  */
@@ -63,18 +106,7 @@ export function PageHeader({ crumbs, eyebrow, icon: Icon, leading, title, subtit
   const trail = crumbs ?? (eyebrow ? [{ label: eyebrow }] : [])
   return (
     <header className="mb-7 border-b border-border pb-6">
-      {trail.length > 0 && (
-        <nav aria-label="Навигация" className="mb-4 flex min-w-0 flex-wrap items-center gap-1.5 text-[13px] text-muted-foreground">
-          {trail.map((crumb, index) => (
-            <span key={index} className="flex min-w-0 items-center gap-1.5">
-              {index > 0 && <ChevronRight aria-hidden="true" className="size-3.5 flex-none text-muted-foreground/50" />}
-              {crumb.href
-                ? <a href={crumb.href} className="truncate text-muted-foreground transition-colors hover:text-foreground">{crumb.label}</a>
-                : <span className={cn('truncate', crumbs && index === trail.length - 1 ? 'text-foreground' : 'font-medium')}>{crumb.label}</span>}
-            </span>
-          ))}
-        </nav>
-      )}
+      {trail.length > 0 && <Breadcrumbs trail={trail} lastIsPage={Boolean(crumbs)} />}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-4">
         {leading ?? (Icon && (
           <span className="grid size-11 flex-none place-items-center rounded-xl bg-accent text-primary ring-1 ring-primary/15">

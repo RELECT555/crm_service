@@ -13,24 +13,32 @@ All non-deleted records of every connection in the workspace (disconnected conne
 
 **Manager** = one responsible user of one connection (`connection_id:owner_id`). The same person in two CRMs counts twice — cross-CRM identity matching is deliberately out of scope. Names come from synced CRM users (Kommo/amoCRM `user` records); otherwise «Сотрудник <id>».
 
+Team and manager totals include only records with a responsible user. Managers are created from classified commercial records or work records, including managers with purchases only; CRM users with no such records do not appear. Sales without an owner are reported as `coverage.unassigned.deals`, work without an owner as `coverage.unassigned.work`. Unassigned purchases are excluded but currently have no separate coverage counter. Unclassified commercial records are counted independently of owner in `team.unclassified`.
+
 ## Currency
 
-Money is summed in one currency only: the workspace base currency if set, otherwise the currency with the most sale records. Records in other currencies are counted (deal counts include them) but never added to sums; coverage reports how many and which currencies. No conversion is performed.
+The selected currency is the workspace base currency if set, otherwise the non-empty currency with the most sale records (selection includes unassigned sales). If neither exists, `currency` is null. Explicit currencies differing from the selected currency are excluded from money sums while their classified, assigned records remain in counts. No conversion is performed.
+
+Two current coverage gaps must be preserved in interpretation: a record **without** currency is still included in the sum, and `otherCurrencyDeals`/`otherCurrencies` report only assigned **sales**, not purchases in other currencies. If no currency can be selected, the existing calculation does not filter amounts by currency. These are prototype behaviors, not a policy for assuming a missing currency; resolving them requires a metric-version change and tests ([delivery-plan.md](delivery-plan.md#engineering-follow-ups)).
 
 ## Team metrics
 
 | Metric | Definition |
 | --- | --- |
-| Сделки / Сумма сделок | Count of commercial records with direction `sale`; sum of their amounts in the chosen currency |
-| Закупки | Count and sum of `purchase` records (purchases exist only through explicit mapping) |
+| Сделки / Сумма сделок | Count of assigned commercial records with direction `sale`; sum under the currency rules above |
+| Закупки | Count and sum of assigned `purchase` records under the same currency rules (purchases exist only through explicit mapping) |
 | Неразмеченные | Commercial records that are neither sale nor purchase (e.g. unmapped smart processes); excluded from everything else |
 | Действия | Count of work records (all types, any status) with a responsible user |
 | Доля выполненных | completed work ÷ all work |
-| Связь с сделками | work linked to a commercial record ÷ all work (`linkedRate`) |
+| Связь с сделками | assigned work with a recorded commercial-kind link ÷ all assigned work (`linkedRate`); link existence caveat below |
 | Действий на сделку | work ÷ sale count, one decimal |
 | Медианы | median work and median deals across managers — the baseline for signals |
 
 Amounts are pipeline values (Bitrix24 `opportunity`, Kommo `price`), **not** booked revenue: stage outcome (won/lost) is not interpreted yet.
+
+`workByType` is a separate source-wide breakdown: it includes work **without** an owner, so its counts may exceed `team.work`. Missing work types become `other`; only status exactly `completed` counts as completed. Percent rates are fractions from 0 to 1. Rates with a zero denominator and `workPerDeal` without sales are null, not zero; shares without a team denominator are zero. `workPerDeal` is rounded to one decimal; other rates are not rounded by the backend. An empty team has zero medians.
+
+`linkedWork` is based on `target_id` being present and `target_kind` matching any commercial kind found in the workspace. The current SQL does **not** verify that the referenced record exists, is live, belongs to the same connection, or is a sale rather than a purchase. Read it as a recorded association, not a verified work-to-sale link or causal contribution.
 
 ## Manager metrics
 
@@ -43,13 +51,17 @@ Signals are heuristics that point at something worth a conversation; they do not
 | Code | Shown as | Fires when |
 | --- | --- | --- |
 | `low_completion` | Много незакрытых задач | ≥ 5 actions and < 50 % completed (any team size) |
-| `low_activity` | Мало активности | actions < 50 % of the team median |
+| `low_activity` | Мало активности | positive work median and actions < 50 % of it |
 | `no_meetings` | Нет встреч и визитов | zero meetings/visits while the team median of meetings is > 0 |
-| `activity_without_deals` | Активность не переходит в сделки | actions ≥ median and deals < 50 % of the median deals |
-| `deals_without_activity` | Сделки без зафиксированной работы | deals ≥ median and actions < 50 % of the median actions (often: work happens outside the CRM) |
+| `activity_without_deals` | Активность не переходит в сделки | both work/deal medians positive, actions ≥ work median and deals < 50 % of deal median |
+| `deals_without_activity` | Сделки без зафиксированной работы | both work/deal medians positive, deals ≥ deal median and actions < 50 % of work median (often: work happens outside the CRM) |
 
 ## Coverage and limits (reported with every response)
 
 - Deals in other currencies, unclassified records, work without a responsible user, managers without names.
 - No time window: metrics use all loaded data. Stage history is not reconstructed (AGENTS.md: never infer transitions from a snapshot), so conversion and cycle time are not offered yet.
 - Bitrix24 user names are not synced yet (needs the `user` scope); Bitrix managers appear by ID.
+
+## Response time and freshness
+
+`generatedAt` is the calculation time in Unix milliseconds. The HTTP route adds `connections: [{ id, provider, account, status, lastSync }]`; `lastSync` is the stored full-sync freshness marker, not a guarantee that every CRM event has arrived. A recent `generatedAt` can therefore describe old CRM data. Disconnected and partially loaded connections remain in the workspace response and totals; inspect their status/coverage before comparing managers. Workspace timezone is stored, but the current all-time calculation uses no day boundaries.

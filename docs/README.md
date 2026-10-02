@@ -1,6 +1,6 @@
 # Documentation map
 
-Start here. Each document has one job; when they disagree about current behavior, the code in `apps/` wins and the document must be fixed in the same change.
+Start here. For current behavior, use the repository's precedence: [root README](../README.md), code in `apps/`, then `docs/`. When a description conflicts with the implementation, reconcile the README and the affected document together. Product proposals do not establish implemented behavior.
 
 | Document | Read it when you need to… | Audience |
 | --- | --- | --- |
@@ -16,8 +16,8 @@ Start here. Each document has one job; when they disagree about current behavior
 | [architecture.md](architecture.md) | product scope, tenancy, analytics semantics | product, developers |
 | [connectors.md](connectors.md) | compare CRMs at a glance | product, developers |
 | [connectors/&lt;crm&gt;.md](connectors/) | connect or implement a specific CRM (setup, auth, data, change capture, limits, sources) | developers, support |
-| [ingestion-contract.md](ingestion-contract.md) | target (not yet implemented) connector contract and storage model | developers |
-| [delivery-plan.md](delivery-plan.md) | milestones, acceptance criteria, open product decisions | product |
+| [ingestion-contract.md](ingestion-contract.md) | compare the implemented connector/model with proposed ingestion extensions | developers |
+| [delivery-plan.md](delivery-plan.md) | implemented milestones, remaining engineering work, release criteria and open decisions | product, developers |
 | [../AGENTS.md](../AGENTS.md) | rules and definition of done for coding agents | agents, reviewers |
 
 ## Glossary
@@ -34,4 +34,21 @@ Start here. Each document has one job; when they disagree about current behavior
 | Action type mapping | Operator rule that maps a custom CRM activity code to a canonical work type (e.g. `TRAVEL` → visit). |
 | Backfill / reconciliation | First full read of a connection / periodic full re-read that repairs missed events. |
 | Checkpoint | Per-kind cursor stored after each committed page; a kind is complete when its cursor is null. |
-| Operator key | `ADMIN_API_KEY`: development credential for the admin UI and `/v1` API. Not customer login. |
+| Service / operator key | `ADMIN_API_KEY`: creates the first owner and authenticates scripts as `system`. Normal UI sign-in uses email/password; the key is not stored in browser storage. |
+| Available provider | An adapter exists and both app credentials are present. This catalog status does not prove the credentials work, the CRM plan allows access, or sandbox verification is complete. |
+| Generated at | Time an analytics response was calculated; not the last CRM sync time. |
+
+## Keep documentation current
+
+For an implementation change, update the reference that owns the behavior:
+
+| Change | Update |
+| --- | --- |
+| Command, environment variable or operator setup | root README, [development.md](development.md), relevant connector playbook |
+| HTTP route or response | [api.md](api.md); [access-control.md](access-control.md) for authentication or permissions |
+| Metric definition or coverage rule | [metrics.md](metrics.md), metric version and behavior tests |
+| Layer, storage, worker or connector boundary | [code-architecture.md](code-architecture.md); [ingestion-contract.md](ingestion-contract.md) when a proposal becomes implemented |
+| UI convention, slide or section | [ui-guidelines.md](ui-guidelines.md), [onboarding.md](onboarding.md) when applicable |
+| Replaced design decision | mark the old entry superseded in [decisions.md](decisions.md); keep its history |
+
+Link to the owning reference instead of copying its detailed rules. Distinguish **implemented**, **proposed** and **unverified in a sandbox**. Local integration tests with mocked CRM responses prove our behavior against those fixtures, not live provider behavior. Date provider research separately from local verification.

@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
-import { animate } from 'motion/react'
 import { createLoginShader, type LoginShader } from '@/lib/login-shader'
-import { loginShaderDrift } from '@/lib/motion'
 import { useTheme } from '@/lib/theme'
+
+/** One full drift cycle of the shader phase. */
+const LOOP_SECONDS = 18
 
 /** Decorative only: no pointer events, tab stops, or React updates on animation frames. */
 export function LoginBackdrop({ animated }: { animated: boolean }) {
@@ -14,44 +15,46 @@ export function LoginBackdrop({ animated }: { animated: boolean }) {
     const canvas = canvasRef.current
     if (!canvas) return
     let shader: LoginShader | null = null
-    let playback: ReturnType<typeof animate> | undefined
+    // A plain rAF loop, not Motion's animate(): Motion skips animations under OS reduced motion,
+    // while this backdrop is meant to move unless the user pauses it on the page.
+    let frame = 0
+    let lastTick = 0
     let lastDraw = 0
-    const initialPhase = phaseRef.current
-    let phase = initialPhase
+    let phase = phaseRef.current
 
     const resize = () => {
       shader?.resize()
       shader?.draw(phase)
     }
+    const tick = (now: number) => {
+      frame = requestAnimationFrame(tick)
+      if (lastTick) phase = (phase + (now - lastTick) / 1000 / LOOP_SECONDS) % 1
+      lastTick = now
+      phaseRef.current = phase
+      if (now - lastDraw < 1000 / 30) return
+      lastDraw = now
+      shader?.draw(phase)
+    }
+    const stopLoop = () => {
+      cancelAnimationFrame(frame)
+      frame = 0
+      lastTick = 0
+    }
     const syncPlayback = () => {
-      if (!shader || !playback) return
-      if (document.hidden) playback.pause()
-      else playback.play()
+      // Browsers already throttle rAF in hidden tabs; stopping avoids a phase jump on return.
+      if (!shader || !animated || document.hidden) stopLoop()
+      else if (!frame) frame = requestAnimationFrame(tick)
     }
     const start = () => {
       shader = createLoginShader(canvas, resolved === 'dark')
       canvas.style.opacity = shader ? '1' : '0'
       if (!shader) return
       resize()
-      if (!animated) return
-      playback = animate(0, 1, {
-        ...loginShaderDrift,
-        onUpdate(value) {
-          // Motion can still emit the held value while paused; do not submit GPU work.
-          if (document.hidden) return
-          phase = (initialPhase + value) % 1
-          phaseRef.current = phase
-          const now = performance.now()
-          if (now - lastDraw < 1000 / 30) return
-          lastDraw = now
-          shader?.draw(phase)
-        },
-      })
       syncPlayback()
     }
     const lost = (event: Event) => {
       event.preventDefault()
-      playback?.stop()
+      stopLoop()
       shader?.dispose()
       shader = null
       canvas.style.opacity = '0'
@@ -65,7 +68,7 @@ export function LoginBackdrop({ animated }: { animated: boolean }) {
     canvas.addEventListener('webglcontextlost', lost)
     canvas.addEventListener('webglcontextrestored', restored)
     return () => {
-      playback?.stop()
+      stopLoop()
       observer.disconnect()
       document.removeEventListener('visibilitychange', syncPlayback)
       canvas.removeEventListener('webglcontextlost', lost)
