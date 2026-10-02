@@ -7,9 +7,13 @@ import { PROVIDER_STATUS } from '@/lib/format'
 import { staggerItem, staggerList } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
-/** Compact provider tiles: mark, name, one status line. Used in the connect sheet and for planned CRMs. */
-export function ProviderGrid({ providers, selected, onSelect }: {
+/**
+ * Compact provider tiles: mark, name, one status line. Used in the connect sheet and for planned CRMs. `caption`
+ * replaces the status line where the status is already implied (e.g. a section titled «В разработке»).
+ */
+export function ProviderGrid({ providers, selected, onSelect, caption }: {
   providers: Provider[]; selected?: string | null; onSelect: (provider: Provider) => void
+  caption?: (provider: Provider) => string
 }) {
   return (
     <motion.div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2.5" variants={staggerList} initial="hidden" animate="show">
@@ -23,10 +27,14 @@ export function ProviderGrid({ providers, selected, onSelect }: {
             <span className={cn(provider.status === 'planned' && 'opacity-70 grayscale-[35%]')}><ProviderMark provider={provider.id} /></span>
             <span className="min-w-0 flex-1">
               <span className="block truncate font-medium">{provider.name}</span>
-              <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className={cn('size-1.5 flex-none rounded-full', status.dot)} />
-                <span className="truncate">{status.label}</span>
-              </span>
+              {caption ? (
+                <span className="mt-0.5 block truncate text-xs text-muted-foreground" title={caption(provider)}>{caption(provider)}</span>
+              ) : (
+                <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className={cn('size-1.5 flex-none rounded-full', status.dot)} />
+                  <span className="truncate">{status.label}</span>
+                </span>
+              )}
             </span>
             <ChevronRight className="size-4 flex-none text-muted-foreground/60 transition-transform duration-200 group-hover:translate-x-0.5" />
           </motion.button>

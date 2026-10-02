@@ -26,11 +26,14 @@ Webhook `accepted: true` also covers duplicate bodies or valid events outside th
 | `POST /v1/auth/bootstrap` | `x-admin-key`; `{ email, name, password }`; only while no users exist | `201 { user: { id, email, name } }` + session cookie |
 | `POST /v1/auth/login` | anonymous; `{ email, password }` | `200 { user: { id, email, name } }` + session cookie |
 | `POST /v1/auth/logout` | no body needed; clears the cookie even without a session | `200 { ok: true }` |
-| `GET /v1/me` | signed in or service key | `200 { user, system, permissions: { global, workspaces }, onboarding }` |
+| `GET /v1/me` | signed in or service key | `200 { user, system, permissions: { global, workspaces }, onboarding, preferences }`; assignments include `roleName` |
+| `PATCH /v1/me` | user session; non-empty subset of `{ name, theme, defaultTenantId, landingPage }` | `200` same shape as `GET /v1/me`; own account only |
 | `POST /v1/me/password` | user session; `{ currentPassword, newPassword }` | `200 { ok: true }`; other sessions revoked |
 | `POST /v1/me/onboarding` | user session; `{ seen: string[] }` | `200 { seen }`; idempotent union with existing ids |
 
 Login normalizes email by trimming and lowercasing. Bootstrap and password creation/change require 10–200 characters; names are trimmed, 1–120 characters. No password/token is returned in JSON. A failed login returns 401; after eight failed attempts for the same normalized email in 15 minutes, further attempts get 429. A successful login resets that email's throttle. Bootstrap on an initialized database gets 409.
+
+Personal-settings validation and defaults: [access-control.md](access-control.md#personal-settings). Unknown fields get 400; default workspaces must be viewable, and an analytics start page also requires `analytics.view`. Service-key callers receive `preferences: null` and cannot change personal settings (400).
 
 `/v1/me` returns `user: null`, `system: true`, `onboarding: null` for the service key; it cannot use personal password/onboarding routes (400). `permissions.global` contains every permission from all-workspace grants, including workspace-scoped permissions that apply everywhere. `permissions.workspaces` carries grants specific to individual workspaces. Session/cookie limits: [access-control.md](access-control.md#authentication). Onboarding validation: [onboarding.md](onboarding.md#server-state).
 

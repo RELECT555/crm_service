@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { getRouteApi, Link, linkOptions, useNavigate } from '@tanstack/react-router'
 import {
   Activity, AlertTriangle, ArrowRight, ArrowUpRight, BarChart3, CalendarDays, Coins, Database, Globe, MoreHorizontal, Pencil,
   Plug, Plus, Power, PowerOff, RefreshCw, Settings2,
@@ -18,7 +19,6 @@ import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { formatAgo, formatDate, numberFormat, plural } from '@/lib/format'
 import { staggerItem, staggerList } from '@/lib/motion'
-import { navigate } from '@/lib/router'
 import { errorText, useToast } from '@/lib/toast'
 import { useResource } from '@/lib/use-resource'
 import { cn } from '@/lib/utils'
@@ -27,7 +27,10 @@ const isLoading = (connection: ConnectionSummary) => connection.status === 'back
 const needsAttention = (connection: ConnectionSummary) =>
   connection.status === 'degraded' || connection.status === 'reauthorization_required'
 
-export function Workspace({ tenantId }: { tenantId: string }) {
+const route = getRouteApi('/tenants/$tenantId')
+
+export function Workspace() {
+  const { tenantId } = route.useParams()
   const detail = useResource(() => api.tenant(tenantId), [tenantId], data => data.connections.some(isLoading) ? 4000 : null)
   const [connect, setConnect] = useState<{ open: boolean; provider: Provider | null; key: number }>({ open: false, provider: null, key: 0 })
   const [renaming, setRenaming] = useState(false)
@@ -45,7 +48,7 @@ export function Workspace({ tenantId }: { tenantId: string }) {
   return (
     <>
       <PageHeader title={name} leading={<Avatar name={name} large />}
-        crumbs={[{ label: 'Пространства', href: '#/' }, { label: name }]}
+        crumbs={[{ label: 'Пространства', link: linkOptions({ to: '/' }) }, { label: name }]}
         meta={
           <span className="flex flex-wrap items-center gap-x-4 gap-y-1 [&_svg]:size-3.5">
             <span className="flex items-center gap-1.5"><CalendarDays />Создано {formatDate(data.tenant.created_at)}</span>
@@ -55,7 +58,8 @@ export function Workspace({ tenantId }: { tenantId: string }) {
         }
         actions={<>
           {can('analytics.view', tenantId) && (
-            <Button variant="outline" size="lg" className="flex-1 sm:flex-none" onClick={() => navigate(`/tenants/${tenantId}/analytics`)}><BarChart3 />Аналитика</Button>
+            <Button variant="outline" size="lg" className="flex-1 sm:flex-none" nativeButton={false}
+              render={<Link to="/tenants/$tenantId/analytics" params={{ tenantId }} />}><BarChart3 />Аналитика</Button>
           )}
           {manageConnections && <Button size="lg" className="flex-1 sm:flex-none" onClick={() => openConnect()}><Plus />Подключить CRM</Button>}
           {manageWorkspace && <DropdownMenu>
@@ -145,7 +149,8 @@ function ConnectionCard({ tenantId, connection, onChange, canManage }: {
   tenantId: string; connection: ConnectionSummary; onChange: () => void; canManage: boolean
 }) {
   const toast = useToast()
-  const href = `#/tenants/${tenantId}/connections/${connection.id}`
+  const navigate = useNavigate()
+  const link = linkOptions({ to: '/tenants/$tenantId/connections/$connectionId', params: { tenantId, connectionId: connection.id } })
   const loading = isLoading(connection)
   const disconnected = connection.status === 'disconnected'
   const run = async (action: () => Promise<unknown>, done: string) => {
@@ -154,7 +159,7 @@ function ConnectionCard({ tenantId, connection, onChange, canManage }: {
   }
   return (
     <Card className={cn('group relative gap-0 py-0 transition-[box-shadow,border-color] duration-200 hover:ring-foreground/15', disconnected && 'opacity-75')}>
-      <a href={href} className="absolute inset-0 z-0 rounded-xl" aria-label={`Открыть ${connection.account}`} />
+      <Link {...link} className="absolute inset-0 z-0 rounded-xl" aria-label={`Открыть ${connection.account}`} />
       <div className="flex items-start gap-3 px-5 pt-5">
         <ProviderMark provider={connection.provider} />
         <div className="min-w-0 flex-1">
@@ -166,7 +171,7 @@ function ConnectionCard({ tenantId, connection, onChange, canManage }: {
             <MoreHorizontal />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => navigate(href.slice(1))}><ArrowUpRight />Открыть</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void navigate(link)}><ArrowUpRight />Открыть</DropdownMenuItem>
             {!disconnected && (
               <DropdownMenuItem disabled={loading} onClick={() => run(() => api.resync(tenantId, connection.id), 'Полная синхронизация запущена')}>
                 <RefreshCw />Полная синхронизация
@@ -251,9 +256,9 @@ function FirstConnection({ onPick }: { onPick: (provider: Provider) => void }) {
               </motion.button>
             ))}
           </motion.div>
-          <a href="#/integrations" className="mt-1 inline-flex items-center gap-1 justify-self-start text-[13px] font-medium">
+          <Link to="/integrations" className="mt-1 inline-flex items-center gap-1 justify-self-start text-[13px] font-medium">
             Все интеграции <ArrowRight className="size-3.5" />
-          </a>
+          </Link>
         </div>
       </div>
     </Card>
@@ -372,7 +377,7 @@ function WorkspaceSkeleton() {
   return (
     <Busy>
       <PageHeader title={<SkeletonText className="text-[22px] leading-tight" width="10em" />} leading={<SkeletonBlock className="size-12 rounded-xl" />}
-        crumbs={[{ label: 'Пространства', href: '#/' }, { label: '…' }]}
+        crumbs={[{ label: 'Пространства', link: linkOptions({ to: '/' }) }, { label: '…' }]}
         meta={<><SkeletonText width="min(26em, 90%)" /><SkeletonText className="sm:hidden" width="55%" /><SkeletonText className="sm:hidden" width="45%" /></>}
         actions={<><SkeletonBlock className="h-9 flex-1 rounded-lg sm:w-28 sm:flex-none" /><SkeletonBlock className="h-9 flex-1 rounded-lg sm:w-40 sm:flex-none" /><SkeletonBlock className="size-9 rounded-lg" /></>} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

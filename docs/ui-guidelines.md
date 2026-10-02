@@ -21,14 +21,14 @@ All colors are CSS variables in `src/index.css`, exposed to Tailwind through `@t
 | `bg-sidebar`, `sidebar-*` | sidebar surface and text |
 | `--series-1…5`, `--series-other` | chart series only (see [Charts](#charts)); never for UI states or text |
 
-Themes: light, dark and "as system" («Авто»). `lib/theme.ts` is a single shared store (all switches stay in sync, also across tabs and with OS changes); it stores the choice in `localStorage` (`crm-theme`), sets the `.dark` class on `<html>`, and cross-fades colors for 300 ms. `public/theme-init.js` applies the same rule before first paint. The theme is chosen in the user menu (radio items); the compact switch on the login screen always flips the visible theme light ↔ dark. Every screen must be checked in both themes. Dark theme uses neutral graphite surfaces with low-contrast borders; do not tint large surfaces with the primary color.
+Themes: light, dark and "as system" («Системная»). `lib/theme.ts` is a single shared store (all switches stay in sync, also across tabs and with OS changes); it stores a browser fallback in `localStorage` (`crm-theme`), sets the `.dark` class on `<html>`, and cross-fades colors for 300 ms. `public/theme-init.js` applies that fallback before first paint; `SessionProvider` applies the saved account preference after authentication. The theme is chosen in «Мои настройки» (`/#/settings`), applied immediately and persisted with `PATCH /v1/me`; a failed save restores the previous theme and shows an error. The compact login switch flips the visible theme light ↔ dark locally. Every screen must be checked in both themes. Dark theme uses neutral graphite surfaces with low-contrast borders; do not tint large surfaces with the primary color.
 
 ## Components
 
 - Primitives live in `components/ui` (shadcn style). Add a new primitive there rather than styling a raw element in a page.
-- App building blocks live in `components/common.tsx`: `PageHeader`, `Field`, `EmptyState`, `Notice`, `ErrorNotice`, `CopyField`, `ProviderMark`, `Stat`, `StatusBadge`, `ToneBadge`, `SyncBar`, `LoadingRows`.
+- App building blocks live in `components/common.tsx`: `PageHeader`, `Field`, `EmptyState`, `Notice`, `ErrorNotice`, `CopyField`, `ProviderMark`, `Stat`, `StatusBadge`, `ToneBadge`, `SyncBar`.
 - Overlays: `Dialog` for confirmations and short forms, `Sheet` (right) for multi-step flows and reference panels, `Sheet side="left"` for the mobile menu.
-- Menus: `DropdownMenu` (Base UI Menu) for secondary actions behind a `…` button, the workspace switcher and the user menu (theme, password change, sign out). Destructive items use `variant="destructive"`, sit after a separator and open a confirmation `Dialog` when they stop work.
+- Menus: `DropdownMenu` (Base UI Menu) for secondary actions behind a `…` button, the workspace switcher and the user menu («Мои настройки», sign out). Destructive items use `variant="destructive"`, sit after a separator and open a confirmation `Dialog` when they stop work.
 - Brand: `BrandMark` in `components/Brand.tsx` — a graphite squircle (inverted in dark theme) with two bars (result and work) and a primary-colored dot over the shorter bar: the gap the product shows. The same drawing is `public/favicon.svg`. In the sidebar it sits with the wordmark «CRM Analytics» and the line «Аналитика команды продаж». Do not reintroduce colored gradient squares or generic chart icons.
 - Building blocks for screens: skeletons in `components/skeletons.tsx` (see [Loading](#loading-skeletons)), `Metric` (KPI tile: label, icon chip, large number, one line of context, optional footer bar) and `Steps` (numbered vertical steps joined by a line) in `components/common.tsx`.
 - Workspaces are shown with `Avatar` initials in neutral color; provider marks are the only colored tiles.
@@ -65,7 +65,7 @@ Two layers, each with one job:
 | `dialogSpring` | dialog popup and the login card; backdrop fades |
 | `sheetSpring` | side sheets slide from their edge |
 | `exitFast` | every exit — closing must never feel slower than opening |
-| `pageTransition` | route change (`App.tsx`, keyed by route, `AnimatePresence mode="wait"`) |
+| `pageTransition` | route change (`App.tsx`, enter-only fade keyed by pathname around the router `Outlet`) |
 | `staggerList` / `staggerItem` | cards and rows that appear together (parent gets `initial="hidden" animate="show"`) |
 
 **Base UI + Motion pattern** (the one used in `components/ui/dropdown-menu.tsx`, `dialog.tsx`, `sheet.tsx`, after [motion.dev's Base UI menu example](https://motion.dev/examples/react-base-context-menu)):
@@ -82,7 +82,7 @@ const [open, setOpen] = useState(false)            // hoist open state out of Ba
 
 Base UI owns focus, keyboard, dismissal and ARIA; Motion only owns the visuals. Never re-implement focus traps or outside-click handling for an animation.
 
-**Menus** (`components/ui/dropdown-menu.tsx`): the popup unfolds from its trigger — scale 0.9 → 1, a 6px offset away from the side it opens on, blur 6 → 0 — with `menuSpring`; items settle with a 22 ms stagger; the highlight is one pill (`layoutId` per popup) that glides between items on hover and arrow keys instead of each row flashing its own background. Destructive items get a tinted pill.
+**Menus** (`components/ui/dropdown-menu.tsx`): the popup unfolds from its trigger — scale 0.96 → 1 and a 6px offset away from the side it opens on — with `menuSpring`, and on close retracts halfway back toward the trigger while fading in 140 ms (`menuExit`), ignoring the pointer from the first frame. Never animate `filter: blur` on menus: it fights the popup’s backdrop blur and smears text. Items settle with a 22 ms stagger; the highlight is one pill (`layoutId` per popup) that glides between items on hover and arrow keys instead of each row flashing its own background. Destructive items get a tinted pill.
 
 **Sheets** (`components/ui/sheet.tsx`): a drawer travels fully in from its edge (`x: ±100%`) with `sheetSpring` and back out in 240 ms; the backdrop fades with a light blur. The mobile menu is the same sheet from the left.
 
@@ -100,8 +100,9 @@ Three layouts, switched by Tailwind breakpoints (`md` = 768px, `lg` = 1024px, `x
 | tablet, `md`–`lg` | 68px icon rail (labels as native `title` hints), not collapsible | two-column KPI grids, single-column charts |
 | desktop, ≥ `lg` | 256px sidebar, user-collapsible to the rail (stored in `localStorage`) | multi-column grids; wide data tables from `xl` |
 
-- Sidebar, top to bottom: brand, workspace switcher (remembers the last workspace; a user with exactly one workspace gets it preselected), navigation grouped by permission («Пространство», «Администрирование», «Сервис»), collapse button, user menu (theme, password, sign out). Sections the user has no permission for are not rendered.
+- Sidebar, top to bottom: brand, workspace switcher (remembers the last workspace, falls back to the account default; a user with exactly one workspace gets it preselected), navigation grouped by permission («Пространство», «Администрирование», «Сервис»), collapse button, user menu («Мои настройки», sign out). Sections the user has no permission for are not rendered.
 - Content: max width 1600px (wide screens use the space; dense tables and grids get more columns); 16 / 24 / 40 / 56px side padding on phone / tablet / desktop / ≥1536px.
+- Personal settings use quiet sections with a heading/hint on the left and a card on the right from `lg`; below that they stack. Each editable form has its own save/cancel/progress footer; theme choices save immediately. Email and assigned roles remain read-only. All save failures are visible, and the password dialog confirms the new password before sending it. Currency, analytics time zone and CRM mappings remain workspace settings.
 - **No horizontal page scroll at 360px.** Grid items have `min-width: auto` by default, so long text inside them widens the page: give grids explicit tracks (`grid-cols-1`, `grid-cols-2` — Tailwind emits `minmax(0, 1fr)`) and children `min-w-0`; use `truncate` with a `title` for one-line labels. A `grid` without `grid-cols-*` creates an `auto` track that grows to its content — the most common cause of overflow here.
 - Tables wider than their card either scroll inside `data-slot=table-container` (admin lists) or switch to a card list below the breakpoint where they fit (the analytics manager table: cards below `xl`, `table-fixed` above).
 - Use `useMediaQuery` (`lib/use-media.ts`) only when behavior changes (the sidebar mode); prefer CSS breakpoints for appearance.
@@ -158,10 +159,10 @@ Russian, short, operator-oriented. Buttons are verbs («Подключить CRM
 
 ## New screen checklist
 
-1. Data loading through `useResource`; loading (`LoadingRows`), empty (`EmptyState` with the next step) and error (`ErrorNotice` with retry) states.
+1. Data loading through `useResource`; loading (a skeleton of the page layout, [Loading](#loading-skeletons)), empty (`EmptyState` with the next step) and error (`ErrorNotice` with retry) states.
 2. Every mutation shows progress (disabled button), success (toast) and error (toast or inline field error).
 3. Keyboard: all actions reachable with Tab; table rows that navigate respond to Enter; dialogs close on Escape.
 4. Checked in light and dark themes at 1440, 1280, 820 (tablet rail) and 360px widths with no horizontal page scroll; checked with reduced motion.
-5. Controls gated by the right permission (`useCan`), and the page added to `resolve()` in `App.tsx` with its permission.
+5. Controls gated by the right permission (`useCan`), and the page added to `router.tsx` with its permission in `staticData`.
 6. A new section has a `data-tour` anchor and a step in `TOUR_STEPS` ([onboarding.md](onboarding.md#tour)), and a skeleton built from its own layout (see [Loading](#loading-skeletons)).
 7. `npm run check` passes with no lint warnings.

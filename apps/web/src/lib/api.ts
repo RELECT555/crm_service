@@ -111,9 +111,16 @@ export type Me = {
   permissions: { global: string[]; workspaces: Record<string, string[]> }
   /** Presentation and tour ids already offered to this user (docs/onboarding.md); null for the service key. */
   onboarding: { seen: string[] } | null
+  preferences: UserPreferences | null
 }
+export type UserPreferences = {
+  theme: 'light' | 'dark' | 'system' | null
+  defaultTenantId: string | null
+  landingPage: 'overview' | 'analytics'
+}
+export type PersonalSettings = Partial<UserPreferences & { name: string }>
 export type PermissionInfo = { id: string; scope: 'global' | 'workspace'; group: string; label: string; description: string }
-export type AssignmentInput = { roleId: string; tenantId: string | null }
+export type AssignmentInput = { roleId: string; tenantId: string | null; roleName?: string }
 export type UserView = {
   id: string; email: string; name: string; status: 'active' | 'disabled'; created_at: number; last_login_at: number | null
   assignments: AssignmentInput[]
@@ -196,6 +203,7 @@ export const api = {
     request('/v1/auth/bootstrap', { method: 'POST', body, headers: { 'x-admin-key': adminKey }, quiet401: true }),
   logout: () => request('/v1/auth/logout', { method: 'POST' }),
   me: () => request<Me>('/v1/me', { quiet401: true }),
+  updateMe: (body: PersonalSettings) => request<Me>('/v1/me', { method: 'PATCH', body }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request('/v1/me/password', { method: 'POST', body: { currentPassword, newPassword } }),
   markOnboarding: (seen: string[]) =>

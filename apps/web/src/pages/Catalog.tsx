@@ -19,29 +19,18 @@ export function Catalog() {
   const list = providers.data ?? []
   const ready = list.filter(provider => provider.status !== 'planned')
   const planned = list.filter(provider => provider.status === 'planned')
-  const count = (status: Provider['status']) => list.filter(provider => provider.status === status).length
   return (
     <>
       <PageHeader eyebrow="Интеграции" icon={Plug} title="Поддерживаемые CRM"
-        subtitle="Что забираем из каждой системы и что нужно для подключения. Все интеграции работают только на чтение." />
+        subtitle="Какие данные приходят из каждой CRM и что нужно для подключения. Доступ к CRM — только на чтение." />
       {providers.error && <ErrorNotice message={errorText(providers.error)} onRetry={providers.reload} />}
       {!providers.data && !providers.error && <CatalogSkeleton />}
       {providers.data && (
         <div className="grid gap-10">
-          <div className="-mt-2 flex flex-wrap gap-2" aria-label="Сводка">
-            {(['available', 'not_configured', 'planned'] as const).map(status => (
-              <span key={status} className="inline-flex h-7 items-center gap-2 rounded-full bg-card px-3 text-xs shadow-card ring-1 ring-border">
-                <span className={cn('size-1.5 rounded-full', PROVIDER_STATUS[status].dot)} />
-                <span className="text-muted-foreground">{PROVIDER_STATUS[status].label}</span>
-                <span className="font-semibold tabular-nums">{count(status)}</span>
-              </span>
-            ))}
-          </div>
-
           <section className="grid gap-4" data-tour="catalog-ready">
             <div>
               <h2 className="text-[15px] font-semibold">Можно подключить</h2>
-              <p className="mt-0.5 text-[13px] text-muted-foreground">Коннекторы реализованы. Подключение — из пространства клиента.</p>
+              <p className="mt-0.5 text-[13px] text-muted-foreground">Подключаются из пространства клиента — кнопкой «Подключить CRM».</p>
             </div>
             <motion.div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3" variants={staggerList} initial="hidden" animate="show">
               {ready.map(provider => <ProviderCard key={provider.id} provider={provider} onOpen={() => setSelected(provider)} />)}
@@ -52,9 +41,9 @@ export function Catalog() {
             <section className="grid gap-4">
               <div>
                 <h2 className="text-[15px] font-semibold">В разработке</h2>
-                <p className="mt-0.5 text-[13px] text-muted-foreground">API изучено и описано в документации; коннекторы ещё не реализованы.</p>
+                <p className="mt-0.5 text-[13px] text-muted-foreground">API изучено, коннекторы пишем. Откройте, чтобы посмотреть, какие данные будут доступны.</p>
               </div>
-              <ProviderGrid providers={planned} selected={selected?.id} onSelect={setSelected} />
+              <ProviderGrid providers={planned} selected={selected?.id} onSelect={setSelected} caption={provider => provider.commercialData[0]} />
             </section>
           )}
         </div>
@@ -99,9 +88,8 @@ function ProviderCard({ provider, onOpen }: { provider: Provider; onOpen: () => 
         </div>
       </dl>
       <div className="mt-5 flex flex-wrap items-center gap-1.5 border-t pt-4 text-xs text-muted-foreground">
-        <span className="inline-flex h-6 items-center rounded-md bg-muted px-2">{provider.auth === 'oauth2' ? 'OAuth 2.0' : 'API-ключ'}</span>
+        <span className="inline-flex h-6 items-center rounded-md bg-muted px-2">{provider.auth === 'oauth2' ? 'Вход через OAuth' : 'Вход по API-ключу'}</span>
         <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted px-2"><Lock className="size-3" />Только чтение</span>
-        {provider.status === 'not_configured' && <span className="ml-auto text-warning">нужны ключи</span>}
       </div>
     </motion.button>
   )

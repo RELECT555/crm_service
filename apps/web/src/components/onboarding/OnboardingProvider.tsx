@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useRouter } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const { me } = useSession()
   const can = useCan()
   const toast = useToast()
+  const router = useRouter()
   const tracked = me.onboarding !== null // the service key has no stored state; replays still work
   const [seen, setSeen] = useState<string[]>(me.onboarding?.seen ?? [])
   const [welcome, setWelcome] = useState(() => tracked && !me.onboarding!.seen.includes(WELCOME_ID))
@@ -76,17 +78,17 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     const context = only?.context ?? await tourContext()
     const steps = only?.steps ?? eligibleSteps(context, can)
     if (steps.length === 0) { toast.show('Для вашей роли тур пока пуст.'); return }
-    setTour({ steps, context, from: window.location.hash })
-  }, [can, toast])
+    setTour({ steps, context, from: router.state.location.href })
+  }, [can, toast, router])
 
   const finishTour = useCallback((completed: boolean) => {
     if (!tour) return
     mark(tour.steps.map(step => step.id))
     // Return to where the tour started, so it never leaves the user somewhere unexpected.
-    if (window.location.hash !== tour.from) window.location.hash = tour.from
+    if (router.state.location.href !== tour.from) router.history.push(tour.from)
     setTour(null)
-    toast.show(completed ? 'Тур пройден. Повторить его можно в меню профиля.' : 'Тур можно продолжить из меню профиля.')
-  }, [tour, mark, toast])
+    toast.show(completed ? 'Тур пройден. Повторить его можно в «Моих настройках».' : 'Тур можно повторить в «Моих настройках».')
+  }, [tour, mark, toast, router])
 
   const closeWelcome = useCallback(async (then: 'tour' | 'work') => {
     setWelcome(false)
@@ -98,7 +100,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({
     showWelcome: () => { setWelcomeRun(run => run + 1); setWelcome(true) },
-    startTour: () => void startTour(),
+    startTour: () => startTour(),
   }), [startTour])
   const name = me.user?.name ?? 'коллега'
 

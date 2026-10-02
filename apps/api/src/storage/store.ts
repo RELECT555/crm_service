@@ -20,6 +20,8 @@ export type Connection = {
   settings: string | null;
   status: string; last_sync: number | null;
   last_error: string | null; created_at: number | null;
+  /** When the last full sync was queued (any reason); spaces out automatic retries of degraded connections. */
+  reconcile_at: number | null;
 };
 export type EventsMode = "webhook" | "polling";
 export type ConnectionSummary = Pick<Connection, "id" | "provider" | "account_id" | "account" | "status" |
@@ -38,8 +40,14 @@ export type TenantSummary = { id: string; name: string | null; created_at: numbe
 export type Job = {
   id: string; connection_id: string; type: "sync" | "fetch" | "bind";
   kind: string; cursor: string | null; external_id: string | null;
+  /** fetch: `upsert`/`delete` from a change event, or `verify` from a deletion check. */
   operation: string | null; attempts: number;
+  /** sync: when this full pass of the kind started (set on its first page, copied to later pages). */
+  pass_started_at: number | null;
 };
+
+const DAY_MS = 24 * 60 * 60_000;
+const OAUTH_STATE_TTL_MS = 10 * 60_000;
 
 export class Store {
   readonly db: DatabaseSync;
@@ -107,6 +115,8 @@ export class Store {
     this.addColumn("tenants", "currency", "TEXT");
     this.addColumn("jobs", "error", "TEXT");
     this.addColumn("jobs", "finished_at", "INTEGER");
+    this.addColumn("jobs", "pass_started_at", "INTEGER");
+    this.addColumn("connections", "reconcile_at", "INTEGER");
     this.migrateCommercialSources();
     this.access = new AccessStore(this.db);
   }
@@ -177,11 +187,12 @@ export class Store {
       const row = this.db.prepare("SELECT tenant_id,provider,account,created_at,actor_id,actor_label FROM oauth_states WHERE state_hash=?").get(hash) as
         { tenant_id: string; provider: string; account: string; created_at: number; actor_id: string | null; actor_label: string | null } | undefined;
       this.db.prepare("DELETE FROM oauth_states WHERE state_hash=?").run(hash);
-      if (!row || Date.now() - row.created_at > 10 * 60_000) return null;
+      if (!row || Date.now() - row.created_at > OAUTH_STATE_TTL_MS) return null;
       return { tenant_id: row.tenant_id, provider: row.provider, account: row.account, actor_id: row.actor_id, actor_label: row.actor_label };
     });
   }
-  saveConnection(input: Omit<Connection, "status" | "events_bound" | "events_mode" | "last_sync" | "last_error" | "created_at" | "settings">
+  saveConnection(input: Omit<Connection, "status" | "events_bound" | "events_mode" | "last_sync" | "last_error" | "created_at" | "settings"
+    | "reconcile_at">
     & { settings?: string | null }): void {
     this.db.prepare(`INSERT INTO connections
       (id,tenant_id,provider,account_id,account,access_token_enc,refresh_token_enc,expires_at,webhook_secret_hash,webhook_secret_enc,status,created_at,settings)
@@ -245,11 +256,19 @@ export class Store {
   resetEventsBound(connectionId: string): void {
     this.db.prepare("UPDATE connections SET events_bound=0 WHERE id=?").run(connectionId);
   }
-  /** Live connections due for reconciliation; polling connections (no change events) are due sooner. */
-  staleConnectionIds(webhookBefore: number, pollingBefore: number): string[] {
-    return (this.db.prepare(`SELECT id FROM connections WHERE status='live'
-      AND last_sync < CASE WHEN events_mode='polling' THEN ? ELSE ? END`)
-      .all(pollingBefore, webhookBefore) as Array<{ id: string }>).map(row => row.id);
+  /**
+   * Connections due for a scheduled full sync: live ones whose last completed sync is older than their cadence
+   * (polling connections, without change events, are due sooner), and degraded ones whose last attempt is older than
+   * `degradedBefore` so they recover without an operator but do not retry in a tight loop.
+   */
+  staleConnectionIds(cutoffs: { webhookBefore: number; pollingBefore: number; degradedBefore: number }): string[] {
+    return (this.db.prepare(`SELECT id FROM connections WHERE
+      (status='live' AND COALESCE(last_sync,0) < CASE WHEN events_mode='polling' THEN ? ELSE ? END)
+      OR (status='degraded' AND COALESCE(reconcile_at,0) < ?)`)
+      .all(cutoffs.pollingBefore, cutoffs.webhookBefore, cutoffs.degradedBefore) as Array<{ id: string }>).map(row => row.id);
+  }
+  markReconcileQueued(connectionId: string): void {
+    this.db.prepare("UPDATE connections SET reconcile_at=? WHERE id=?").run(Date.now(), connectionId);
   }
   hasActiveSync(connectionId: string): boolean {
     return !!this.db.prepare("SELECT 1 FROM jobs WHERE connection_id=? AND type='sync' AND status IN ('queued','running') LIMIT 1")
@@ -266,6 +285,12 @@ export class Store {
       VALUES (?,?,?,?,?,?,?,'queued',?,?)`)
       .run(id, connectionId, type, kind, cursor, externalId, operation, runAfter, Date.now());
     return id;
+  }
+  /** Next page of a sync pass; keeps the pass start so the last page can check for deletions. */
+  enqueueNextPage(job: Job, cursor: string): void {
+    this.db.prepare(`INSERT INTO jobs (id,connection_id,type,kind,cursor,status,run_after,created_at,pass_started_at)
+      VALUES (?,?,'sync',?,?,'queued',?,?,?)`)
+      .run(randomUUID(), job.connection_id, job.kind, cursor, Date.now(), Date.now(), job.pass_started_at);
   }
   claimJob(): Job | null {
     return this.transaction(() => {
@@ -383,6 +408,35 @@ export class Store {
   markDeleted(connection: Connection, kind: string, externalId: string): void {
     this.db.prepare("UPDATE records SET deleted=1,observed_at=? WHERE connection_id=? AND kind=? AND external_id=?")
       .run(Date.now(), connection.id, kind, externalId);
+  }
+  /**
+   * Live records of `kind` not observed since `passStartedAt`. Every upsert (page or fetch) refreshes observed_at,
+   * so after a full pass these are exactly the records the pass did not see.
+   */
+  unseenRecords(connectionId: string, kind: string, passStartedAt: number): { ids: string[]; live: number } {
+    const ids = (this.db.prepare(`SELECT external_id FROM records WHERE connection_id=? AND kind=? AND deleted=0
+      AND observed_at<? ORDER BY external_id`).all(connectionId, kind, passStartedAt) as Array<{ external_id: string }>)
+      .map(row => row.external_id);
+    const live = this.db.prepare("SELECT COUNT(*) AS count FROM records WHERE connection_id=? AND kind=? AND deleted=0")
+      .get(connectionId, kind) as { count: number };
+    return { ids, live: live.count };
+  }
+  /** Tombstones the records a complete listing did not return. */
+  markUnseenDeleted(connectionId: string, kind: string, passStartedAt: number): number {
+    return Number(this.db.prepare(`UPDATE records SET deleted=1,observed_at=? WHERE connection_id=? AND kind=?
+      AND deleted=0 AND observed_at<?`).run(Date.now(), connectionId, kind, passStartedAt).changes);
+  }
+  /**
+   * Removes bookkeeping that is no longer useful: finished jobs after 30 days (the activity log shows the latest 30),
+   * webhook dedup digests after 7 days (providers stop redelivering long before), expired OAuth states and sessions.
+   */
+  prune(now = Date.now()): void {
+    this.transaction(() => {
+      this.db.prepare("DELETE FROM jobs WHERE status IN ('done','failed','cancelled') AND finished_at<?").run(now - 30 * DAY_MS);
+      this.db.prepare("DELETE FROM ingest_events WHERE received_at<?").run(now - 7 * DAY_MS);
+      this.db.prepare("DELETE FROM oauth_states WHERE created_at<?").run(now - OAUTH_STATE_TTL_MS);
+      this.access.deleteExpiredSessions(now);
+    });
   }
   saveCheckpoint(connectionId: string, kind: string, cursor: string | null, complete: boolean): void {
     this.db.prepare(`INSERT INTO checkpoints VALUES (?,?,?,?)

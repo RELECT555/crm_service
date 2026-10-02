@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { Building2, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Avatar, EmptyState, ErrorNotice, Field, PageHeader } from '@/components/common'
@@ -9,18 +10,20 @@ import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, Dia
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDate, numberFormat } from '@/lib/format'
-import { navigate, useHashQuery } from '@/lib/router'
 import { useCan } from '@/lib/session'
 import { errorText, useToast } from '@/lib/toast'
 import { useResource } from '@/lib/use-resource'
 
+const route = getRouteApi('/')
+
 export function Workspaces() {
   const tenants = useResource(() => api.tenants(), [])
-  const query = useHashQuery()
+  const search = route.useSearch()
+  const navigate = useNavigate()
   const [creatingLocal, setCreatingLocal] = useState(false)
-  // `#/?new=1` (from the workspace switcher) opens the dialog; closing it clears the parameter.
-  const creating = creatingLocal || query.get('new') === '1'
-  const setCreating = (open: boolean) => { setCreatingLocal(open); if (!open && query.get('new')) navigate('/') }
+  // `?new=true` (from the workspace switcher) opens the dialog; closing it clears the parameter.
+  const creating = creatingLocal || search.new === true
+  const setCreating = (open: boolean) => { setCreatingLocal(open); if (!open && search.new) void navigate({ to: '/', search: {}, replace: true }) }
   const can = useCan()
   const create = can('workspaces.create') ? <Button size="lg" onClick={() => setCreating(true)}><Plus />Новое пространство</Button> : null
 
@@ -53,7 +56,7 @@ export function Workspaces() {
             </TableHeader>
             <TableBody>
               {tenants.data.map(tenant => {
-                const open = () => navigate(`/tenants/${tenant.id}`)
+                const open = () => void navigate({ to: '/tenants/$tenantId', params: { tenantId: tenant.id } })
                 const loading = tenant.connections - tenant.live - tenant.attention
                 return (
                   <TableRow key={tenant.id} tabIndex={0} onClick={open} onKeyDown={event => { if (event.key === 'Enter') open() }}
@@ -108,13 +111,14 @@ function CreateWorkspace({ open, onOpenChange }: { open: boolean; onOpenChange: 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const toast = useToast()
+  const navigate = useNavigate()
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     setBusy(true)
     try {
       const { tenantId } = await api.createTenant(name)
       toast.show('Пространство создано')
-      navigate(`/tenants/${tenantId}`)
+      void navigate({ to: '/tenants/$tenantId', params: { tenantId } })
     } catch (failure) {
       setError(errorText(failure))
       setBusy(false)

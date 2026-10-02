@@ -1,8 +1,8 @@
 import type { Config } from "../../config.ts";
 import type { CanonicalRecord, ChangeEvent, SyncPage } from "../../domain/model.ts";
 import type { Connection, EventsMode, Store } from "../../storage/store.ts";
-import { type AuthorizationGrant, type Connector, ConnectorInputError, ConnectorUpstreamError, type MappingOptions,
-  type ProviderInfo } from "../types.ts";
+import { type AuthorizationGrant, type Connector, ConnectorInputError, ConnectorUpstreamError, type DeletionCheck,
+  type MappingOptions, type ProviderInfo } from "../types.ts";
 import { KommoClient } from "./client.ts";
 import { kommoInfo } from "./info.ts";
 import { normalizeContact, normalizeLead, normalizeUser, normalizePipeline, normalizeStage, normalizeTask, parseKommoEvents } from "./mapping.ts";
@@ -92,6 +92,14 @@ export class KommoConnector implements Connector {
     if (!source || kind === "user" || !/^\d+$/.test(externalId)) throw new Error(`Unsupported Kommo record ${kind}`);
     const body = await this.client.get(connection, `${source.path}/${externalId}`);
     return body ? this.normalize(connection, kind, body) : null;
+  }
+
+  deletionCheck(kind: string): DeletionCheck {
+    // Pipelines and stages arrive in one response, so the listing is complete.
+    if (kind === "pipeline" || kind === "stage") return "complete";
+    // Deals, contacts and tasks use page numbers, which shift when rows are deleted mid-pass: verify one by one
+    // (the client maps 404/204 to null). Users are only manager labels and have no single-record read here.
+    return kind === "user" ? "none" : "verify";
   }
 
   async subscribe(connection: Connection, handlerUrl: string): Promise<EventsMode> {

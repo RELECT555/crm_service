@@ -59,7 +59,7 @@ Set each OAuth pair completely or not at all. A missing pair shows «Нужна 
 
 To see the analytics with data in any workspace, switch the analytics page to «Демо» (a read-only fictional team, [metrics.md](metrics.md#demo-data)).
 
-On the first sign-in each user sees the welcome presentation and can take the tour ([onboarding.md](onboarding.md)); replay them through «Презентация» / «Тур по разделам» in the user menu. To get a fresh demo, stop the API and choose a new unused `DB_PATH` before seeding. Do not use `--force` as a reset command.
+On the first sign-in each user sees the welcome presentation and can take the tour ([onboarding.md](onboarding.md)); replay them from the help block in «Мои настройки» (profile menu → `/#/settings`). The same page edits your name, theme, default workspace/start page and password. Name and preferences persist in the account; email and roles are managed by an administrator. To get a fresh demo, stop the API and choose a new unused `DB_PATH` before seeding. Do not use `--force` as a reset command.
 
 The demo passwords are public and exist only in the seed script; never seed a database that is reachable by anyone else.
 

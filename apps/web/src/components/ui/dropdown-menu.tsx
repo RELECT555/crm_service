@@ -2,12 +2,13 @@ import * as React from "react"
 import { Menu as MenuPrimitive } from "@base-ui/react/menu"
 import { AnimatePresence, motion, type HTMLMotionProps } from "motion/react"
 import { Check } from "lucide-react"
-import { exitFast, menuItem, menuSpring } from "@/lib/motion"
+import { menuExit, menuItem, menuSpring } from "@/lib/motion"
 import { cn } from "@/lib/utils"
 
 // Animated with Motion following motion.dev/docs/base-ui: open state is hoisted, the Portal is keepMounted inside
 // AnimatePresence, and the popup and items render as motion elements so they can animate out.
-// The popup unfolds from its trigger (scale + blur, spring); items settle one after another; the highlight is one pill
+// The popup unfolds from its trigger (scale + offset, spring) and retracts toward it on close; items settle one after
+// another; the highlight is one pill
 // that glides between items (shared layoutId per popup) instead of each row flashing its own background.
 
 const MenuOpenContext = React.createContext(false)
@@ -44,13 +45,16 @@ function DropdownMenuContent({ className, side = "bottom", align = "start", side
               render={
                 <motion.div
                   variants={{
-                    hidden: { opacity: 0, scale: 0.9, x: slide, y: lift, filter: "blur(6px)" },
-                    show: { opacity: 1, scale: 1, x: 0, y: 0, filter: "blur(0px)",
-                      transition: { ...menuSpring, filter: { duration: 0.18 }, staggerChildren: 0.022, delayChildren: 0.04 } },
+                    hidden: { opacity: 0, scale: 0.96, x: slide, y: lift },
+                    show: { opacity: 1, scale: 1, x: 0, y: 0, pointerEvents: "auto",
+                      transition: { ...menuSpring, staggerChildren: 0.022, delayChildren: 0.03 } },
                   }}
                   initial="hidden"
                   animate="show"
-                  exit={{ opacity: 0, scale: 0.96, filter: "blur(4px)", transition: exitFast }}
+                  // Retract toward the trigger and stop taking the pointer at once, so a closing menu never
+                  // re-highlights rows under the cursor. No blur: animating `filter` over the popup's backdrop-blur
+                  // makes the glass flicker and smears the text.
+                  exit={{ opacity: 0, scale: 0.97, x: slide / 2, y: lift / 2, pointerEvents: "none", transition: menuExit }}
                   style={{ transformOrigin: "var(--transform-origin)" }}
                 />
               }

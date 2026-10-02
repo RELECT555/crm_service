@@ -64,6 +64,7 @@ Lists are filtered, not refused: `GET /v1/tenants` returns only workspaces the c
 | `POST /v1/auth/login` | anyone | Email is case-insensitive. 8 failed attempts per email in 15 minutes → 429 (in-memory) |
 | `POST /v1/auth/logout` | anyone | Deletes the session, clears the cookie |
 | `GET /v1/me` | signed in | User, assignments, and permissions: `{ global: [...], workspaces: { id: [...] } }` |
+| `PATCH /v1/me` | user | Own name and personal preferences only; no administrative permission needed ([personal settings](#personal-settings)) |
 | `POST /v1/me/password` | user | Requires the current password; ends the user's other sessions |
 | `POST /v1/me/onboarding` | user | Marks presentation/tour ids as offered to this user; a preference, not audited ([onboarding.md](onboarding.md)) |
 
@@ -72,6 +73,23 @@ Sessions: a random 256-bit token in the `crm_session` cookie (`HttpOnly; SameSit
 CSRF: cookie-authenticated **protected** routes other than GET/HEAD must send `x-requested-with: crm-admin` (the admin UI client always does; cross-site forms cannot). The anonymous `/v1/auth/*` router runs before principal resolution and this header check; bootstrap separately verifies `x-admin-key`. `SameSite=Strict` is the first line of defense. When the service-key header is present it is checked first, even if a valid session cookie is also present.
 
 Passwords: scrypt (N=2^15, r=8, p=1, 16-byte salt), stored as `scrypt$N$r$p$salt$hash`; new passwords are 10–200 characters. Authentication request bodies and response shapes are in [api.md](api.md#authentication-and-current-user).
+
+## Personal settings
+
+`/#/settings` («Мои настройки») is available to every signed-in operator, including users without workspace roles. `PATCH /v1/me` accepts a non-empty subset of `{ name, theme, defaultTenantId, landingPage }` and returns the same shape as `GET /v1/me`. Unknown fields are rejected, so email, ids, roles, status and password cannot be changed through this route. Cookie writes require the normal CSRF header. The principal determines which account is updated.
+
+- `name`: trimmed, 1–120 characters; changes use the existing `user.update` audit action.
+- `theme`: `light`, `dark`, `system`, or `null` (use the browser's existing choice until one is saved).
+- `defaultTenantId`: a workspace the caller can view, or `null` («Все пространства»).
+- `landingPage`: `overview` or `analytics`. Analytics requires a default workspace and `analytics.view` there.
+
+Preferences live in `user_preferences` in `storage/access.ts`, keyed by user id, with cascading user deletion and a nullable workspace foreign key. Defaults are `{ theme: null, defaultTenantId: null, landingPage: "overview" }`. Preferences are not audited. `/v1/me` includes `preferences` and the names of the user's assigned roles (`roleName`). It filters a saved workspace if access is revoked, and falls back to overview if analytics permission is lost. Other preference/profile edits remain possible after a role change. Service-key callers receive `preferences: null` and cannot use the personal-settings write route (400).
+
+The UI applies the account theme on sign-in/reload and keeps `crm-theme` as a first-paint/browser fallback. It applies the default start page on initial entry/sign-in only when the hash is empty or the home route, preserving explicit links. Navigating to «Все пространства» during a session still opens the list. Choosing analytics is hidden unless `useCan` grants it in that workspace. Email/roles are shown read-only; password changes retain the existing session-revocation behavior. The presentation and tour are replayed from the help block.
+
+Integration coverage: `apps/api/test/settings.test.ts` (self-only writes, validation/atomicity, CSRF, account isolation, permission downgrade/revocation, sessions, restart persistence; mocked CRM transport).
+
+Browser verification on 2026-10-02: Chromium with synthetic local accounts; light/dark at 1440, 1280, 820 and 360 px, reduced motion, profile/theme/start-page persistence after reload, home redirect and explicit-link preservation, mobile profile-menu navigation, password confirmation/change, theme-save failure with rollback, viewer-only workspace/overview choices and a no-workspace empty state. The built UI was also checked with viewer/no-role accounts. Not verified: Safari, Firefox, real screen readers or separate physical devices; cross-session/restart persistence is covered by API integration tests.
 
 ## Users, roles, audit API
 

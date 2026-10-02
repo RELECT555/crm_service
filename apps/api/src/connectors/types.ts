@@ -6,6 +6,8 @@ export class ConnectorAuthError extends Error {}    // credentials revoked/expir
 export class ConnectorInputError extends Error {}   // operator input (account address, mapping) is invalid
 export class ConnectorUpstreamError extends Error {} // provider failed or answered unexpectedly: retry with backoff
 
+export type DeletionCheck = "complete" | "verify" | "none";
+
 /** Static description shown in the admin catalog. Claims must match docs/connectors/<id>.md. */
 export type ProviderInfo = {
   id: string;
@@ -77,8 +79,20 @@ export interface Connector {
   syncKinds(connection: Connection): string[];
   /** Read one page. Must be deterministic for a given cursor so a retried page is idempotent. */
   listPage(connection: Connection, kind: string, cursor: string | null): Promise<SyncPage>;
-  /** Refetch one record after a change event. Null when the record no longer exists (only delete events tombstone). */
+  /**
+   * Refetch one record after a change event or a deletion check. Null only when the provider says the record does
+   * not exist; any other failure must throw. A change event's null is skipped; a deletion check's null tombstones.
+   */
   fetchRecord(connection: Connection, kind: string, externalId: string): Promise<CanonicalRecord | null>;
+  /**
+   * How a finished full pass of `kind` detects records deleted in the CRM (missed delete events):
+   * - `complete`: the listing returns every live record (keyset order or one response), so a stored record the pass
+   *   did not see is deleted;
+   * - `verify`: the listing can skip rows (page numbers shift on concurrent deletes), so each unseen record is
+   *   refetched with `fetchRecord` and tombstoned only if it is gone;
+   * - `none`: unseen records are kept (no reliable listing and no single-record read).
+   */
+  deletionCheck(kind: string): DeletionCheck;
 
   /**
    * Register change notifications to `handlerUrl` (idempotent: skip already registered handlers).

@@ -1,7 +1,8 @@
 import type { Config } from "../../config.ts";
 import type { CanonicalRecord, ChangeEvent, SyncPage } from "../../domain/model.ts";
 import type { Connection, EventsMode, Store } from "../../storage/store.ts";
-import { type AuthorizationGrant, type Connector, ConnectorInputError, ConnectorUpstreamError, type MappingOptions } from "../types.ts";
+import { type AuthorizationGrant, type Connector, ConnectorInputError, ConnectorUpstreamError, type DeletionCheck,
+  type MappingOptions } from "../types.ts";
 import { BitrixClient } from "./client.ts";
 import { BITRIX24_INFO } from "./info.ts";
 import { normalizeBitrixRecord, parseBitrixEvent, SUBSCRIBED_EVENTS } from "./mapping.ts";
@@ -101,6 +102,13 @@ export class Bitrix24Connector implements Connector {
         entityTypeId: kind.startsWith("smart:") ? Number(kind.slice(6)) : kind === "deal" ? 2 : 3, id: externalId });
     const raw = kind === "activity" ? body.result : object(body.result).item;
     return this.normalize(connection, kind, object(raw));
+  }
+
+  deletionCheck(): DeletionCheck {
+    // Records use keyset pagination by ID, so a pass sees every row that existed throughout it. Pipelines and stages
+    // use offset paging but fit in one page in practice; a rare shift only hides a label until the next pass.
+    // fetchRecord cannot verify those reference kinds, so a full listing is the only signal for them.
+    return "complete";
   }
 
   async subscribe(connection: Connection, handlerUrl: string): Promise<EventsMode> {

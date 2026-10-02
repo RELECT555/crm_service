@@ -1,3 +1,4 @@
+import { getRouteApi, linkOptions } from '@tanstack/react-router'
 import { motion } from 'motion/react'
 import { AlertTriangle, BarChart3, Database, FlaskConical, Info, Sparkles, TrendingUp } from 'lucide-react'
 import { api, type ManagerMetrics, type WorkspaceAnalytics } from '@/lib/api'
@@ -10,7 +11,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { actionLabel, formatAgo, formatDateTime, numberFormat, percent } from '@/lib/format'
-import { navigate, useHashQuery } from '@/lib/router'
 import { staggerItem, staggerList } from '@/lib/motion'
 import { errorText } from '@/lib/toast'
 import { useResource } from '@/lib/use-resource'
@@ -33,18 +33,23 @@ function mixParts(byType: Record<string, number>) {
   return [...slotted, { key: 'other', label: 'Другое', value: other, color: SERIES_OTHER }]
 }
 
-export function Analytics({ tenantId }: { tenantId: string }) {
+const route = getRouteApi('/tenants/$tenantId/analytics')
+
+export function Analytics() {
+  const { tenantId } = route.useParams()
   // Demo mode lives in the URL (`?demo=1`) so it survives reloads and can be linked from the tour and the presentation.
-  const demo = useHashQuery().get('demo') === '1'
+  const demo = route.useSearch({ select: search => !!search.demo })
+  const navigate = route.useNavigate()
   const data = useResource(() => (demo ? api.analyticsDemo(tenantId) : api.analytics(tenantId)), [tenantId, demo])
   const tenant = useResource(() => api.tenant(tenantId), [tenantId])
   const name = tenant.data?.tenant.name ?? 'Пространство'
-  const setDemo = (on: boolean) => navigate(`/tenants/${tenantId}/analytics${on ? '?demo=1' : ''}`)
+  const setDemo = (on: boolean) => navigate({ search: on ? { demo: true } : {} })
   const current = data.data && !!data.data.demo === demo ? data.data : null
   return (
     <>
       <PageHeader icon={BarChart3} title="Аналитика команды"
-        crumbs={[{ label: 'Пространства', href: '#/' }, { label: name, href: `#/tenants/${tenantId}` }, { label: 'Аналитика' }]}
+        crumbs={[{ label: 'Пространства', link: linkOptions({ to: '/' }) },
+          { label: name, link: linkOptions({ to: '/tenants/$tenantId', params: { tenantId } }) }, { label: 'Аналитика' }]}
         subtitle="Результат и работа каждого менеджера рядом — чтобы видеть, кому чего не хватает."
         meta={current && `Рассчитано ${formatDateTime(current.generatedAt)} · версия метрик ${current.metricVersion}`}
         actions={<SourceSwitch demo={demo} onChange={setDemo} />} />

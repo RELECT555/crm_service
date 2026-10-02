@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
+import { useRouter } from '@tanstack/react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowLeft, ArrowRight, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { TourContext, TourStep } from '@/lib/onboarding'
-import { navigate } from '@/lib/router'
 import { cn } from '@/lib/utils'
 
 // Guided tour (docs/onboarding.md#tour): a spotlight cut out of a dimmed page plus a card that glides between targets.
@@ -68,14 +68,11 @@ function place(target: Box | null, card: { width: number; height: number }): { x
   return { x: clampX(target.x + target.width / 2 - card.width / 2), y: vh - card.height - MARGIN }
 }
 
-function currentPath(): string {
-  return window.location.hash.replace(/^#/, '').split('?')[0] || '/'
-}
-
 export function Tour({ steps, context, onFinish }: {
   steps: TourStep[]; context: TourContext; onFinish: (completed: boolean) => void
 }) {
   const reduce = !!useReducedMotion()
+  const router = useRouter()
   const [index, setIndex] = useState(0)
   const [target, setTarget] = useState<HTMLElement | null>(null)
   const [usedFallback, setUsedFallback] = useState(false)
@@ -99,9 +96,9 @@ export function Tour({ steps, context, onFinish }: {
     let frame = 0
     let previous = ''
     let cancelled = false
-    const path = step.route?.(context)
-    const navigated = !!path && currentPath() !== path
-    if (navigated) navigate(path)
+    const page = step.route?.(context)
+    const navigated = !!page && router.buildLocation(page).pathname !== router.state.location.pathname
+    if (navigated) void router.navigate(page)
     // A target missing on a page that is already open is missing for real; one on a new page may still be loading.
     const wait = navigated || firstSearch.current ? WAIT_MS : SAME_PAGE_WAIT_MS
     const started = performance.now()
@@ -144,7 +141,7 @@ export function Tour({ steps, context, onFinish }: {
     }
     frame = requestAnimationFrame(poll)
     return () => { cancelled = true; cancelAnimationFrame(frame) }
-  }, [step, context, reduce, index, direction, steps.length])
+  }, [step, context, reduce, index, direction, steps.length, router])
 
   // Follow the target while the page scrolls, resizes or the element changes size.
   useEffect(() => {

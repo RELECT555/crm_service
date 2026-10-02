@@ -9,6 +9,8 @@ export const menuSpring: Transition = { type: 'spring', stiffness: 520, damping:
 export const dialogSpring: Transition = { type: 'spring', bounce: 0, visualDuration: 0.28 }
 /** Side sheets: slide with a calm spring. */
 export const sheetSpring: Transition = { type: 'spring', bounce: 0, visualDuration: 0.36 }
+/** Menus closing: a short ease-in so the popup is gone before the next click, without the abrupt feel of a cut. */
+export const menuExit: Transition = { duration: 0.14, ease: [0.4, 0, 0.6, 1] }
 /** Fast fade for exits so closing never feels sluggish. */
 export const exitFast: Transition = { duration: 0.12, ease: [0.4, 0, 1, 1] }
 /** Page content on route change. */

@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import { linkOptions, type NavigateOptions } from '@tanstack/react-router'
 import type { Permission } from '@/lib/session'
 
 // Onboarding registry: the welcome presentation and the guided tour (docs/onboarding.md).
@@ -30,13 +31,13 @@ export type TourStep = {
   /** Steps that need a workspace are skipped when the user has none. */
   needsWorkspace?: boolean
   /** Page to open before showing the step. Return null to skip the step in this context. */
-  route?: (context: TourContext) => string | null
+  route?: (context: TourContext) => NavigateOptions | null
   /** The target lives in the sidebar; on phones, where the sidebar is a closed sheet, the menu button is highlighted instead. */
   nav?: boolean
 }
 
-const workspace = ({ tenantId }: TourContext) => (tenantId ? `/tenants/${tenantId}` : null)
-const analytics = ({ tenantId }: TourContext) => (tenantId ? `/tenants/${tenantId}/analytics` : null)
+const workspace = ({ tenantId }: TourContext) => (tenantId ? linkOptions({ to: '/tenants/$tenantId', params: { tenantId } }) : null)
+const analytics = ({ tenantId }: TourContext) => (tenantId ? linkOptions({ to: '/tenants/$tenantId/analytics', params: { tenantId } }) : null)
 
 /**
  * Tour steps in display order: each section is opened and its key blocks are highlighted in place.
@@ -85,29 +86,35 @@ export const TOUR_STEPS: TourStep[] = [
     body: 'Сделки и действия против лидера команды, риска — медиана. Цветная полоса показывает, из чего состоит работа человека.',
   },
   {
-    id: 'tour:catalog', target: 'catalog-ready', route: () => '/integrations',
+    id: 'tour:catalog', target: 'catalog-ready', route: () => ({ to: '/integrations' }),
     title: 'Интеграции',
     body: 'Какие CRM можно подключить и что из них забираем. Нажмите на систему — откроется инструкция по подключению.',
   },
   {
-    id: 'tour:users', target: 'users-list', permission: 'users.manage', route: () => '/users',
+    id: 'tour:users', target: 'users-list', permission: 'users.manage', route: () => ({ to: '/users' }),
     title: 'Пользователи',
     body: 'Кто работает в админке и с какими ролями. Роль выдаётся на все пространства или на одно; действия с человеком — в меню «⋯» строки.',
   },
   {
-    id: 'tour:roles', target: ['roles-matrix', 'roles-list'], permission: 'users.manage', route: () => '/roles',
+    id: 'tour:roles', target: ['roles-matrix', 'roles-list'], permission: 'users.manage', route: () => ({ to: '/roles' }),
     title: 'Роли и права',
     body: 'Матрица показывает, что умеет каждая роль. Встроенные роли идут по нарастающей; свои собираются из отдельных прав.',
   },
   {
-    id: 'tour:audit', target: ['audit-list', 'audit-empty'], permission: 'audit.view', route: () => '/audit',
+    id: 'tour:audit', target: ['audit-list', 'audit-empty'], permission: 'audit.view', route: () => ({ to: '/audit' }),
     title: 'Журнал действий',
     body: 'Кто, когда и что изменил: входы, подключения, роли, разметка данных. Пароли и токены сюда не попадают.',
   },
   {
+    id: 'tour:settings', target: ['settings-profile', 'settings-empty'], route: () => ({ to: '/settings' }),
+    title: 'Мои настройки',
+    body: 'Ваш профиль и доступ, тема оформления и стартовое пространство. Здесь же можно сменить пароль и повторить обучение.',
+    fallbackBody: 'Тему и обучение можно настроить здесь. Для профиля и сохранения личных предпочтений войдите в свой аккаунт.',
+  },
+  {
     id: 'tour:user-menu', target: 'user-menu', nav: true,
     title: 'Ваше меню',
-    body: 'Тема, смена пароля и выход. Здесь же можно снова открыть презентацию и этот тур.',
+    body: 'Здесь открываются «Мои настройки»: профиль, тема, пароль и повтор обучения. Здесь же можно выйти из аккаунта.',
   },
 ]
 
@@ -124,7 +131,7 @@ export type Onboarding = {
   /** Plays the presentation again (from the user menu). */
   showWelcome: () => void
   /** Starts the tour with every step the user may see. */
-  startTour: () => void
+  startTour: () => Promise<void>
 }
 
 export const OnboardingContext = createContext<Onboarding | null>(null)

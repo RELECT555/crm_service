@@ -5,7 +5,7 @@ import type { Me } from '@/lib/api'
 export type Permission = 'workspaces.view' | 'analytics.view' | 'connections.manage' | 'mappings.manage' | 'workspaces.manage'
   | 'workspaces.create' | 'users.manage' | 'roles.manage' | 'audit.view'
 
-export type Session = { me: Me; reload: () => Promise<void>; signOut: () => Promise<void> }
+export type Session = { me: Me; reload: () => Promise<void>; updateMe: (me: Me) => void; signOut: () => Promise<void> }
 
 export const SessionContext = createContext<Session | null>(null)
 

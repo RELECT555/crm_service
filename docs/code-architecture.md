@@ -13,10 +13,11 @@ apps/
       config.ts                environment -> typed Config (fails fast on missing secrets)
       domain/model.ts          canonical, provider-neutral types (CanonicalRecord, ChangeEvent, statuses)
       domain/permissions.ts    permission catalog + built-in roles (docs/access-control.md); pure data
+      domain/preferences.ts    personal operator preference types and defaults; pure data
       domain/analytics.ts      computeAnalytics: aggregate rows -> team/manager metrics + signals (docs/metrics.md); pure
       domain/demo.ts           fictional demo team -> aggregate rows (analytics demo preview, seed script); pure
       storage/store.ts         the only SQL for tenants, connections, records, jobs; forward-only migrations
-      storage/access.ts        the only SQL for users, roles, assignments, sessions, audit log, onboarding state (store.access)
+      storage/access.ts        the only SQL for users, roles, assignments, sessions, audit log, onboarding and personal preferences (store.access)
       security/crypto.ts       AES-256-GCM sealing, SHA-256 digests, constant-time compare
       security/password.ts     scrypt password hashing and verification
       connectors/
@@ -40,20 +41,21 @@ apps/
         auth.ts                Principal, resolvePrincipal (cookie session or x-admin-key), can/requirePermission, CSRF, login throttle
         routes/public.ts       /healthz, /oauth/:provider/callback, /webhooks/:provider/:secret
         routes/auth.ts         /v1/auth/* (status, bootstrap, login, logout) — reachable without a principal
-        routes/access.ts       /v1/me (+ password, onboarding), users, roles, permissions, audit (docs/access-control.md)
+        routes/access.ts       /v1/me (read/update own settings, password, onboarding), users, roles, permissions, audit (docs/access-control.md)
         routes/admin.ts        /v1/tenants/*, connections, mappings, analytics — each route checks one permission
     test/                      node:test integration tests against an in-memory store and mocked fetch
     scripts/seed-demo.ts       demo workspaces/connections for UI work without a CRM (npm run seed:demo)
   web/                         React 19 + Vite + Tailwind CSS + shadcn (Base UI) + Motion admin UI
     src/
-      main.tsx                 MotionConfig (reduced motion) -> ToastProvider -> SessionProvider -> OnboardingProvider -> App
-      App.tsx                  hash routes -> page + required permission; lazy page chunks; page transitions
+      main.tsx                 MotionConfig (reduced motion) -> ToastProvider -> SessionProvider -> RouterProvider
+      router.tsx               TanStack Router route tree (hash history): path -> lazy page chunk + required permission (staticData)
+      App.tsx                  root route: OnboardingProvider + Sidebar + permission check + page transition; not-found and pending views
       components/ui/           shadcn primitives (button, card, dialog, sheet, dropdown-menu, table, ...); overlays animated with Motion
       components/              app building blocks composed from ui/: Sidebar, SessionProvider, charts, common
       components/LoginBackdrop.tsx  decorative sign-in canvas; rAF loop, explicit playback, visibility and context lifecycle
       components/onboarding/   Welcome (presentation), previews (live product previews), Tour (spotlight), OnboardingProvider — docs/onboarding.md; lazy chunks
       pages/                   one file per screen; owns data loading for that screen
-                               Workspaces, Workspace, Connection, Catalog, Analytics, Users, Roles, Audit, Login
+                               Workspaces, Workspace, Connection, Catalog, Analytics, Users, Roles, Audit, Settings, Login
       lib/api.ts               typed client for /v1; the only module that calls fetch; cookie session + CSRF header
       lib/session.ts           session context, Permission ids (mirror of domain/permissions.ts), useCan()
       lib/motion.ts            Motion presets (springs, stagger variants) — docs/ui-guidelines.md#motion
@@ -64,7 +66,7 @@ apps/
       components/team-charts.tsx  EffortMap and WorkRadar with Tilt3D depth (docs/metrics.md#derived-views…)
       components/skeletons.tsx    skeleton primitives; each page keeps its own skeleton next to its markup
       lib/use-media.ts         useMediaQuery for behavior that changes by breakpoint
-      lib/                     router, use-resource hook, formatting/labels, toasts, theme, cn()
+      lib/                     use-resource hook, formatting/labels, toasts, theme, cn()
 docs/
   connectors.md                capability matrix and quick reference
   connectors/<provider>.md     per-provider playbooks (setup, auth, data, change capture, limits, sources)
@@ -97,7 +99,7 @@ web/components -> web/components/ui, web/lib/*  (components/ui imports only web/
 2. Static admin UI for non-`/v1` GETs when `apps/web/dist` exists.
 3. Auth router (`/v1/auth/status`, `bootstrap`, `login`, `logout`) — the only `/v1` routes without a principal.
 4. Principal: the `crm_session` cookie (a user) or `x-admin-key` (the system principal, for scripts and first-owner bootstrap). No principal → 401. Cookie requests other than GET/HEAD must carry `x-requested-with: crm-admin` (CSRF guard) or get 403.
-5. Admin + access routers. Business routes call `requirePermission(principal, permission, tenantId?)` before touching data. Catalog/current-user routes require a principal without a named permission; workspace listing filters by `can`. Personal password/onboarding routes require a user principal. Business mutations and login attempts are audited; logout, onboarding and worker writes are not ([access-control.md](access-control.md#audit-log)). After authentication, unknown paths return 404 and wrong methods 405. A wrong method on a public/auth path can fall through to authentication first.
+5. Admin + access routers. Business routes call `requirePermission(principal, permission, tenantId?)` before touching data. Catalog/current-user routes require a principal without a named permission; workspace listing filters by `can`. Personal settings/password/onboarding routes require a user principal. Business mutations, personal name changes and login attempts are audited; logout, personal UI preferences, onboarding and worker writes are not ([access-control.md](access-control.md#audit-log)). After authentication, unknown paths return 404 and wrong methods 405. A wrong method on a public/auth path can fall through to authentication first.
 
 Errors: `HttpError` → its status; `ConnectorInputError` → 400; connector auth/upstream → 502; anything else → 500 with a generic message (details only in server logs, never tokens).
 
@@ -114,9 +116,15 @@ worker
   bind  -> connector.subscribe(handler URL with secret) -> events_bound = 1
   bind  returns the events mode: `webhook`, or `polling` when the CRM plan forbids webhooks
   sync  -> connector.listPage -> upsert records + checkpoint + next page job in ONE transaction
-  fetch -> connector.fetchRecord (upsert) or tombstone on a verified delete event
+        last page of a pass: records of the kind not observed since the pass started -> connector.deletionCheck(kind)
+          complete -> tombstone them; verify -> one `fetch` (operation verify) per record; none -> keep
+          more than half of the kind and more than 20 records unseen -> nothing removed, connection degraded
+  fetch -> connector.fetchRecord: upsert; not found is skipped after a change event, tombstoned after verify;
+          a verified delete event tombstones without a fetch
   refreshSyncState -> live when no sync job is pending, all checkpoints complete, events bound
-every 15 min -> live connections with last full sync > 24 h get a full reconciliation (polling: > 1 h)
+every 15 min -> live connections with last full sync > 24 h (polling: > 1 h) get a routine reconciliation that stays `live`
+             -> degraded connections get a full sync when the last attempt (`reconcile_at`) is > 1 h old
+             -> prune finished jobs (30 d), webhook digests (7 d), expired OAuth states and sessions
 disconnect -> status `disconnected`, queued jobs cancelled, worker drops jobs that were already running, webhooks answered 202 and ignored
 resume     -> full sync, as for a new connection
 jobs keep `error` (last failure, cleared on success) and `finished_at`; GET …/activity shows the last 30
@@ -124,7 +132,7 @@ jobs keep `error` (last failure, cleared on success) and `finished_at`; GET …/
 
 Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_required`, `disconnected` (`domain/model.ts`). The admin UI labels them in `apps/web/src/lib/format.ts`. `discovering` and `catching_up` in the target ingestion design are not runtime statuses.
 
-Jobs persist in SQLite. Startup returns interrupted `running` jobs to `queued`; the single worker processes one job per tick (250 ms timer). Auth failures stop retries and require reauthorization. Other failures back off and fail after at most five job attempts, leaving the connection degraded. Adapter HTTP retries are separate from job retries. Reconciliation thresholds do not guarantee completion time or event delivery.
+Jobs persist in SQLite. Startup returns interrupted `running` jobs to `queued`; the single worker processes one job per tick (250 ms timer). Auth failures stop retries and require reauthorization. Other failures back off and fail after at most five job attempts, leaving the connection degraded until the hourly automatic retry or an operator resync. Adapter HTTP retries are separate from job retries. Reconciliation thresholds do not guarantee completion time or event delivery.
 
 ## Adding a connector (checklist)
 
@@ -147,11 +155,12 @@ Jobs persist in SQLite. Startup returns interrupted `running` jobs to `queued`; 
 - Hash routing (`#/tenants/:id/connections/:id`) so the backend can serve the build as static files.
 - Pages own data loading through `useResource`; `components/ui` stays generic (shadcn), `components/common.tsx` holds app building blocks.
 - Full rules: [ui-guidelines.md](ui-guidelines.md). Theme preference (light/dark/system) lives in `lib/theme.ts`.
+- Personal settings: `pages/Settings.tsx` (`/#/settings`) uses `PATCH /v1/me`; the server scopes edits to the authenticated user, validates default-workspace access and hides revoked defaults on read. `user_preferences` persists theme/default workspace/start page across devices. `SessionProvider` applies the account theme and initial start page, preserving explicit links. `crm-theme` is the first-paint/browser fallback; `ChangePassword.tsx` owns the password form. Full contract: [personal settings](access-control.md#personal-settings).
 - Colors come only from tokens in `src/index.css` via Tailwind classes (`bg-primary`, `text-muted-foreground`, `text-success`, ...). Status colors come from `STATUS` in `lib/format.ts`. Light and dark themes are both required.
 - All copy is Russian, concise, and states consequences ("запустит полную пересинхронизацию").
 - Sign-in is by email and password; the session is an HttpOnly cookie the browser script cannot read. `lib/api.ts` sends the CSRF header on every request and fires a session-expired event on 401, which returns the app to the login screen. The operator key is typed only once, on the first-owner bootstrap screen.
 - Sign-in and first-owner setup share a centered branded card with a centered heading, grouped theme-token fields, an inline sign-in access hint, and a password visibility control local to `pages/Login.tsx`; native validation and autocomplete are preserved (decision 29). The background's play/pause choice is saved in `localStorage` (`crm-login-motion`). `LoginBackdrop` uses an 18-second rAF cycle capped at 30 fps, pauses in hidden tabs and falls back when WebGL fails. It runs under OS reduced motion until explicitly paused (decision 27).
-- Permission-gated UI uses `useCan()`; pages register their required permission in `resolve()` in `App.tsx`.
+- Permission-gated UI uses `useCan()`; pages declare their required permission in the route's `staticData` in `router.tsx`. Pages read params and search with `getRouteApi()` and link with typed `Link` / `linkOptions()`; no hand-written `#/…` URLs.
 - Onboarding: the presentation and tour are data-driven (`lib/onboarding.ts`); a new section adds a `data-tour` anchor and a tour step ([onboarding.md](onboarding.md)).
 - UI transitions use Motion presets from `lib/motion.ts`, with documented onboarding choreography and sign-in shader exceptions; responsive layouts follow the three-layout rule (phone top bar, tablet rail, desktop sidebar). Both are specified in [ui-guidelines.md](ui-guidelines.md).
 
@@ -164,13 +173,16 @@ Jobs persist in SQLite. Startup returns interrupted `running` jobs to `queued`; 
 - `info` — catalog entry; the registry marks it `not_configured` when the provider's app credentials are missing (`requiredEnv`).
 - `completeAuthorization` may return non-secret `settings` (e.g. account currency) stored on the connection.
 - `subscribe` returns the events mode; `parseEvents` returns every change in a webhook body (one body can carry several).
-- `fetchRecord` returns null for a record that no longer exists; only delete events tombstone.
+- `fetchRecord` returns null only when the provider says the record does not exist; any other failure throws. Null is skipped after a change event and tombstones during a deletion check.
+- `deletionCheck(kind)` declares how a finished full pass detects missed deletes: `complete` when the listing returns every live record (keyset order, single response), `verify` when it can skip rows (page numbers) and `fetchRecord` can confirm each one, `none` otherwise. Never declare `complete` for a listing that can skip rows: unseen records would be tombstoned.
 - `mappingOptions()` declares mappable commercial kinds, an optional custom-process family (`smart:<id>`), the pipeline record kind for the picker, whether amount/currency fields are configurable, and the work-item kind (`activityKind`) that is resynced after an action-type mapping change. Routes and the UI never hardcode these.
 
 ## Known debt
 
 - Single-process SQLite and in-process worker; rate limiting is per process (Kommo client spaces requests per connection).
 - Kommo backfill uses page numbers; Bitrix24 uses id keysets. Incremental `updated_at` scans would make polling-mode reconciliation cheaper.
+- Deletion detection compares wall-clock `observed_at` with the pass start. A server clock stepping backwards during a pass could make seen records look unseen; the mass-deletion guard limits the damage. A monotonic observation sequence would remove the assumption.
+- Records that disappear because the CRM user lost permission to them are indistinguishable from deletions and are tombstoned (they reappear when access returns).
 - Existing databases keep the old `UNIQUE(tenant_id, account_id)` connection key; new databases use `(tenant_id, provider, account_id)`.
 - Forward migrations in `storage/store.ts` retain legacy Bitrix24 defaults and translate the old commercial `entityTypeId` mapping. This compatibility code is the sanctioned provider-specific exception; new runtime branches belong in adapters/registry.
 - `GET …/connections/:id/dashboard` (`store.dashboard`) predates the workspace analytics endpoint and has no UI; remove it once nothing calls it.

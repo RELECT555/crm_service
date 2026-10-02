@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { BUILTIN_ROLES } from "../domain/permissions.ts";
+import { DEFAULT_USER_PREFERENCES, type UserPreferences } from "../domain/preferences.ts";
 
 export type UserRow = { id: string; email: string; name: string; status: "active" | "disabled";
   created_at: number; last_login_at: number | null };
@@ -40,6 +41,10 @@ export class AccessStore {
       CREATE TABLE IF NOT EXISTS user_onboarding (
         user_id TEXT PRIMARY KEY, seen TEXT NOT NULL, updated_at INTEGER NOT NULL,
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        user_id TEXT PRIMARY KEY, theme TEXT, default_tenant_id TEXT, landing_page TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY(default_tenant_id) REFERENCES tenants(id) ON DELETE SET NULL);
     `);
     // Built-in roles are re-synced on start so permission changes in code reach existing databases.
     const now = Date.now();
@@ -151,6 +156,20 @@ export class AccessStore {
     return seen;
   }
 
+  // --- Personal preferences ---
+  preferences(userId: string): UserPreferences {
+    const row = this.db.prepare("SELECT theme,default_tenant_id,landing_page FROM user_preferences WHERE user_id=?")
+      .get(userId) as { theme: UserPreferences["theme"]; default_tenant_id: string | null; landing_page: UserPreferences["landingPage"] } | undefined;
+    return row ? { theme: row.theme, defaultTenantId: row.default_tenant_id, landingPage: row.landing_page }
+      : { ...DEFAULT_USER_PREFERENCES };
+  }
+  setPreferences(userId: string, preferences: UserPreferences): void {
+    this.db.prepare(`INSERT INTO user_preferences (user_id,theme,default_tenant_id,landing_page) VALUES (?,?,?,?)
+      ON CONFLICT(user_id) DO UPDATE SET theme=excluded.theme, default_tenant_id=excluded.default_tenant_id,
+        landing_page=excluded.landing_page`)
+      .run(userId, preferences.theme, preferences.defaultTenantId, preferences.landingPage);
+  }
+
   // --- Sessions ---
   createSession(tokenHash: string, userId: string, ttlMs: number): void {
     const now = Date.now();
@@ -169,6 +188,10 @@ export class AccessStore {
   }
   deleteSession(tokenHash: string): void {
     this.db.prepare("DELETE FROM sessions WHERE token_hash=?").run(tokenHash);
+  }
+  /** Expired sessions are otherwise removed only when their cookie is presented again. */
+  deleteExpiredSessions(now = Date.now()): void {
+    this.db.prepare("DELETE FROM sessions WHERE expires_at<?").run(now);
   }
   deleteUserSessions(userId: string, exceptHash?: string): void {
     this.db.prepare("DELETE FROM sessions WHERE user_id=? AND token_hash<>?").run(userId, exceptHash ?? "");

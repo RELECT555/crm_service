@@ -1,7 +1,8 @@
 import { PERMISSION_IDS, PERMISSIONS, type Permission } from "../../domain/permissions.ts";
+import type { UserPreferences } from "../../domain/preferences.ts";
 import { hashPassword, verifyPassword } from "../../security/password.ts";
 import type { Assignment } from "../../storage/access.ts";
-import { actorOf, heldPermissions, type Principal, requirePermission } from "../auth.ts";
+import { actorOf, can, heldPermissions, type Principal, requirePermission } from "../auth.ts";
 import type { AppContext } from "../context.ts";
 import { HttpError, json, readJson } from "../respond.ts";
 import type { Router } from "../router.ts";
@@ -42,21 +43,76 @@ export function accessRoutes(router: Router, { store }: AppContext): Router {
   };
   const userView = (id: string) => {
     const user = access.getUser(id);
-    return user && { ...user, assignments: access.assignments(id).map(a => ({ roleId: a.role_id, tenantId: a.tenant_id === "*" ? null : a.tenant_id })) };
+    return user && { ...user, assignments: access.assignments(id).map(a => ({ roleId: a.role_id,
+      roleName: access.getRole(a.role_id)?.name ?? "Роль", tenantId: a.tenant_id === "*" ? null : a.tenant_id })) };
+  };
+
+  // Never expose or navigate to a saved workspace after access has been revoked.
+  const preferencesFor = (principal: Extract<Principal, { kind: "user" }>): UserPreferences => {
+    const preferences = access.preferences(principal.user.id);
+    const tenantId = preferences.defaultTenantId;
+    if (tenantId && (!can(principal, "workspaces.view", tenantId) || !store.tenantExists(tenantId))) {
+      return { ...preferences, defaultTenantId: null, landingPage: "overview" };
+    }
+    if (preferences.landingPage === "analytics" && (!tenantId || !can(principal, "analytics.view", tenantId))) {
+      return { ...preferences, landingPage: "overview" };
+    }
+    return preferences;
   };
 
   // --- Current user ---
 
-  router.on("GET", "/v1/me", ({ res, principal }) => {
+  const meView = (principal: Principal) => {
     if (principal.kind === "system") {
-      return json(res, 200, { user: null, system: true, permissions: { global: PERMISSIONS.map(p => p.id), workspaces: {} },
-        onboarding: null });
+      return { user: null, system: true, permissions: { global: PERMISSIONS.map(p => p.id), workspaces: {} },
+        onboarding: null, preferences: null };
     }
     const workspaces: Record<string, string[]> = {};
     for (const [tenantId, set] of principal.grants) if (tenantId !== "*") workspaces[tenantId] = [...set];
-    json(res, 200, { user: userView(principal.user.id), system: false,
+    return { user: userView(principal.user.id), system: false,
       permissions: { global: [...(principal.grants.get("*") ?? [])], workspaces },
-      onboarding: { seen: access.onboardingSeen(principal.user.id) } });
+      onboarding: { seen: access.onboardingSeen(principal.user.id) }, preferences: preferencesFor(principal) };
+  };
+  router.on("GET", "/v1/me", ({ res, principal }) => json(res, 200, meView(principal)));
+
+  router.on("PATCH", "/v1/me", async ({ req, res, principal }) => {
+    if (principal.kind !== "user") throw new HttpError(400, "Service key has no personal settings");
+    const body = await readJson(req);
+    const fields = ["name", "theme", "defaultTenantId", "landingPage"];
+    if (!Object.keys(body).length || Object.keys(body).some(key => !fields.includes(key))) {
+      throw new HttpError(400, "Only personal settings can be changed");
+    }
+    const name = body.name === undefined ? undefined : personName(body.name);
+    const preferences = preferencesFor(principal);
+    if (body.theme !== undefined) {
+      if (body.theme !== null && body.theme !== "light" && body.theme !== "dark" && body.theme !== "system") {
+        throw new HttpError(400, "Invalid theme preference");
+      }
+      preferences.theme = body.theme;
+    }
+    if (body.defaultTenantId !== undefined) {
+      const tenantId = body.defaultTenantId;
+      if (tenantId !== null && (typeof tenantId !== "string" || !can(principal, "workspaces.view", tenantId) || !store.tenantExists(tenantId))) {
+        throw new HttpError(400, "Default workspace is not available");
+      }
+      preferences.defaultTenantId = tenantId;
+    }
+    if (body.landingPage !== undefined) {
+      if (body.landingPage !== "overview" && body.landingPage !== "analytics") throw new HttpError(400, "Invalid landing page");
+      preferences.landingPage = body.landingPage;
+    }
+    if (preferences.landingPage === "analytics" &&
+        (!preferences.defaultTenantId || !can(principal, "analytics.view", preferences.defaultTenantId))) {
+      throw new HttpError(400, "Analytics is not available in the default workspace");
+    }
+    store.transaction(() => {
+      if (name !== undefined && name !== principal.user.name) {
+        access.updateUser(principal.user.id, { name });
+        audit(principal, "user.update", "user", principal.user.id, { name });
+      }
+      if (fields.slice(1).some(field => body[field] !== undefined)) access.setPreferences(principal.user.id, preferences);
+    });
+    json(res, 200, meView(principal));
   });
 
   // A personal UI preference, not an admin action: no permission and no audit entry.

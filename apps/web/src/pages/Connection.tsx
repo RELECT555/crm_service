@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
+import { getRouteApi, linkOptions } from '@tanstack/react-router'
 import { ExternalLink, MoreHorizontal, Power, PowerOff, RefreshCw, Trash2 } from 'lucide-react'
 import { api, type ConnectionDetail, type JobSummary } from '@/lib/api'
 import { EmptyState, ErrorNotice, Field, Notice, PageHeader, ProviderMark, Stat, StatusBadge, SyncBar, ToneBadge } from '@/components/common'
@@ -22,7 +23,10 @@ const eventsLabel = (data: ConnectionDetail) =>
 const isSyncing = (data: ConnectionDetail) =>
   data.connection.status === 'backfilling' || !!data.sync.queue.queued || !!data.sync.queue.running
 
-export function Connection({ tenantId, connectionId }: { tenantId: string; connectionId: string }) {
+const route = getRouteApi('/tenants/$tenantId/connections/$connectionId')
+
+export function Connection() {
+  const { tenantId, connectionId } = route.useParams()
   const detail = useResource(() => api.connection(tenantId, connectionId), [tenantId, connectionId],
     data => isSyncing(data) ? 3000 : null)
   const tenant = useResource(() => api.tenant(tenantId), [tenantId])
@@ -47,7 +51,8 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Пространства', href: '#/' }, { label: tenant.data?.tenant.name ?? 'Пространство', href: `#/tenants/${tenantId}` },
+        crumbs={[{ label: 'Пространства', link: linkOptions({ to: '/' }) },
+          { label: tenant.data?.tenant.name ?? 'Пространство', link: linkOptions({ to: '/tenants/$tenantId', params: { tenantId } }) },
           { label: data?.connection.account ?? '…' }]}
         leading={data ? <ProviderMark provider={data.connection.provider} large /> : <SkeletonBlock className="size-11 rounded-lg" />}
         title={data ? <span className="break-all">{data.connection.account}</span> : <SkeletonText className="text-[22px] leading-tight" width="12em" />}

@@ -20,13 +20,13 @@ sign-in ─► /v1/me returns onboarding.seen (ids already offered to this user)
   │     ├─ «Показать» ─► tour with only those steps ─► mark them
   │     └─ «Скрыть»   ─► mark them
   │
-  └─ any time: user menu ─► «Тур по разделам» (all eligible steps) or «Презентация» (replay)
+  └─ any time: user menu ─► «Мои настройки» ─► «Тур по разделам» (all eligible steps) or «Презентация» (replay)
 ```
 
 - **«Seen» means «offered», not «completed».** A user who declined is not asked again about the same steps; a user who closed the tab mid-tour gets the remaining steps as «Новое» next time.
 - **Eligibility is computed at runtime** from permissions and the tour workspace (`eligibleSteps` in `lib/onboarding.ts`). Steps a user cannot see are never marked, so when a role is granted later, the newly visible sections arrive as «Новое».
 - **The service key** (`x-admin-key`, `system` principal) has no stored state: `onboarding` is `null` in `/v1/me`, nothing is shown automatically, replays from the menu still work.
-- The tour **returns to the page it started on** and shows a toast that it can be replayed from the user menu.
+- The tour **returns to the page it started on** and shows a toast that it can be replayed from «Мои настройки» (opened from the user menu).
 
 ## Server state
 
@@ -75,7 +75,7 @@ A step:
   fallbackBody: '…',             // optional: text for when a fallback target (not the first) was highlighted
   permission: 'audit.view',      // optional: offered only with this permission
   needsWorkspace: true,          // optional: skip when the user has no workspace
-  route: () => '/audit',         // optional: open this page first; return null to skip
+  route: () => ({ to: '/audit' }), // optional: typed router target to open first; return null to skip
   nav: true,                     // target is in the sidebar: on phones highlight the menu button instead
 }
 ```
@@ -113,10 +113,13 @@ Runtime behavior:
 | `tour:users` | `users-list` | `users.manage` | users |
 | `tour:roles` | `roles-matrix`, fallback `roles-list` | `users.manage` | roles |
 | `tour:audit` | `audit-list`, fallback `audit-empty` | `audit.view` | audit |
+| `tour:settings` | `settings-profile`, fallback `settings-empty` for the service key | everyone | settings |
 | `tour:user-menu` | user menu (sidebar) | everyone | — |
 
 The step ids changed on 2026-10-02 when the tour moved from sidebar items to in-page blocks; users who had seen the old tour are offered the new steps once as «Новое в админке».
 
 ## Verified
+
+Settings added on 2026-10-02: the owner tour now has 12 steps. Checked the new in-page «Мои настройки» target at 1440, 820 and 390 px in Chromium/dark mode with reduced motion; its card stays clear of the profile block. Completed the tour and verified return to `/#/settings`. Replay opens from the settings help block; the mobile menu entry closes the navigation sheet.
 
 Checked in Chromium (Playwright) on 2026-10-02: owner tour (11 steps) on the demo data at 1440 px; the same on a fresh database with one empty workspace (analytics highlights the empty state, its two data-only steps are skipped); presentation and tour at 390 px in the dark theme; earlier: analyst tour with reduced motion, the «Новое» flow, Escape and replay from the user menu. Not checked: real screen readers (VoiceOver, NVDA), Safari and Firefox.

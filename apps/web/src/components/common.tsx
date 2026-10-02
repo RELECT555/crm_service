@@ -1,4 +1,5 @@
 import { useState, type ComponentType, type ReactNode } from 'react'
+import { Link, type LinkOptions } from '@tanstack/react-router'
 import { Check, Copy, House, RefreshCw, type LucideIcon } from 'lucide-react'
 import type { ConnectionStatus } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -49,35 +50,39 @@ export function SyncBar({ state }: { state: 'done' | 'running' | 'waiting' }) {
   )
 }
 
+/** One breadcrumb; build `link` with `linkOptions()` so the route and its params are type-checked. */
+export type Crumb = { label: string; link?: LinkOptions }
+
 /**
  * Breadcrumb trail: a home link, links with a soft hover surface, thin slash separators,
  * and the current page as a quiet chip. Long labels truncate with the full text in a tooltip.
  */
-function Breadcrumbs({ trail, lastIsPage }: { trail: Array<{ label: string; href?: string }>; lastIsPage: boolean }) {
+function Breadcrumbs({ trail, lastIsPage }: { trail: Crumb[]; lastIsPage: boolean }) {
   const item = 'inline-flex h-7 max-w-[16rem] min-w-0 items-center rounded-md px-2'
+  const startsHome = trail[0]?.link?.to === '/'
   return (
     <nav aria-label="Навигация" className="-ml-2 mb-4">
       <ol className="flex min-w-0 flex-wrap items-center gap-0.5 text-[13px] text-muted-foreground">
         {/* Home link, unless the trail already starts at the home page (Пространства). */}
-        {trail[0]?.href !== '#/' && (
+        {!startsHome && (
           <li className="flex items-center">
-            <a href="#/" aria-label="Главная" title="Главная"
+            <Link to="/" activeOptions={{ exact: true }} aria-label="Главная" title="Главная"
               className={cn(item, 'px-1.5 transition-colors hover:bg-muted hover:text-foreground')}>
               <House className="size-[15px]" strokeWidth={1.75} />
-            </a>
+            </Link>
           </li>
         )}
         {trail.map((crumb, index) => {
           const current = lastIsPage && index === trail.length - 1
-          const separated = index > 0 || trail[0]?.href !== '#/'
+          const separated = index > 0 || !startsHome
           return (
             <li key={index} className="flex min-w-0 items-center gap-0.5">
               {separated && <span aria-hidden="true" className="px-0.5 text-muted-foreground/40 select-none">/</span>}
-              {crumb.href ? (
-                <a href={crumb.href} title={crumb.label}
+              {crumb.link ? (
+                <Link {...crumb.link} activeOptions={{ exact: true }} title={crumb.label}
                   className={cn(item, 'transition-colors hover:bg-muted hover:text-foreground')}>
                   <span className="truncate">{crumb.label}</span>
-                </a>
+                </Link>
               ) : (
                 <span title={crumb.label} aria-current={current ? 'page' : undefined}
                   className={cn(item, current ? 'bg-muted font-medium text-foreground' : 'font-medium text-foreground/80')}>
@@ -97,7 +102,7 @@ function Breadcrumbs({ trail, lastIsPage }: { trail: Array<{ label: string; href
  * title with description, actions on the right, and a hairline separating it from the content.
  */
 export function PageHeader({ crumbs, eyebrow, icon: Icon, leading, title, subtitle, meta, actions }: {
-  crumbs?: Array<{ label: string; href?: string }>; eyebrow?: string
+  crumbs?: Crumb[]; eyebrow?: string
   /** Page icon rendered in an accent tile; `leading` replaces the tile with custom content (avatar, provider mark). */
   icon?: LucideIcon; leading?: ReactNode
   title: ReactNode; subtitle?: ReactNode; meta?: ReactNode; actions?: ReactNode
