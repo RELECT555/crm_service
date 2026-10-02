@@ -1,32 +1,10 @@
-# React + TypeScript + Vite
+# Admin UI
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + Vite admin panel for the CRM analytics backend: workspaces (tenants), CRM connection catalog, connection health, sync coverage, and commercial/activity mappings. Analytics screens are not part of this UI yet.
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```powershell
+npm run dev:api   # backend on :3000
+npm run dev:web   # admin UI on :5173, proxies /v1 and /oauth to :3000
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Sign in with the backend's `ADMIN_API_KEY`. The key is kept in `sessionStorage` for the current tab only; it is an operator credential, not customer authentication. Set `ADMIN_ORIGIN=http://localhost:5173` in `apps/api/.env` so the OAuth callback returns the browser to the dev server. `npm run build` writes `dist/`, which the backend serves at `APP_ORIGIN` in production-like runs.
