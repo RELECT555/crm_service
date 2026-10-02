@@ -10,7 +10,8 @@
     "dev:web": "npm run dev -w @crm/web",
     "check": "npm run check --workspaces",
     "test": "npm run test -w @crm/api",
-    "build": "npm run build -w @crm/web"
+    "build": "npm run build -w @crm/web",
+    "seed:demo": "npm run seed:demo -w @crm/api"
   },
   "engines": {
     "node": ">=24.17.0"

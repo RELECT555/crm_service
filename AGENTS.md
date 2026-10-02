@@ -4,10 +4,12 @@ This repository contains a runnable CRM analytics backend prototype (`apps/api`)
 
 ## Read before changing code
 
+0. [docs/README.md](docs/README.md) — documentation map and glossary; [docs/development.md](docs/development.md) — setup and troubleshooting.
 1. [docs/code-architecture.md](docs/code-architecture.md) — layers, dependency rules, request pipeline, connection lifecycle, the add-a-connector checklist, known debt.
 2. [docs/architecture.md](docs/architecture.md) — product scope, tenancy, analytics semantics.
 3. [docs/connectors.md](docs/connectors.md) and `docs/connectors/<provider>.md` — what each CRM actually supports, with sources.
 4. [docs/delivery-plan.md](docs/delivery-plan.md) — milestones and open decisions.
+5. [docs/ui-guidelines.md](docs/ui-guidelines.md) before touching `apps/web`; [docs/decisions.md](docs/decisions.md) before reversing an existing choice (add an entry when you make a new one).
 
 ## Objective
 
@@ -38,7 +40,7 @@ These are hard rules. A change that breaks one is not done.
 - **Tests prove behavior, not lines.** Every new route, connector method or state transition gets an integration test in `apps/api/test` with a mocked `fetch`. Never weaken or delete an assertion to make a test pass; fix the code or explain the behavior change.
 - **Small, coherent diffs.** Match the surrounding style (2-space indent; API uses semicolons and double quotes, web uses no semicolons and single quotes). Do not reformat untouched code. Do not add dependencies without a stated reason; the API currently has zero runtime dependencies.
 - **Docs move with code.** If you change a boundary, route, status, env var or operator step, update `docs/code-architecture.md`, README and the relevant connector playbook in the same change.
-- **UI is strict and consistent.** Build screens from the shadcn primitives in `apps/web/src/components/ui` (Base UI underneath) and Tailwind classes bound to the tokens in `src/index.css`; no ad-hoc colors or one-off CSS files; Russian copy; every async action shows progress, success and error; empty states explain the next step; works at 360 px width and in dark mode.
+- **UI is strict and consistent.** Follow [docs/ui-guidelines.md](docs/ui-guidelines.md). Build screens from the shadcn primitives in `apps/web/src/components/ui` (Base UI underneath) and Tailwind classes bound to the tokens in `src/index.css`; no ad-hoc colors or one-off CSS files; Russian copy; every async action shows progress, success and error; empty states explain the next step; works at 360 px width and in dark mode.
 
 ## Definition of done
 

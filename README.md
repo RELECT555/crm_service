@@ -25,6 +25,7 @@ npm test          # API integration tests
 npm run build     # admin UI -> apps/web/dist, served by the API at APP_ORIGIN
 npm run dev:api   # API on :3000
 npm run dev:web   # optional: admin UI with hot reload on :5173 (set ADMIN_ORIGIN=http://localhost:5173)
+npm run seed:demo # optional: demo workspaces and connections for UI work without a CRM
 ```
 
 Open the API origin (or the Vite dev server) and sign in with `ADMIN_API_KEY`. In the admin UI: create a workspace → *Подключить CRM* → pick Bitrix24 → enter the portal → authorize in Bitrix24. You return to the connection page, which shows sync progress per object, the event subscription, errors, and the purchase/activity mappings.
@@ -49,10 +50,10 @@ Bitrix24 deals are classified as sales processes by default; deal opportunity am
 
 ## Read in this order
 
-1. [Product and architecture](docs/architecture.md) — scope, data flow, tenancy, analytics rules.
-2. [Code architecture](docs/code-architecture.md) — layers, dependency rules, connection lifecycle, how to add a connector.
-3. [CRM connector research](docs/connectors.md) and [per-CRM playbooks](docs/connectors/) — official API capabilities, operator setup, limits; refreshed 2026-10-02.
-4. [Ingestion contract](docs/ingestion-contract.md) — TypeScript interfaces, sync lifecycle, persistence, security, and failure handling.
-5. [Delivery and implementation plan](docs/delivery-plan.md) — standalone and embedded delivery, milestones, acceptance criteria, and open decisions.
+1. [Documentation map](docs/README.md) — what each document is for, plus a glossary.
+2. [Development guide](docs/development.md) — setup, environment variables, demo data, troubleshooting.
+3. [Code architecture](docs/code-architecture.md) — layers, dependency rules, connection lifecycle, how to add a connector.
+4. [UI guidelines](docs/ui-guidelines.md) — tokens, themes, components, badges, motion and copy for the admin UI.
+5. [Product and architecture](docs/architecture.md), [CRM connector research](docs/connectors.md) with [per-CRM playbooks](docs/connectors/), [ingestion contract](docs/ingestion-contract.md), [delivery plan](docs/delivery-plan.md), [decision log](docs/decisions.md).
 
 `AGENTS.md` gives coding agents the project constraints and the expected workflow. Product choices marked **proposed** are design recommendations, not facts established by a running system.

@@ -1,0 +1,18 @@
+# Decision log
+
+Short records of decisions that shape the code. Add an entry when you make a choice someone could reasonably undo by accident. Status: **accepted** (in force), **superseded** (replaced by a later entry), **proposed** (needs product confirmation).
+
+| # | Date | Decision | Why | Status |
+| --- | --- | --- | --- | --- |
+| 1 | 2026-09-30 | Read-only access to CRMs in the first release. | Lower permission risk and simpler review; writeback needs its own design. | accepted |
+| 2 | 2026-09-30 | Bitrix24 is the first connector; Kommo/amoCRM second. | Customer market; Bitrix24 has documented iframe placements. | proposed |
+| 3 | 2026-09-30 | Single-process SQLite store and in-process worker for the prototype. | Fast iteration; production storage/queue chosen after open product decisions. | accepted (prototype only) |
+| 4 | 2026-09-30 | Purchases and custom activity types require explicit operator mapping. | Guessing from titles corrupts metrics. | accepted |
+| 5 | 2026-10-02 | Provider-neutral `Connector` contract and registry; provider code only in `connectors/<id>/`. | Adding a CRM must not touch routes, worker or storage. | accepted |
+| 6 | 2026-10-02 | Connection columns renamed to `account_id` / `account` with forward migrations. | Remove Bitrix-specific names from the core model. | accepted |
+| 7 | 2026-10-02 | Admin UI uses hash routing and is served by the API from `apps/web/dist` with a strict CSP. | One origin, no server-side routing, no inline scripts. | accepted |
+| 8 | 2026-10-02 | Operator key typed at runtime and kept in `sessionStorage`; never in code or bundle. | Development-only credential until customer authentication exists. | accepted (temporary) |
+| 9 | 2026-10-02 | Web stack: Tailwind CSS + shadcn on Base UI; no Radix. | Team choice in `main`; one component system. | accepted |
+| 10 | 2026-10-02 | Theme is a `.dark` class with a light/dark/system preference; theme bootstrap script is an external file. | User-selectable theme; CSP forbids inline scripts. | accepted |
+| 11 | 2026-10-02 | Re-authorizing the same CRM account repairs the existing connection. | Keeps mappings and history; avoids duplicate accounts. | accepted |
+| 12 | 2026-10-02 | Commercial-source mappings keyed by Bitrix24 `entityTypeId`. | Only one connector exists; generalize with the second connector. | accepted (known debt) |

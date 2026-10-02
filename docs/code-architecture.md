@@ -34,6 +34,7 @@ apps/
         routes/public.ts       /healthz, /oauth/:provider/callback, /webhooks/:provider/:secret
         routes/admin.ts        /v1/* operator API (x-admin-key)
     test/                      node:test integration tests against an in-memory store and mocked fetch
+    scripts/seed-demo.ts       demo workspaces/connections for UI work without a CRM (npm run seed:demo)
   web/                         React 19 + Vite + Tailwind CSS + shadcn (Base UI) admin UI; no analytics screens yet
     src/
       components/ui/           shadcn primitives (button, badge, card, dialog, sheet, input, table, ...)
@@ -108,6 +109,7 @@ Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_requ
 - Stack: React, Vite, Tailwind CSS v4, shadcn components on Base UI (`@base-ui/react`), icons from `lucide-react`. Do not add Radix UI.
 - Hash routing (`#/tenants/:id/connections/:id`) so the backend can serve the build as static files.
 - Pages own data loading through `useResource`; `components/ui` stays generic (shadcn), `components/common.tsx` holds app building blocks.
+- Full rules: [ui-guidelines.md](ui-guidelines.md). Theme preference (light/dark/system) lives in `lib/theme.ts`.
 - Colors come only from tokens in `src/index.css` via Tailwind classes (`bg-primary`, `text-muted-foreground`, `text-success`, ...). Status colors come from `STATUS` in `lib/format.ts`. Light and dark themes are both required.
 - All copy is Russian, concise, and states consequences ("запустит полную пересинхронизацию").
 - The operator key is typed at runtime and kept in `sessionStorage`; there is no customer login yet.
