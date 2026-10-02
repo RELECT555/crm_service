@@ -1,10 +1,10 @@
 # Instructions for coding agents
 
-This repository contains a runnable Bitrix24 backend prototype and product design documents. Treat [README.md](README.md), `src/`, and `docs/` as the current source of truth. Node.js 24.17+ runs TypeScript directly; SQLite is used for this single-process prototype. Do not assume a frontend, customer authentication, or production deployment already exists.
+This repository contains a TypeScript monorepo with a Bitrix24 backend prototype, a React admin interface for CRM connections, and product design documents. Treat [README.md](README.md), `apps/`, and `docs/` as the current source of truth. Node.js 24.17+ runs the API TypeScript directly; SQLite is used for this single-process prototype. The connection screen is UI-only; customer authentication and production deployment are not implemented.
 
 ## Objective
 
-Build a multi-tenant, read-first CRM analytics service in TypeScript. It must ingest CRM data through customer-approved APIs, retain a coherent internal model, and support both a standalone UI and provider-specific embedded UI. One backend and analytics model must serve both surfaces.
+Build a multi-tenant, read-first CRM analytics service in TypeScript. It must ingest CRM data through customer-approved APIs, retain a coherent internal model, and support both a standalone UI and provider-specific embedded UI. One backend and analytics model must serve both surfaces. The web app lives in `apps/web` and uses React, Vite, Tailwind CSS, and shadcn components built on Base UI. Do not add Radix UI packages or primitives.
 
 ## Engineering rules
 

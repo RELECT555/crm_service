@@ -1,6 +1,6 @@
 # Ingestion and TypeScript contracts
 
-Status: target interfaces. These are design sketches, not the exact signatures of the Bitrix24 prototype in `src/`. The implemented subset and its limits are described in [README.md](../README.md).
+Status: target interfaces. These are design sketches, not the exact signatures of the Bitrix24 prototype in `apps/api/src/`. The implemented subset and its limits are described in [README.md](../README.md).
 
 ## Connector boundary
 

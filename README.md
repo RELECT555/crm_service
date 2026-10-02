@@ -1,6 +1,6 @@
 # CRM analytics integration foundation
 
-This repository contains a TypeScript backend prototype and the design for a service that reads customer-authorized CRM data and builds analytics across two axes: commercial outcomes and non-commercial work. Bitrix24 is the first implemented adapter. The API is runnable locally; customer login, a standalone dashboard UI, CRM embedding, and additional adapters are still planned.
+This TypeScript monorepo contains a Bitrix24 backend prototype and a minimal admin interface for CRM connections. The interface currently presents the Bitrix24 connection entry point and is not connected to the API. Customer login, production data delivery, CRM embedding, and additional adapters remain planned.
 
 ## Run the Bitrix24 prototype
 
@@ -8,18 +8,20 @@ Requirements: Node.js 24.17+ and a Bitrix24 application with the `crm` scope. Co
 
 ```powershell
 npm install
-Copy-Item .env.example .env
+Copy-Item apps/api/.env.example apps/api/.env
 ```
 
-Set `APP_ORIGIN`, `BITRIX_CLIENT_ID`, `BITRIX_CLIENT_SECRET`, `ADMIN_API_KEY` (at least 32 random characters), and `DATA_KEY_BASE64` (32 random bytes encoded as Base64) in `.env`. Keep `.env` private. Generate the encryption key with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`. Then run:
+Set `APP_ORIGIN`, `BITRIX_CLIENT_ID`, `BITRIX_CLIENT_SECRET`, `ADMIN_API_KEY` (at least 32 random characters), and `DATA_KEY_BASE64` (32 random bytes encoded as Base64) in `apps/api/.env`. Keep `.env` private. Generate the encryption key with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`. Then run:
 
 ```powershell
 npm run check
 npm test
-npm start
+npm run dev:api
 ```
 
-The prototype stores encrypted OAuth tokens and raw CRM payloads in a local SQLite file. Do not reuse this single-process SQLite deployment as a production architecture without a storage, authentication, and operations review.
+Start the admin interface in a second terminal with `npm run dev:web`. The root scripts address workspaces; API implementation and local environment files live in `apps/api`, and the Vite admin interface lives in `apps/web`.
+
+The API prototype stores encrypted OAuth tokens and raw CRM payloads in a local SQLite file. Do not reuse this single-process SQLite deployment as a production architecture without a storage, authentication, and operations review. The admin interface is currently a UI shell; CRM connection authorization is not wired to the API.
 
 ## API flow
 
