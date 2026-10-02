@@ -134,6 +134,14 @@
   animation: shimmer 1.4s linear infinite;
 }
 
+/* Sign-in only (decision 25): static fallback while WebGL starts or is unavailable. */
+.login-backdrop {
+  background:
+    radial-gradient(ellipse at 0% 85%, color-mix(in srgb, var(--primary) 22%, transparent), transparent 55%),
+    radial-gradient(ellipse at 100% 15%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 55%),
+    var(--background);
+}
+
 @layer base {
   * { @apply border-border; }
   html, body, #root { @apply h-full; }

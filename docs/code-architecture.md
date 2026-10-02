@@ -49,11 +49,13 @@ apps/
       App.tsx                  hash routes -> page + required permission; lazy page chunks; page transitions
       components/ui/           shadcn primitives (button, card, dialog, sheet, dropdown-menu, table, ...); overlays animated with Motion
       components/              app building blocks composed from ui/: Sidebar, SessionProvider, charts, common
+      components/LoginBackdrop.tsx  decorative sign-in canvas; Motion loop, reduced motion, visibility and context lifecycle
       pages/                   one file per screen; owns data loading for that screen
                                Workspaces, Workspace, Connection, Catalog, Analytics, Users, Roles, Audit, Login
       lib/api.ts               typed client for /v1; the only module that calls fetch; cookie session + CSRF header
       lib/session.ts           session context, Permission ids (mirror of domain/permissions.ts), useCan()
       lib/motion.ts            Motion presets (springs, stagger variants) — docs/ui-guidelines.md#motion
+      lib/login-shader.ts      sign-in WebGL renderer; theme-token uniforms, bounded resolution, static CSS fallback
       lib/chart-colors.ts      validated categorical chart slots (CSS tokens --series-*)
       lib/use-media.ts         useMediaQuery for behavior that changes by breakpoint
       lib/                     router, use-resource hook, formatting/labels, toasts, theme, cn()

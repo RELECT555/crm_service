@@ -1,31 +1,77 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { motion } from 'motion/react'
+import { ArrowRight, ShieldCheck } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Brand } from '@/components/Brand'
+import { LoginBackdrop } from '@/components/LoginBackdrop'
 import { Field } from '@/components/common'
 import { ThemeSwitch } from '@/components/ThemeSwitch'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { dialogSpring } from '@/lib/motion'
 import { errorText } from '@/lib/toast'
 
-/** Sign-in, or — when the service has no users yet — creation of the first owner with the service key. */
+/**
+ * Sign-in, or — when the service has no users yet — creation of the first owner with the service key.
+ * Built only from design tokens, so it follows the light/dark theme like the rest of the app.
+ */
 export function Login({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
   const [mode, setMode] = useState<'loading' | 'login' | 'bootstrap'>('loading')
   useEffect(() => {
     api.authStatus().then(status => setMode(status.hasUsers ? 'login' : 'bootstrap')).catch(() => setMode('login'))
   }, [])
   return (
-    <main className="relative grid min-h-full place-items-center px-4 py-10">
-      <div className="absolute top-4 right-4"><ThemeSwitch compact /></div>
-      {mode !== 'loading' && (
-        <motion.div className="w-full max-w-sm" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, transition: dialogSpring }}>
-          <div className="mb-6 flex justify-center"><Brand /></div>
-          {mode === 'login' ? <LoginForm onSignedIn={onSignedIn} /> : <BootstrapForm onSignedIn={onSignedIn} />}
+    <main className="relative isolate flex min-h-svh flex-col overflow-hidden bg-background">
+      <LoginBackdrop />
+      <header className="relative flex items-center justify-between px-5 py-5 sm:px-10 sm:py-7">
+        <Brand />
+        <ThemeSwitch compact className="bg-background/70 backdrop-blur-sm" />
+      </header>
+      <section aria-label="Авторизация" className="relative grid flex-1 grid-cols-1 place-items-center px-4 py-8 sm:py-12">
+        <motion.div className="w-full min-w-0 max-w-[460px]" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, transition: dialogSpring }}>
+          <Card className="rounded-2xl bg-card/95 py-8 shadow-pop backdrop-blur-xl sm:py-10">
+            <CardContent className="px-6 sm:px-10">
+              {mode === 'loading' ? (
+                <div role="status" aria-label="Загружаем форму входа" className="grid gap-5">
+                  <Skeleton className="h-16 w-3/4" />
+                  <Skeleton className="h-14" />
+                  <Skeleton className="h-14" />
+                  <Skeleton className="h-10" />
+                  <span className="sr-only">Загружаем форму входа…</span>
+                </div>
+              ) : (
+                mode === 'login' ? <LoginForm onSignedIn={onSignedIn} /> : <BootstrapForm onSignedIn={onSignedIn} />
+              )}
+            </CardContent>
+          </Card>
         </motion.div>
-      )}
+      </section>
+      <footer className="relative flex items-center justify-center gap-2 px-6 pt-4 pb-6 text-center text-xs leading-relaxed text-muted-foreground sm:pb-8">
+        <ShieldCheck aria-hidden="true" className="size-3.5 flex-none" />
+        <p>Доступ к CRM только на чтение · токены хранятся зашифрованно</p>
+      </footer>
     </main>
+  )
+}
+
+function Heading({ first, accent, children }: { first: string; accent: string; children?: ReactNode }) {
+  return (
+    <div className="mb-8">
+      <h1 className="text-[28px] leading-[1.2] font-semibold tracking-tight">
+        {first}<br /><span className="text-primary">{accent}</span>
+      </h1>
+      {children && <p className="mt-2 text-muted-foreground">{children}</p>}
+    </div>
+  )
+}
+
+function SubmitButton({ busy, children }: { busy: boolean; children: ReactNode }) {
+  return (
+    <Button type="submit" size="lg" disabled={busy} className="group mt-2 w-full">
+      {children}<ArrowRight aria-hidden="true" className="motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:translate-x-0.5" />
+    </Button>
   )
 }
 
@@ -47,24 +93,17 @@ function LoginForm({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
     }
   }
   return (
-    <Card>
-      <CardContent>
-        <form onSubmit={submit} className="grid gap-4 py-1">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">Вход</h1>
-            <p className="mt-1 text-muted-foreground">Админка аналитики CRM.</p>
-          </div>
-          <Field label="Email" htmlFor="email">
-            <Input id="email" type="email" autoComplete="username" required autoFocus value={email} onChange={event => setEmail(event.target.value)} />
-          </Field>
-          <Field label="Пароль" htmlFor="password" error={error}>
-            <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} />
-          </Field>
-          <Button type="submit" size="lg" disabled={busy}>{busy ? 'Входим…' : 'Войти'}</Button>
-          <p className="text-center text-xs text-muted-foreground">Нет доступа? Попросите администратора создать вам пользователя.</p>
-        </form>
-      </CardContent>
-    </Card>
+    <form onSubmit={submit} className="grid gap-4">
+      <Heading first="С возвращением," accent="войдите в аналитику." />
+      <Field label="Почта" htmlFor="email">
+        <Input id="email" type="email" autoComplete="username" required autoFocus value={email} onChange={event => setEmail(event.target.value)} />
+      </Field>
+      <Field label="Пароль" htmlFor="password" error={error}>
+        <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} />
+      </Field>
+      <SubmitButton busy={busy}>{busy ? 'Входим…' : 'Войти'}</SubmitButton>
+      <p className="text-center text-xs text-muted-foreground">Нет доступа? Попросите администратора создать вам пользователя.</p>
+    </form>
   )
 }
 
@@ -86,28 +125,23 @@ function BootstrapForm({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
     }
   }
   return (
-    <Card>
-      <CardContent>
-        <form onSubmit={submit} className="grid gap-4 py-1">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">Первый запуск</h1>
-            <p className="mt-1 text-muted-foreground">Создайте владельца. Остальных пользователей он добавит сам.</p>
-          </div>
-          <Field label="Сервисный ключ" htmlFor="admin-key" hint="ADMIN_API_KEY из apps/api/.env — нужен только сейчас.">
-            <Input id="admin-key" type="password" autoComplete="off" required autoFocus value={form.adminKey} onChange={set('adminKey')} />
-          </Field>
-          <Field label="Имя" htmlFor="owner-name">
-            <Input id="owner-name" required maxLength={120} autoComplete="name" value={form.name} onChange={set('name')} />
-          </Field>
-          <Field label="Email" htmlFor="owner-email">
-            <Input id="owner-email" type="email" required autoComplete="username" value={form.email} onChange={set('email')} />
-          </Field>
-          <Field label="Пароль" htmlFor="owner-password" hint="Не короче 10 символов." error={error}>
-            <Input id="owner-password" type="password" required minLength={10} autoComplete="new-password" value={form.password} onChange={set('password')} />
-          </Field>
-          <Button type="submit" size="lg" disabled={busy}>{busy ? 'Создаём…' : 'Создать владельца и войти'}</Button>
-        </form>
-      </CardContent>
-    </Card>
+    <form onSubmit={submit} className="grid gap-4">
+      <Heading first="Первый запуск," accent="создайте владельца.">Остальных пользователей владелец добавит сам.</Heading>
+      <Field label="Сервисный ключ" htmlFor="admin-key" hint="ADMIN_API_KEY из apps/api/.env — нужен только сейчас.">
+        <Input id="admin-key" type="password" autoComplete="off" required autoFocus value={form.adminKey} onChange={set('adminKey')} />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Имя" htmlFor="owner-name">
+          <Input id="owner-name" required maxLength={120} autoComplete="name" value={form.name} onChange={set('name')} />
+        </Field>
+        <Field label="Почта" htmlFor="owner-email">
+          <Input id="owner-email" type="email" required autoComplete="username" value={form.email} onChange={set('email')} />
+        </Field>
+      </div>
+      <Field label="Пароль" htmlFor="owner-password" hint="Не короче 10 символов." error={error}>
+        <Input id="owner-password" type="password" required minLength={10} autoComplete="new-password" value={form.password} onChange={set('password')} />
+      </Field>
+      <SubmitButton busy={busy}>{busy ? 'Создаём…' : 'Создать владельца и войти'}</SubmitButton>
+    </form>
   )
 }
