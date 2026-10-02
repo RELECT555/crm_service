@@ -51,6 +51,9 @@ export function publicRoutes(router: Router, { config, store, registry }: AppCon
         queueInitialSync(store, registry, id);
       });
     }
+    store.access.audit({ actor_id: pending.actor_id, actor_label: pending.actor_label ?? "—",
+      action: existing ? "connection.reauthorized" : "connection.connected", target_type: "connection", target_id: id,
+      tenant_id: pending.tenant_id, details: { provider, account: grant.account } });
     if (wantsHtml(req)) {
       res.writeHead(303, { location: `${config.adminOrigin ?? config.appOrigin}/#/tenants/${pending.tenant_id}/connections/${id}`,
         "cache-control": "no-store" });

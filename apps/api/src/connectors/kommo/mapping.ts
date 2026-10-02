@@ -40,6 +40,12 @@ export function normalizeContact(raw: JsonObject): CanonicalRecord {
     sourceUpdatedAt: valueString(raw.updated_at), payload: { id, responsible_user_id: raw.responsible_user_id, updated_at: raw.updated_at } };
 }
 
+/** Only the display name is kept: it labels managers in analytics. */
+export function normalizeUser(raw: JsonObject): CanonicalRecord {
+  const id = requiredString(raw.id, "user ID");
+  return { kind: "user", externalId: id, axis: "context", label: valueString(raw.name), payload: { id, name: raw.name } };
+}
+
 export function normalizePipeline(raw: JsonObject): CanonicalRecord {
   const id = requiredString(raw.id, "pipeline ID");
   return { kind: "pipeline", externalId: id, axis: "context", label: valueString(raw.name), payload: { id, name: raw.name } };

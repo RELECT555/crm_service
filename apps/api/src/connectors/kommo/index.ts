@@ -5,16 +5,18 @@ import { type AuthorizationGrant, type Connector, ConnectorInputError, Connector
   type ProviderInfo } from "../types.ts";
 import { KommoClient } from "./client.ts";
 import { kommoInfo } from "./info.ts";
-import { normalizeContact, normalizeLead, normalizePipeline, normalizeStage, normalizeTask, parseKommoEvents } from "./mapping.ts";
+import { normalizeContact, normalizeLead, normalizeUser, normalizePipeline, normalizeStage, normalizeTask, parseKommoEvents } from "./mapping.ts";
 import { consentUrl, type KommoApp, normalizeAccountHost, requestTokens } from "./oauth.ts";
 import type { KommoPlatform } from "./platforms.ts";
 import { embedded, object, requiredString, valueString } from "./values.ts";
 
-const KINDS = ["pipeline", "stage", "deal", "contact", "task"];
+const KINDS = ["pipeline", "stage", "user", "deal", "contact", "task"];
 const LIST_PATHS: Record<string, { path: string; name: string }> = {
   deal: { path: "/api/v4/leads", name: "leads" },
   contact: { path: "/api/v4/contacts", name: "contacts" },
   task: { path: "/api/v4/tasks", name: "tasks" },
+  // Account users give managers their names (https://developers.kommo.com/reference/users-list; shape **unverified**).
+  user: { path: "/api/v4/users", name: "users" },
 };
 const PAGE_SIZE = 250;
 /** Webhook events requested. Lead events are documented; task/contact event names are **unverified** in a sandbox. */
@@ -87,7 +89,7 @@ export class KommoConnector implements Connector {
 
   async fetchRecord(connection: Connection, kind: string, externalId: string): Promise<CanonicalRecord | null> {
     const source = LIST_PATHS[kind];
-    if (!source || !/^\d+$/.test(externalId)) throw new Error(`Unsupported Kommo record ${kind}`);
+    if (!source || kind === "user" || !/^\d+$/.test(externalId)) throw new Error(`Unsupported Kommo record ${kind}`);
     const body = await this.client.get(connection, `${source.path}/${externalId}`);
     return body ? this.normalize(connection, kind, body) : null;
   }
@@ -135,6 +137,7 @@ export class KommoConnector implements Connector {
       return normalizeTask(row, typeId ? this.store.getActionType(connection.id, typeId) : null);
     }
     if (kind === "contact") return normalizeContact(row);
+    if (kind === "user") return normalizeUser(row);
     throw new Error(`Unsupported Kommo kind ${kind}`);
   }
 }

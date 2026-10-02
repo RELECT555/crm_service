@@ -1,6 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-export type RouteContext = { req: IncomingMessage; res: ServerResponse; url: URL; params: string[] };
+import type { Principal } from "./auth.ts";
+
+/** `principal` is set for authenticated routers (admin); public routes receive null. */
+export type RouteContext = { req: IncomingMessage; res: ServerResponse; url: URL; params: string[]; principal: Principal };
 type Handler = (context: RouteContext) => Promise<void> | void;
 type Route = { method: string; pattern: RegExp; handler: Handler };
 
@@ -21,14 +24,15 @@ export class Router {
   }
 
   /** Runs the first matching route. `not_found` lets the caller fall through to the next layer. */
-  async handle(req: IncomingMessage, res: ServerResponse, url: URL): Promise<"handled" | "method_not_allowed" | "not_found"> {
+  async handle(req: IncomingMessage, res: ServerResponse, url: URL, principal: Principal | null = null):
+    Promise<"handled" | "method_not_allowed" | "not_found"> {
     let pathMatched = false;
     for (const route of this.routes) {
       const match = route.pattern.exec(url.pathname);
       if (!match) continue;
       pathMatched = true;
       if (route.method !== req.method) continue;
-      await route.handler({ req, res, url, params: match.slice(1) });
+      await route.handler({ req, res, url, params: match.slice(1), principal: principal as Principal });
       return "handled";
     }
     return pathMatched ? "method_not_allowed" : "not_found";

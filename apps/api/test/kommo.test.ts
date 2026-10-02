@@ -54,6 +54,7 @@ test("Kommo: OAuth with account check, paged backfill, polling fallback, token r
           : new Response(null, { status: 204 });
       }
       case "/api/v4/contacts": return new Response(null, { status: 204 });
+      case "/api/v4/users": return Response.json({ _embedded: { users: [{ id: 9, name: "Мария Петрова" }] } });
       case "/api/v4/tasks": return Response.json({ _embedded: { tasks: [
         { id: 501, task_type_id: 2, is_completed: true, responsible_user_id: 9, entity_type: "leads", entity_id: 1 },
         { id: 502, task_type_id: 7, is_completed: false, responsible_user_id: 9, entity_type: "leads", entity_id: 2 },
@@ -124,7 +125,7 @@ test("Kommo: OAuth with account check, paged backfill, polling fallback, token r
     assert.deepEqual(detail.data.pipelines, [{ id: "2", label: "Закупки" }, { id: "1", label: "Продажи" }]);
     assert.equal(detail.data.mappingOptions.fieldMapping, null);
     const counts = Object.fromEntries((detail.data.sync.records as Array<{ kind: string; count: number }>).map(row => [row.kind, row.count]));
-    assert.deepEqual(counts, { deal: 251, task: 2, pipeline: 2, stage: 3 });
+    assert.deepEqual(counts, { deal: 251, task: 2, pipeline: 2, stage: 3, user: 1 });
 
     assert.equal((await api(`${path}/commercial-sources`, "POST", { sourceKind: "deal", categoryId: 2, direction: "purchase",
       amountField: "price" })).status, 400, "Kommo amount fields are fixed");
@@ -137,6 +138,9 @@ test("Kommo: OAuth with account check, paged backfill, polling fallback, token r
     assert.ok(commercial.some(row => row.direction === "sale" && row.count === 250 && row.amount === 25_000));
     const work = dashboard.data.analytics.work as Array<{ action_type: string }>;
     assert.deepEqual(work.map(row => row.action_type).sort(), ["meeting", "visit"]);
+    const workspace = await api(`/v1/tenants/${tenantId}/analytics`);
+    assert.equal(workspace.data.managers[0].name, "Мария Петрова", "Kommo users label managers");
+    assert.equal(workspace.data.currency, "USD");
 
     const hook = (body: Record<string, string>) => fetch(webhookDestination.replace("http://localhost:3000", base),
       { method: "POST", body: new URLSearchParams(body) });

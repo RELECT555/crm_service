@@ -6,6 +6,9 @@ Start here. Each document has one job; when they disagree about current behavior
 | --- | --- | --- |
 | [../README.md](../README.md) | run the project, see the API routes at a glance | everyone |
 | [development.md](development.md) | set up a machine, use demo data, debug common failures | developers, agents |
+| [api.md](api.md) | find a route, its permission and payload | developers, agents |
+| [access-control.md](access-control.md) | users, roles, permissions, sessions, audit — rules and guards | developers, agents, security review |
+| [metrics.md](metrics.md) | exact definition of every analytics number and signal | product, developers, agents |
 | [code-architecture.md](code-architecture.md) | know where code goes, what may import what, how a connection flows, how to add a connector | developers, agents |
 | [ui-guidelines.md](ui-guidelines.md) | build or change an admin screen: tokens, components, badges, motion, copy | developers, agents, design |
 | [decisions.md](decisions.md) | understand why something is the way it is before changing it | everyone |

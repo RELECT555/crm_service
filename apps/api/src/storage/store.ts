@@ -2,7 +2,9 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
+import type { AggregateRow, OwnerLabel } from "../domain/analytics.ts";
 import type { CanonicalRecord } from "../domain/model.ts";
+import { AccessStore } from "./access.ts";
 
 export type Connection = {
   id: string; tenant_id: string; provider: string;
@@ -41,6 +43,8 @@ export type Job = {
 
 export class Store {
   readonly db: DatabaseSync;
+  /** Users, roles, sessions and the audit log (storage/access.ts). */
+  readonly access: AccessStore;
   constructor(path: string) {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
@@ -97,11 +101,14 @@ export class Store {
     this.addColumn("connections", "created_at", "INTEGER");
     this.addColumn("connections", "events_mode", "TEXT");
     this.addColumn("connections", "settings", "TEXT");
+    this.addColumn("oauth_states", "actor_id", "TEXT");
+    this.addColumn("oauth_states", "actor_label", "TEXT");
     this.addColumn("tenants", "timezone", "TEXT");
     this.addColumn("tenants", "currency", "TEXT");
     this.addColumn("jobs", "error", "TEXT");
     this.addColumn("jobs", "finished_at", "INTEGER");
     this.migrateCommercialSources();
+    this.access = new AccessStore(this.db);
   }
 
   /** v1 stored Bitrix24 entityTypeId (2 = deals, >= 128 = smart processes); v2 stores the connector's object kind. */
@@ -158,18 +165,20 @@ export class Store {
   tenantExists(id: string): boolean {
     return !!this.db.prepare("SELECT 1 FROM tenants WHERE id=?").get(id);
   }
-  saveState(hash: string, tenantId: string, provider: string, account: string): void {
-    this.db.prepare("INSERT INTO oauth_states (state_hash,tenant_id,account,created_at,provider) VALUES (?,?,?,?,?)")
-      .run(hash, tenantId, account, Date.now(), provider);
+  saveState(hash: string, tenantId: string, provider: string, account: string,
+    actor: { actor_id: string | null; actor_label: string }): void {
+    this.db.prepare(`INSERT INTO oauth_states (state_hash,tenant_id,account,created_at,provider,actor_id,actor_label)
+      VALUES (?,?,?,?,?,?,?)`).run(hash, tenantId, account, Date.now(), provider, actor.actor_id, actor.actor_label);
   }
   /** Single-use: the state row is deleted on read and expires after 10 minutes. */
-  consumeState(hash: string): { tenant_id: string; provider: string; account: string } | null {
+  consumeState(hash: string): { tenant_id: string; provider: string; account: string;
+    actor_id: string | null; actor_label: string | null } | null {
     return this.transaction(() => {
-      const row = this.db.prepare("SELECT tenant_id,provider,account,created_at FROM oauth_states WHERE state_hash=?").get(hash) as
-        { tenant_id: string; provider: string; account: string; created_at: number } | undefined;
+      const row = this.db.prepare("SELECT tenant_id,provider,account,created_at,actor_id,actor_label FROM oauth_states WHERE state_hash=?").get(hash) as
+        { tenant_id: string; provider: string; account: string; created_at: number; actor_id: string | null; actor_label: string | null } | undefined;
       this.db.prepare("DELETE FROM oauth_states WHERE state_hash=?").run(hash);
       if (!row || Date.now() - row.created_at > 10 * 60_000) return null;
-      return { tenant_id: row.tenant_id, provider: row.provider, account: row.account };
+      return { tenant_id: row.tenant_id, provider: row.provider, account: row.account, actor_id: row.actor_id, actor_label: row.actor_label };
     });
   }
   saveConnection(input: Omit<Connection, "status" | "events_bound" | "events_mode" | "last_sync" | "last_error" | "created_at" | "settings">
@@ -423,6 +432,21 @@ export class Store {
       work: workByOwner.filter(row => row.owner_id === ownerId).map(({ owner_id: _owner, ...row }) => row),
     }));
     return { metricVersion: 1, commercial, work, linkedWorkItems: linked.count, byOwner, coverage };
+  }
+  /** Grouped commercial and work records for workspace analytics (all connections of the tenant). */
+  analyticsRows(tenantId: string): AggregateRow[] {
+    return this.db.prepare(`SELECT connection_id, owner_id, axis, direction, currency, action_type, status,
+        COUNT(*) AS count, SUM(amount) AS amount,
+        SUM(CASE WHEN axis='work' AND target_id IS NOT NULL AND target_kind IN
+          (SELECT DISTINCT kind FROM records WHERE tenant_id=? AND axis='commercial') THEN 1 ELSE 0 END) AS linked
+      FROM records WHERE tenant_id=? AND deleted=0 AND axis IN ('commercial','work')
+      GROUP BY connection_id, owner_id, axis, direction, currency, action_type, status`)
+      .all(tenantId, tenantId).map(row => ({ ...row })) as AggregateRow[];
+  }
+  /** Names of CRM users synced as `user` reference records, for manager labels. */
+  ownerLabels(tenantId: string): OwnerLabel[] {
+    return this.db.prepare(`SELECT connection_id, external_id, label FROM records WHERE tenant_id=? AND kind='user' AND deleted=0`)
+      .all(tenantId).map(row => ({ ...row })) as OwnerLabel[];
   }
   close(): void { this.db.close(); }
 }
