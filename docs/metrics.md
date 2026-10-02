@@ -56,6 +56,21 @@ Signals are heuristics that point at something worth a conversation; they do not
 | `activity_without_deals` | Активность не переходит в сделки | both work/deal medians positive, actions ≥ work median and deals < 50 % of deal median |
 | `deals_without_activity` | Сделки без зафиксированной работы | both work/deal medians positive, deals ≥ deal median and actions < 50 % of work median (often: work happens outside the CRM) |
 
+## Derived views (computed in the browser, no new server metric)
+
+Both charts read only fields already in the response, so `metricVersion` does not change. Code: `apps/web/src/components/team-charts.tsx`.
+
+| View | Definition |
+| --- | --- |
+| **Результат × Работа** (`EffortMap`) | One point per manager: x = `work` (all work items), y = `deals`. Dashed lines at `team.medianWork` and `team.medianDeals` split the plane into four zones, labelled by what is true there — «Много работы и сделок», «Сделки при малой работе», «Работа без сделок», «Мало работы и сделок». Axes start at 0 and end at a rounded maximum (1, 1.5, 2, 2.5, 3, 4, 5, 6, 8 × 10ⁿ) above the largest value. Zones describe position, not quality: a manager in «Сделки при малой работе» may simply log work outside the CRM (see `deals_without_activity`). |
+| **Профиль работы** (`WorkRadar`) | For one manager: each work type (call, meeting, task, email, visit) as the manager's count ÷ the largest count of that type in the team (0–1), plus `completionRate` (0–1). The dashed polygon is the per-axis median of the same values over all managers. «Сильнее команды» lists axes where the manager is > 120 % of the median and at least 0.05 above it; «Слабее» — < 80 % and at least 0.05 below. Shapes compare people within this team only; they are not targets. |
+
+Depth (perspective, tilt, layered marks) is presentation only: positions, lengths and polygon shapes are computed in flat 2-D coordinates and never distorted.
+
+## Demo data
+
+`GET /v1/tenants/:id/analytics/demo` (`analytics.view`) runs the same `computeAnalytics` over a fictional team (`DEMO_TEAM` in `apps/api/src/domain/demo.ts`: six managers with deliberately different profiles, 35 unassigned calls) in the workspace base currency (RUB when none is set). It reads nothing from the workspace and writes nothing; the response has `demo: true`, `connections: []` and a first coverage note saying it is demo data. The admin UI shows it under the «Демо» switch on the analytics page (`?demo=1`) with a banner. `scripts/seed-demo.ts` seeds the same team as real records for local development.
+
 ## Coverage and limits (reported with every response)
 
 - Deals in other currencies, unclassified records, work without a responsible user, managers without names.

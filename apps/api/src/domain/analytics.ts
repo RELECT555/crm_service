@@ -47,6 +47,8 @@ export function median(values: number[]): number {
 
 const ratio = (part: number, whole: number) => (whole > 0 ? part / whole : null);
 const round1 = (value: number) => Math.round(value * 10) / 10;
+/** Numbers inside Russian signal text use a decimal comma. */
+const ru = (value: number) => String(value).replace(".", ",");
 
 /**
  * Chooses the currency used for money totals: the workspace base currency if set, otherwise the currency with the
@@ -164,15 +166,15 @@ export function signalsFor(manager: ManagerMetrics,
   const half = (value: number) => value * 0.5;
   if (team.medianWork > 0 && manager.work < half(team.medianWork)) {
     signals.push({ code: "low_activity", severity: "warning", title: "Мало активности",
-      detail: `${manager.work} действий при медиане команды ${round1(team.medianWork)}.` });
+      detail: `${manager.work} действий при медиане команды ${ru(round1(team.medianWork))}.` });
   }
   if (team.medianMeetings > 0 && manager.meetings === 0) {
     signals.push({ code: "no_meetings", severity: "warning", title: "Нет встреч и визитов",
-      detail: `У команды в среднем ${round1(team.medianMeetings)} встреч на менеджера.` });
+      detail: `У команды в среднем ${ru(round1(team.medianMeetings))} встреч на менеджера.` });
   }
   if (team.medianWork > 0 && team.medianDeals > 0 && manager.work >= team.medianWork && manager.deals < half(team.medianDeals)) {
     signals.push({ code: "activity_without_deals", severity: "info", title: "Активность не переходит в сделки",
-      detail: `${manager.work} действий, но ${manager.deals} сделок при медиане ${round1(team.medianDeals)}.` });
+      detail: `${manager.work} действий, но ${manager.deals} сделок при медиане ${ru(round1(team.medianDeals))}.` });
   }
   if (team.medianDeals > 0 && team.medianWork > 0 && manager.deals >= team.medianDeals && manager.work < half(team.medianWork)) {
     signals.push({ code: "deals_without_activity", severity: "info", title: "Сделки без зафиксированной работы",

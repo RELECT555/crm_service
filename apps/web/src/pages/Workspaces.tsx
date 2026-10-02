@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { Building2, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
-import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, PageHeader } from '@/components/common'
+import { Avatar, EmptyState, ErrorNotice, Field, PageHeader } from '@/components/common'
+import { Busy, PersonSkeleton, SkeletonText, TableSkeleton } from '@/components/skeletons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -30,7 +31,16 @@ export function Workspaces() {
         actions={create} />
       {tenants.error && <div className="mb-5"><ErrorNotice message={errorText(tenants.error)} onRetry={tenants.reload} /></div>}
       <Card className="py-0">
-        {!tenants.data && !tenants.error && <LoadingRows />}
+        {!tenants.data && !tenants.error && (
+          <Busy>
+            <TableSkeleton rows={3} columns={[
+              { head: 'Название', cell: row => <PersonSkeleton width={['45%', '60%', '38%'][row]} first="text-sm" second="font-mono text-[11px]" /> },
+              { head: 'Подключения', className: 'text-right', cell: () => <SkeletonText className="justify-end" width="1ch" /> },
+              { head: 'Состояние', cell: row => <><SkeletonText width={['9em', '12em', '7em'][row]} /><SkeletonText className="sm:hidden" width="5em" /></> },
+              { head: 'Создано', cell: () => <><SkeletonText width="5em" /><SkeletonText className="sm:hidden" width="3em" /></> },
+            ]} />
+          </Busy>
+        )}
         {tenants.data?.length === 0 && (
           <EmptyState title="Пока нет ни одного пространства" action={create}>
             Создайте пространство для клиента, затем подключите его CRM.

@@ -30,7 +30,7 @@ Themes: light, dark and "as system" («Авто»). `lib/theme.ts` is a single s
 - Overlays: `Dialog` for confirmations and short forms, `Sheet` (right) for multi-step flows and reference panels, `Sheet side="left"` for the mobile menu.
 - Menus: `DropdownMenu` (Base UI Menu) for secondary actions behind a `…` button, the workspace switcher and the user menu (theme, password change, sign out). Destructive items use `variant="destructive"`, sit after a separator and open a confirmation `Dialog` when they stop work.
 - Brand: `BrandMark` in `components/Brand.tsx` — a graphite squircle (inverted in dark theme) with two bars (result and work) and a primary-colored dot over the shorter bar: the gap the product shows. The same drawing is `public/favicon.svg`. In the sidebar it sits with the wordmark «CRM Analytics» and the line «Аналитика команды продаж». Do not reintroduce colored gradient squares or generic chart icons.
-- Building blocks for screens: `Metric` (KPI tile: label, icon chip, large number, one line of context, optional footer bar) and `Steps` (numbered vertical steps joined by a line) in `components/common.tsx`.
+- Building blocks for screens: skeletons in `components/skeletons.tsx` (see [Loading](#loading-skeletons)), `Metric` (KPI tile: label, icon chip, large number, one line of context, optional footer bar) and `Steps` (numbered vertical steps joined by a line) in `components/common.tsx`.
 - Workspaces are shown with `Avatar` initials in neutral color; provider marks are the only colored tiles.
 
 ## Badges and status (low visual noise)
@@ -123,6 +123,23 @@ Built by hand in `components/charts.tsx` from the dataviz rules: thin marks, 4px
 - Every chart has a text equivalent: the manager table carries the exact numbers, tooltips repeat the value in words.
 - One measure per axis; two measures of different scale get two charts.
 
+**Charts with depth** (`components/team-charts.tsx`: `EffortMap`, `WorkRadar`, built on `Tilt3D` and `Layer`). The plot plane rises into place (rotateX 24° → 0 on a spring), marks sit on layers 14–40 px above it, and the plane tilts up to 5–7° after a mouse pointer (not touch). The data is always drawn in flat coordinates — depth never changes a position, length or area — and under reduced motion there is no rise and no tilt. Use depth only for charts that compare people or positions at a glance, never for precise reading (tables keep that job). Definitions: [metrics.md](metrics.md#derived-views-computed-in-the-browser-no-new-server-metric).
+
+## Loading (skeletons)
+
+A skeleton is **the page's own layout with placeholders**, not a generic block: the same cards, grids, paddings and table columns, with static labels (titles, column headings, KPI names) shown for real. Primitives in `components/skeletons.tsx`:
+
+| Primitive | Use |
+| --- | --- |
+| `Busy` | wraps the loading region (`role="status"`, `aria-busy`, a screen-reader «Загрузка…») |
+| `SkeletonText` | one line of text; pass the real text classes — its box is `1lh` of that text, so heights match exactly |
+| `SkeletonBlock` | fixed shapes: avatars, marks, badges, buttons, bars — copy the real element's size and radius |
+| `TableSkeleton` | a real `Table` with real headings and placeholder cells (`columns: { head, className, cell }`) |
+| `PersonSkeleton` | avatar + two lines (users, workspaces) |
+| `PageSkeleton` | Suspense fallback while a page chunk loads |
+
+Each page keeps its skeleton next to its markup (`DashboardSkeleton`, `WorkspaceSkeleton`, `ConnectionSkeleton`, `CatalogSkeleton`, `RolesSkeleton`, `ProviderGridSkeleton`, …) so a layout change updates both. Use typical counts for data-dependent lists (5 managers, 3 users). When a value's text length varies by data, reserve the space in the real component too (KPI tiles reserve two lines with `min-h-[2lh]`), so the skeleton can match it. Check: hold API responses (Playwright `page.route`) and compare block heights of skeleton and loaded page — blocks that do not depend on row counts must match within a few pixels.
+
 ## Permission-aware UI
 
 `useCan()` (`lib/session.ts`) mirrors the server rule from [access-control.md](access-control.md): global grants apply everywhere, workspace grants only to that workspace. Use it to hide navigation, buttons and forms the user cannot use, and render forms read-only with a sentence naming the missing permission. It is a convenience only — the API checks every request. A route the user cannot open shows «Нет доступа» with a way back, never a blank page. A `401` from any request fires the session-expired event and returns to the login screen.
@@ -146,5 +163,5 @@ Russian, short, operator-oriented. Buttons are verbs («Подключить CRM
 3. Keyboard: all actions reachable with Tab; table rows that navigate respond to Enter; dialogs close on Escape.
 4. Checked in light and dark themes at 1440, 1280, 820 (tablet rail) and 360px widths with no horizontal page scroll; checked with reduced motion.
 5. Controls gated by the right permission (`useCan`), and the page added to `resolve()` in `App.tsx` with its permission.
-6. A new section has a `data-tour` anchor and a step in `TOUR_STEPS` ([onboarding.md](onboarding.md#tour)).
+6. A new section has a `data-tour` anchor and a step in `TOUR_STEPS` ([onboarding.md](onboarding.md#tour)), and a skeleton built from its own layout (see [Loading](#loading-skeletons)).
 7. `npm run check` passes with no lint warnings.

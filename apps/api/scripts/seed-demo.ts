@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { digest, encrypt } from "../src/security/crypto.ts";
 import { hashPassword } from "../src/security/password.ts";
+import { DEMO_TEAM } from "../src/domain/demo.ts";
 import { Store } from "../src/storage/store.ts";
 
 const dbPath = process.env.DB_PATH ?? "./data/crm.sqlite";
@@ -34,14 +35,8 @@ store.saveCheckpoint(loading.id, "activity", "4150", false);
 // Scheduled far ahead so the worker never calls Bitrix24 with the fake token.
 store.enqueue(loading.id, "sync", "activity", "4150", null, null, Date.now() + 365 * 86_400_000);
 store.markEventsBound(loading.id, "webhook");
-// Five managers with different profiles so analytics and weak-spot signals have something to show.
-const managers = [
-  { id: "11", name: "Анна Соколова", deals: 64, amount: 410_000, work: { call: 220, meeting: 48, task: 90, email: 60 }, done: 0.86 },
-  { id: "12", name: "Борис Ким", deals: 9, amount: 150_000, work: { call: 410, task: 70, email: 25 }, done: 0.38 },
-  { id: "13", name: "Вера Лебедева", deals: 52, amount: 520_000, work: { call: 30, meeting: 6, task: 12 }, done: 0.9 },
-  { id: "14", name: "Глеб Орлов", deals: 41, amount: 260_000, work: { call: 180, meeting: 30, visit: 22, task: 60 }, done: 0.74 },
-  { id: "15", name: "Дарья Миронова", deals: 33, amount: 300_000, work: { call: 140, meeting: 25, task: 70, email: 40 }, done: 0.81 },
-];
+// The shared demo team (src/domain/demo.ts): different profiles so analytics and weak-spot signals have something to show.
+const managers = DEMO_TEAM.map(manager => ({ ...manager, amount: manager.averageDeal }));
 const counts: Array<[string, "commercial" | "work" | "context", number]> = [["stage", "context", 27], ["contact", "context", 3120]];
 const pipelineNames = ["Продажи", "Закупки", "Тендеры", "Сервис"];
 store.transaction(() => {

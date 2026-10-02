@@ -14,6 +14,7 @@ apps/
       domain/model.ts          canonical, provider-neutral types (CanonicalRecord, ChangeEvent, statuses)
       domain/permissions.ts    permission catalog + built-in roles (docs/access-control.md); pure data
       domain/analytics.ts      computeAnalytics: aggregate rows -> team/manager metrics + signals (docs/metrics.md); pure
+      domain/demo.ts           fictional demo team -> aggregate rows (analytics demo preview, seed script); pure
       storage/store.ts         the only SQL for tenants, connections, records, jobs; forward-only migrations
       storage/access.ts        the only SQL for users, roles, assignments, sessions, audit log, onboarding state (store.access)
       security/crypto.ts       AES-256-GCM sealing, SHA-256 digests, constant-time compare
@@ -60,6 +61,8 @@ apps/
       lib/onboarding.ts        WELCOME_ID, TOUR_STEPS registry, eligibleSteps, useOnboarding
       lib/storage.ts           localStorage helpers and keys (never for state that must persist)
       lib/chart-colors.ts      validated categorical chart slots (CSS tokens --series-*)
+      components/team-charts.tsx  EffortMap and WorkRadar with Tilt3D depth (docs/metrics.md#derived-views…)
+      components/skeletons.tsx    skeleton primitives; each page keeps its own skeleton next to its markup
       lib/use-media.ts         useMediaQuery for behavior that changes by breakpoint
       lib/                     router, use-resource hook, formatting/labels, toasts, theme, cn()
 docs/

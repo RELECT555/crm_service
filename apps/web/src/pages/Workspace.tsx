@@ -8,7 +8,8 @@ import { useCan } from '@/lib/session'
 import { api, type ConnectionSummary, type Provider, type Tenant } from '@/lib/api'
 import { ConnectSheet } from '@/components/ConnectSheet'
 import { AnimatedNumber } from '@/components/charts'
-import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, Metric, PageHeader, ProviderMark, StatusBadge, Steps, SyncBar } from '@/components/common'
+import { Avatar, EmptyState, ErrorNotice, Field, Metric, PageHeader, ProviderMark, StatusBadge, Steps, SyncBar } from '@/components/common'
+import { Busy, SkeletonBlock, SkeletonText } from '@/components/skeletons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -38,7 +39,7 @@ export function Workspace({ tenantId }: { tenantId: string }) {
   const connections = data?.connections ?? []
 
   if (detail.error) return <ErrorNotice message={errorText(detail.error)} onRetry={detail.reload} />
-  if (!data) return <Card><LoadingRows rows={5} /></Card>
+  if (!data) return <WorkspaceSkeleton />
   const name = data.tenant.name ?? 'Без названия'
 
   return (
@@ -222,7 +223,17 @@ function FirstConnection({ onPick }: { onPick: (provider: Provider) => void }) {
         </div>
         <div className="grid content-start gap-3 border-t bg-muted/30 p-6 sm:p-8 lg:border-t-0 lg:border-l">
           <div className="text-xs font-medium text-muted-foreground">Выберите систему</div>
-          {!providers.data && <LoadingRows rows={3} />}
+          {!providers.data && (
+            <Busy className="grid gap-2">
+              {['40%', '50%', '35%'].map(width => (
+                <div key={width} className="flex items-center gap-3.5 rounded-xl bg-card p-3 pr-4 shadow-card ring-1 ring-border">
+                  <SkeletonBlock className="size-11 rounded-lg" />
+                  <div className="min-w-0 flex-1"><SkeletonText className="text-[14px] font-medium" width={width} /><SkeletonText className="mt-0.5 text-xs" width="60%" /></div>
+                  <SkeletonBlock className="size-4 rounded" />
+                </div>
+              ))}
+            </Busy>
+          )}
           <motion.div className="grid gap-2" variants={staggerList} initial="hidden" animate="show">
             {ready.map(provider => (
               <motion.button key={provider.id} type="button" onClick={() => onPick(provider)} variants={staggerItem}
@@ -351,5 +362,45 @@ function RenameWorkspace({ tenantId, current, open, onOpenChange, onDone }: {
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** The workspace page with placeholders: header, the four metric tiles and two connection cards. */
+function WorkspaceSkeleton() {
+  const tiles = [{ icon: Plug, label: 'Подключено CRM' }, { icon: Activity, label: 'Работают', bar: true },
+    { icon: AlertTriangle, label: 'Требуют внимания' }, { icon: Database, label: 'Записей загружено' }]
+  return (
+    <Busy>
+      <PageHeader title={<SkeletonText className="text-[22px] leading-tight" width="10em" />} leading={<SkeletonBlock className="size-12 rounded-xl" />}
+        crumbs={[{ label: 'Пространства', href: '#/' }, { label: '…' }]}
+        meta={<><SkeletonText width="min(26em, 90%)" /><SkeletonText className="sm:hidden" width="55%" /><SkeletonText className="sm:hidden" width="45%" /></>}
+        actions={<><SkeletonBlock className="h-9 flex-1 rounded-lg sm:w-28 sm:flex-none" /><SkeletonBlock className="h-9 flex-1 rounded-lg sm:w-40 sm:flex-none" /><SkeletonBlock className="size-9 rounded-lg" /></>} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {tiles.map(tile => (
+          <Metric key={tile.label} icon={tile.icon} label={tile.label} value={<SkeletonText className="leading-none" width="1.6ch" />}
+            meta={<SkeletonText width="60%" />}>{tile.bar && <SkeletonBlock className="h-1.5 rounded-full" />}</Metric>
+        ))}
+      </div>
+      <section className="mt-10">
+        <div className="mb-4">
+          <h2 className="text-[15px] font-semibold">Подключения</h2>
+          <SkeletonText className="mt-0.5 text-[13px]" width="min(30em, 90%)" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {['60%', '50%'].map(width => (
+            <div key={width} className="flex flex-col rounded-xl bg-card shadow-card ring-1 ring-border">
+              <div className="flex items-start gap-3 px-5 pt-5">
+                <SkeletonBlock className="size-9 rounded-lg" />
+                <div className="min-w-0 flex-1"><SkeletonText className="font-medium" width={width} /><SkeletonBlock className="mt-1 h-6 w-32" /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 px-5 pt-4 pb-4">
+                {[0, 1].map(index => <div key={index}><SkeletonText className="text-xs" width="50%" /><SkeletonText className="text-[15px] font-semibold" width="30%" /></div>)}
+              </div>
+              <div className="mt-auto border-t px-5 py-2.5 text-xs"><SkeletonText width="45%" /></div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </Busy>
   )
 }

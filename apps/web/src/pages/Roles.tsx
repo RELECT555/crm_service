@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { motion } from 'motion/react'
 import { Check, Lock, Plus, ShieldCheck, Trash2 } from 'lucide-react'
 import { api, type PermissionInfo, type Role } from '@/lib/api'
-import { ErrorNotice, Field, LoadingRows, PageHeader, ToneBadge } from '@/components/common'
+import { ErrorNotice, Field, PageHeader, ToneBadge } from '@/components/common'
+import { Busy, SkeletonBlock, SkeletonText, TableSkeleton } from '@/components/skeletons'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -29,7 +30,7 @@ export function Roles() {
         subtitle="Встроенные роли идут по нарастающей: каждая включает права предыдущей. Свои роли собираются из отдельных прав."
         actions={manage && <Button size="lg" onClick={() => setEditor({ role: null })}><Plus />Новая роль</Button>} />
       {(roles.error || permissions.error) && <ErrorNotice message={errorText(roles.error ?? permissions.error)} onRetry={roles.reload} />}
-      {(!roles.data || !permissions.data) && !roles.error && <Card><LoadingRows rows={6} /></Card>}
+      {(!roles.data || !permissions.data) && !roles.error && <RolesSkeleton />}
       {roles.data && permissions.data && (
         <div className="grid gap-5">
           <motion.div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" variants={staggerList} initial="hidden" animate="show" data-tour="roles-list">
@@ -176,5 +177,34 @@ function RoleSheet({ editor, permissions, canManage, onClose, onSaved }: {
         )}
       </SheetContent>
     </Sheet>
+  )
+}
+
+/** Role cards and the matrix with placeholders (docs/ui-guidelines.md#loading). */
+function RolesSkeleton() {
+  return (
+    <Busy className="grid gap-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {['7em', '6em', '7.5em', '9em', '6.5em'].map(width => (
+          <div key={width} className="flex flex-col gap-2 rounded-xl bg-card p-4 shadow-card ring-1 ring-border">
+            <div className="flex items-center justify-between gap-2"><SkeletonText className="flex-1 font-medium" width={width} /><SkeletonBlock className="h-6 w-24" /></div>
+            <div className="min-h-10 text-[13px]"><SkeletonText width="85%" /><SkeletonText width="45%" /></div>
+            <div className="flex gap-4 text-xs"><SkeletonText width="3.5em" /><SkeletonText width="7em" /></div>
+          </div>
+        ))}
+      </div>
+      <Card className="gap-0 pb-0">
+        <CardHeader className="border-b">
+          <CardTitle className="font-semibold">Матрица прав</CardTitle>
+          <CardDescription>«Везде» — право действует, только если роль выдана на все пространства.</CardDescription>
+        </CardHeader>
+        <TableSkeleton rows={9} columns={[
+          { head: 'Право', className: 'min-w-56', cell: row => (
+            <div><SkeletonText className="text-[13px] font-medium" width={['60%', '50%', '70%', '45%', '62%', '55%', '68%', '58%', '48%'][row]} /><SkeletonText className="text-xs" width="35%" /></div>) },
+          ...Array.from({ length: 5 }, () => ({ head: <SkeletonText className="text-xs" width="5em" />, className: 'text-center',
+            cell: () => <SkeletonBlock className="mx-auto size-4 rounded" /> })),
+        ]} />
+      </Card>
+    </Busy>
   )
 }

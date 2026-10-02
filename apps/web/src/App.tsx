@@ -1,8 +1,8 @@
 import { lazy, Suspense, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Sidebar } from '@/components/Sidebar'
-import { EmptyState, LoadingRows } from '@/components/common'
-import { Card } from '@/components/ui/card'
+import { EmptyState } from '@/components/common'
+import { PageSkeleton } from '@/components/skeletons'
 import { Button } from '@/components/ui/button'
 import { pageTransition } from '@/lib/motion'
 import { navigate, useRoute } from '@/lib/router'
@@ -46,7 +46,7 @@ export default function App() {
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={route.join('/')} className="mx-auto max-w-[1600px] px-4 pt-5 pb-12 sm:px-6 sm:pt-7 lg:px-10 lg:pt-8 lg:pb-16 2xl:px-14"
             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0, transition: pageTransition }} exit={{ opacity: 0, transition: { duration: 0.1 } }}>
-            {allowed ? <Suspense fallback={<Card><LoadingRows rows={5} /></Card>}>{page}</Suspense> : (
+            {allowed ? <Suspense fallback={<PageSkeleton />}>{page}</Suspense> : (
               <EmptyState title="Нет доступа" action={<Button variant="outline" size="lg" onClick={() => navigate('/')}>К пространствам</Button>}>
                 У вашей роли нет права открыть этот раздел. Обратитесь к администратору.
               </EmptyState>

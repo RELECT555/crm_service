@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { History } from 'lucide-react'
 import { motion } from 'motion/react'
 import { api, type AuditEntry } from '@/lib/api'
-import { EmptyState, ErrorNotice, LoadingRows, PageHeader } from '@/components/common'
+import { EmptyState, ErrorNotice, PageHeader } from '@/components/common'
+import { Busy, SkeletonText } from '@/components/skeletons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { staggerItem, staggerList } from '@/lib/motion'
@@ -59,7 +60,22 @@ export function Audit() {
     <>
       <PageHeader eyebrow="Администрирование" icon={History} title="Журнал действий" subtitle="Кто, когда и что сделал в админке. Пароли и токены сюда не попадают." />
       {error && <ErrorNotice message={errorText(error)} onRetry={() => void load()} />}
-      {next === undefined && !error && <Card><LoadingRows rows={6} /></Card>}
+      {next === undefined && !error && (
+        <Busy>
+          <SkeletonText className="mb-2 text-[13px]" width="8em" />
+          <Card className="gap-0 py-0">
+            <ol className="divide-y">
+              {['40%', '55%', '35%', '62%', '45%', '50%', '38%'].map(width => (
+                <li key={width} className="grid gap-1 px-5 py-3 sm:grid-cols-[80px_1fr_minmax(0,220px)] sm:items-center sm:gap-4">
+                  <SkeletonText className="text-xs" width="4.5em" />
+                  <SkeletonText className="text-[13px]" width={width} />
+                  <SkeletonText className="text-xs sm:justify-end" width="9em" />
+                </li>
+              ))}
+            </ol>
+          </Card>
+        </Busy>
+      )}
       {next !== undefined && entries.length === 0 && <Card data-tour="audit-empty"><EmptyState title="Записей пока нет" /></Card>}
       <div className="grid gap-6">
         {[...days.entries()].map(([day, list]) => (

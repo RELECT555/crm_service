@@ -3,7 +3,7 @@ import { Dialog } from '@base-ui/react/dialog'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowLeft, ArrowRight, Check, X } from 'lucide-react'
 import { BrandMark } from '@/components/Brand'
-import { AccessPreview, AnalyticsPreview, ConnectPreview, OverviewPreview, SignalsPreview } from '@/components/onboarding/previews'
+import { AccessPreview, ConnectPreview, MapPreview, OverviewPreview, SignalsPreview } from '@/components/onboarding/previews'
 import { Button } from '@/components/ui/button'
 import { dialogSpring, exitFast } from '@/lib/motion'
 
@@ -24,8 +24,8 @@ function slides(firstName: string): Slide[] {
       preview: <ConnectPreview /> },
     { id: 'analytics', eyebrow: 'Аналитика', title: 'Результат и работа — рядом',
       text: 'Сделки и закупки с одной стороны, звонки, встречи, задачи и визиты — с другой. Для каждого менеджера, против команды.',
-      points: ['Полосы — против лидера команды', 'Риска — медиана команды', 'Цвет — из чего состоит работа'],
-      preview: <AnalyticsPreview /> },
+      points: ['Карта «Результат × Работа» и профиль работы', 'Сравнение с медианой и лидером команды', 'Нет данных — включите демо-режим'],
+      preview: <MapPreview /> },
     { id: 'signals', eyebrow: 'Слабые места', title: 'Видно, кому чего не хватает',
       text: 'Где менеджер заметно отличается от команды, появляется сигнал — с объяснением, что именно не так.',
       points: ['Мало встреч или активности', 'Активность не переходит в сделки', 'Сделки без зафиксированной работы'],

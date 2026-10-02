@@ -2,9 +2,10 @@ import type { ReactNode } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { AlertTriangle, BarChart3, Check, Info, LayoutGrid, Lock, Minus, Plug, Users } from 'lucide-react'
 import { BrandMark } from '@/components/Brand'
-import { AnimatedNumber, BarList, MeterBar, MixBar } from '@/components/charts'
+import { AnimatedNumber, BarList } from '@/components/charts'
+import { EffortMap } from '@/components/team-charts'
+import type { ManagerMetrics } from '@/lib/api'
 import { ProviderMark, StatusBadge } from '@/components/common'
-import { SERIES } from '@/lib/chart-colors'
 import { staggerItem, staggerList } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
@@ -96,37 +97,23 @@ export function ConnectPreview() {
   )
 }
 
-const MIX = (values: number[]) => ['Звонок', 'Встреча', 'Задача', 'Письмо', 'Визит']
-  .map((label, index) => ({ key: label, label, value: values[index], color: SERIES[index] }))
-
-const MANAGERS = [
-  { initials: 'АС', name: 'Анна Соколова', deals: 64, work: 418, mix: MIX([220, 48, 90, 60, 0]) },
-  { initials: 'ГО', name: 'Глеб Орлов', deals: 41, work: 292, mix: MIX([180, 30, 60, 0, 22]) },
-  { initials: 'ДМ', name: 'Дарья Миронова', deals: 33, work: 275, mix: MIX([140, 25, 70, 40, 0]) },
-  { initials: 'БК', name: 'Борис Ким', deals: 9, work: 505, mix: MIX([410, 0, 70, 25, 0]) },
+const PREVIEW_TEAM: Array<[string, number, number]> = [
+  ['Анна Соколова', 64, 418], ['Вера Лебедева', 52, 48], ['Глеб Орлов', 41, 292], ['Дарья Миронова', 33, 275], ['Егор Пак', 14, 95], ['Борис Ким', 9, 505],
 ]
 
-export function AnalyticsPreview() {
+/** Minimal manager records for the preview map; only the fields EffortMap reads are meaningful. */
+const previewManagers: ManagerMetrics[] = PREVIEW_TEAM.map(([name, deals, work], index) => ({
+  key: String(index), connectionId: 'preview', ownerId: String(index), name, named: true, deals, dealAmount: 0, purchases: 0,
+  purchaseAmount: 0, work, completed: 0, completionRate: null, linkedWork: 0, workByType: {}, meetings: 0,
+  workPerDeal: Math.round((work / deals) * 10) / 10, dealShare: 0, workShare: 0, signals: [],
+}))
+
+export function MapPreview() {
   return (
     <Window title="Аналитика команды" icon={BarChart3}>
-      <Panel className="grid gap-0 p-0">
-        <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)] gap-3 border-b px-3.5 py-2 text-[11px] text-muted-foreground">
-          <span>Менеджер</span><span>Сделки</span><span>Действия</span><span>Структура</span>
-        </div>
-        {MANAGERS.map(manager => (
-          <motion.div key={manager.name} variants={staggerItem}
-            className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)] items-center gap-3 border-b px-3.5 py-2.5 last:border-b-0">
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="grid size-6 flex-none place-items-center rounded-md bg-muted text-[10px] font-semibold">{manager.initials}</span>
-              <span className="truncate text-[12px] font-medium">{manager.name}</span>
-            </span>
-            <span className="grid gap-1"><span className="text-[12px] tabular-nums">{manager.deals}</span>
-              <MeterBar value={manager.deals} max={64} median={37} color="color-mix(in oklch, var(--foreground) 70%, transparent)" label="Сделки" /></span>
-            <span className="grid gap-1"><span className="text-[12px] tabular-nums">{manager.work}</span>
-              <MeterBar value={manager.work} max={505} median={292} color="var(--primary)" label="Действия" /></span>
-            <MixBar parts={manager.mix} />
-          </motion.div>
-        ))}
+      <Panel>
+        <div className="mb-3 text-[12px] font-medium">Результат × Работа</div>
+        <EffortMap managers={previewManagers} medianWork={283} medianDeals={37} />
       </Panel>
     </Window>
   )

@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { motion } from 'motion/react'
 import { KeyRound, Lock, MoreHorizontal, Pencil, Plus, Trash2, Unlock, UsersRound, X } from 'lucide-react'
 import { api, type AssignmentInput, type Role, type TenantSummary, type UserView } from '@/lib/api'
-import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, PageHeader, ToneBadge } from '@/components/common'
+import { Avatar, EmptyState, ErrorNotice, Field, PageHeader, ToneBadge } from '@/components/common'
+import { Busy, PersonSkeleton, SkeletonBlock, SkeletonText, TableSkeleton } from '@/components/skeletons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -41,7 +42,27 @@ export function Users() {
         subtitle="Кто работает в админке и с какими правами. Роль можно выдать на все пространства или на одно." actions={add} />
       {users.error && <ErrorNotice message={errorText(users.error)} onRetry={users.reload} />}
       <Card className="gap-0 py-0" data-tour="users-list">
-        {!users.data && !users.error && <LoadingRows rows={4} />}
+        {!users.data && !users.error && (
+          <Busy>
+            <div className="hidden md:block">
+              <TableSkeleton rows={3} columns={[
+                { head: 'Пользователь', cell: row => <PersonSkeleton width={['50%', '65%', '42%'][row]} /> },
+                { head: 'Роли', cell: row => <SkeletonBlock className="h-6" style={{ width: ['11rem', '8rem', '13rem'][row] }} /> },
+                { head: 'Статус', cell: () => <SkeletonBlock className="h-6 w-[4.5rem]" /> },
+                { head: 'Последний вход', cell: row => <SkeletonText width={['6em', '8em', '5em'][row]} /> },
+                { head: '', className: 'text-right', cell: () => <SkeletonBlock className="ml-auto size-7" /> },
+              ]} />
+            </div>
+            <ul className="grid divide-y md:hidden">
+              {['55%', '70%', '45%'].map(width => (
+                <li key={width} className="flex items-start gap-3 px-4 py-3.5">
+                  <div className="grid min-w-0 flex-1 gap-2"><PersonSkeleton width={width} /><SkeletonBlock className="h-6 w-44" /></div>
+                  <SkeletonBlock className="size-7" />
+                </li>
+              ))}
+            </ul>
+          </Busy>
+        )}
         {users.data?.length === 0 && <EmptyState title="Пользователей нет" action={add} />}
         {!!users.data?.length && (
           <>

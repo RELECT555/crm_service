@@ -146,6 +146,8 @@ export type WorkspaceAnalytics = {
   coverage: { otherCurrencyDeals: number; otherCurrencies: string[]; unassigned: { deals: number; work: number }
     unnamedManagers: number; notes: string[] }
   connections: Array<{ id: string; provider: string; account: string; status: ConnectionStatus; lastSync: number | null }>
+  /** True for the read-only demo preview (fictional team, docs/metrics.md#demo-data). */
+  demo?: boolean
 }
 
 export class ApiError extends Error {
@@ -216,6 +218,7 @@ export const api = {
 
   // --- Workspaces ---
   analytics: (tenantId: string) => request<WorkspaceAnalytics>(`/v1/tenants/${tenantId}/analytics`),
+  analyticsDemo: (tenantId: string) => request<WorkspaceAnalytics>(`/v1/tenants/${tenantId}/analytics/demo`),
   providers: () => request<{ providers: Provider[] }>('/v1/providers').then(r => r.providers),
   tenants: () => request<{ tenants: TenantSummary[] }>('/v1/tenants').then(r => r.tenants),
   createTenant: (name: string) => request<{ tenantId: string }>('/v1/tenants', { method: 'POST', body: { name } }),

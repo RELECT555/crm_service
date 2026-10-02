@@ -57,6 +57,8 @@ Set each OAuth pair completely or not at all. A missing pair shows «Нужна 
 2. `npm run seed:demo` once, then start `npm run dev:api` and `npm run dev:web` in separate terminals. Both API and seed must use the same database path and encryption key.
 3. Open `http://localhost:5173` and sign in as `owner@example.com` / `demo-password-1` (owner of everything) or `analyst@example.com` / `demo-password-1` (analyst on one workspace — use it to see the permission-gated UI). You get three workspaces, one connection mid-backfill with mappings and five named managers with different work profiles (analytics and weak-spot signals have data), and one connection that needs re-authorization.
 
+To see the analytics with data in any workspace, switch the analytics page to «Демо» (a read-only fictional team, [metrics.md](metrics.md#demo-data)).
+
 On the first sign-in each user sees the welcome presentation and can take the tour ([onboarding.md](onboarding.md)); replay them through «Презентация» / «Тур по разделам» in the user menu. To get a fresh demo, stop the API and choose a new unused `DB_PATH` before seeding. Do not use `--force` as a reset command.
 
 The demo passwords are public and exist only in the seed script; never seed a database that is reachable by anyone else.

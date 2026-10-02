@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { api, type Provider } from '@/lib/api'
-import { ErrorNotice, Field, LoadingRows } from '@/components/common'
+import { ErrorNotice, Field } from '@/components/common'
 import { ProviderDetails, ProviderSheetHeader } from '@/components/ProviderDetails'
-import { ProviderGrid } from '@/components/ProviderGrid'
+import { ProviderGrid, ProviderGridSkeleton } from '@/components/ProviderGrid'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -49,7 +49,7 @@ export function ConnectSheet({ tenantId, open, onOpenChange, initialProvider = n
           {!selected && (
             <>
               {providers.error && <ErrorNotice message={errorText(providers.error)} onRetry={providers.reload} />}
-              {!providers.data && !providers.error && <LoadingRows rows={4} />}
+              {!providers.data && !providers.error && <ProviderGridSkeleton count={4} />}
               {providers.data && <ProviderGrid providers={providers.data} onSelect={setSelected} />}
             </>
           )}

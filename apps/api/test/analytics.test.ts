@@ -96,6 +96,25 @@ test("GET /v1/tenants/:id/analytics aggregates every connection of the workspace
     assert.equal(data.team.dealAmount, 200);
     assert.equal(data.team.linkedRate, 1);
     assert.equal(data.connections.length, 2);
+
+    // Demo preview: same metric code, fictional team, nothing written to the workspace.
+    const before = store.analyticsRows(tenantId).length;
+    const demoResponse = await fetch(`${base}/v1/tenants/${tenantId}/analytics/demo`, { headers: { "x-admin-key": config.adminApiKey } });
+    const demo = await demoResponse.json() as Record<string, any>;
+    assert.equal(demoResponse.status, 200);
+    assert.equal(demo.demo, true);
+    assert.equal(demo.metricVersion, 2);
+    assert.equal(demo.currency, "RUB", "the workspace base currency");
+    assert.equal(demo.team.managers, 6);
+    assert.equal(demo.team.deals, 213);
+    assert.deepEqual(demo.connections, []);
+    assert.match(demo.coverage.notes[0], /^Демо-данные/);
+    const codes = new Set((demo.managers as Array<{ signals: Array<{ code: string }> }>).flatMap(m => m.signals.map(signal => signal.code)));
+    for (const code of ["no_meetings", "activity_without_deals", "deals_without_activity", "low_completion"]) {
+      assert.ok(codes.has(code), `demo team shows the ${code} signal`);
+    }
+    assert.equal(store.analyticsRows(tenantId).length, before, "the demo preview writes nothing");
+    assert.equal((await fetch(`${base}/v1/tenants/${tenantId}/analytics/demo`)).status, 401);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
     store.close();

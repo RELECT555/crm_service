@@ -4,7 +4,6 @@ import type { ConnectionStatus } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
 import { STATUS, type Tone } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -144,14 +143,6 @@ export function EmptyState({ title, children, action }: { title: string; childre
       <p className="mb-1 text-[15px] font-semibold text-foreground">{title}</p>
       {children && <p className="mx-auto max-w-md">{children}</p>}
       {action && <div className="mt-4 flex justify-center">{action}</div>}
-    </div>
-  )
-}
-
-export function LoadingRows({ rows = 3 }: { rows?: number }) {
-  return (
-    <div className="grid gap-3.5 p-5" aria-busy="true" aria-label="Загрузка">
-      {Array.from({ length: rows }, (_, index) => <Skeleton key={index} className="h-3.5" style={{ width: `${90 - index * 15}%` }} />)}
     </div>
   )
 }

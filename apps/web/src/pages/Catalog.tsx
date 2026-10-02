@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { motion } from 'motion/react'
 import { ArrowUpRight, Lock, Plug } from 'lucide-react'
 import { api, type Provider } from '@/lib/api'
-import { ErrorNotice, LoadingRows, PageHeader, ProviderMark } from '@/components/common'
+import { ErrorNotice, PageHeader, ProviderMark } from '@/components/common'
+import { Busy, SkeletonBlock, SkeletonText } from '@/components/skeletons'
 import { ProviderDetails, ProviderSheetHeader } from '@/components/ProviderDetails'
 import { PROVIDER_STATUS } from '@/lib/format'
-import { ProviderGrid } from '@/components/ProviderGrid'
-import { Card } from '@/components/ui/card'
+import { ProviderGrid, ProviderGridSkeleton } from '@/components/ProviderGrid'
 import { Sheet, SheetBody, SheetContent } from '@/components/ui/sheet'
 import { staggerItem, staggerList } from '@/lib/motion'
 import { errorText } from '@/lib/toast'
@@ -25,7 +25,7 @@ export function Catalog() {
       <PageHeader eyebrow="Интеграции" icon={Plug} title="Поддерживаемые CRM"
         subtitle="Что забираем из каждой системы и что нужно для подключения. Все интеграции работают только на чтение." />
       {providers.error && <ErrorNotice message={errorText(providers.error)} onRetry={providers.reload} />}
-      {!providers.data && !providers.error && <Card><LoadingRows rows={4} /></Card>}
+      {!providers.data && !providers.error && <CatalogSkeleton />}
       {providers.data && (
         <div className="grid gap-10">
           <div className="-mt-2 flex flex-wrap gap-2" aria-label="Сводка">
@@ -104,5 +104,43 @@ function ProviderCard({ provider, onOpen }: { provider: Provider; onOpen: () => 
         {provider.status === 'not_configured' && <span className="ml-auto text-warning">нужны ключи</span>}
       </div>
     </motion.button>
+  )
+}
+
+/** The catalog's layout with placeholders: summary chips, connectable cards, planned tiles. */
+function CatalogSkeleton() {
+  return (
+    <Busy className="grid gap-10">
+      <div className="-mt-2 flex flex-wrap gap-2">{['11rem', '13rem', '8.5rem'].map(width => <SkeletonBlock key={width} className="h-7 rounded-full" style={{ width }} />)}</div>
+      <section className="grid gap-4">
+        <div>
+          <h2 className="text-[15px] font-semibold">Можно подключить</h2>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">Коннекторы реализованы. Подключение — из пространства клиента.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {['45%', '50%', '38%'].map(width => (
+            <div key={width} className="flex flex-col rounded-xl bg-card p-5 shadow-card ring-1 ring-border">
+              <div className="flex items-start gap-3.5">
+                <SkeletonBlock className="size-11 rounded-lg" />
+                <div className="min-w-0 flex-1"><SkeletonText className="text-[15px] font-semibold" width={width} /><SkeletonText className="mt-1 text-xs" width="65%" /></div>
+              </div>
+              <div className="mt-5 grid gap-2 text-[13px]">
+                {['Результат', 'Работа'].map(label => (
+                  <div key={label} className="grid grid-cols-[76px_minmax(0,1fr)] gap-2"><span className="text-muted-foreground">{label}</span><SkeletonText width="90%" /></div>
+                ))}
+              </div>
+              <div className="mt-5 flex gap-1.5 border-t pt-4"><SkeletonBlock className="h-6 w-[4.5rem]" /><SkeletonBlock className="h-6 w-28" /></div>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="grid gap-4">
+        <div>
+          <h2 className="text-[15px] font-semibold">В разработке</h2>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">API изучено и описано в документации; коннекторы ещё не реализованы.</p>
+        </div>
+        <ProviderGridSkeleton />
+      </section>
+    </Busy>
   )
 }

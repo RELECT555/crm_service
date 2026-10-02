@@ -54,7 +54,7 @@ Files: `components/onboarding/Welcome.tsx` (dialog, navigation, slides list), `c
 
 - Base UI `Dialog` (modal) owns focus trap, scroll lock and Escape; Motion owns visuals. It uses the normal theme tokens — light or dark like the rest of the app — on `bg-card`, with the preview area on `bg-canvas`. No gradients, glows or special surfaces: the presentation is part of the product, not a poster.
 - Layout: story on the left (step number and eyebrow in `text-primary`, title, one paragraph, three check points, progress segments, buttons); preview on the right as an app window that bleeds off the edge like a product shot. Below `lg` the preview sits on top at 60–75 % scale and the check points are hidden.
-- Previews are built from the real components — `Metric`-like tiles, `BarList`, `MeterBar`, `MixBar`, `ProviderMark`, `StatusBadge`, the role matrix — so they always match the interface. Their numbers are illustrative (`previews.tsx` says so) and never come from customer data. They must not show features that do not exist.
+- Previews are built from the real components — `Metric`-like tiles, `BarList`, `EffortMap`, `ProviderMark`, `StatusBadge`, the role matrix — so they always match the interface. Their numbers are illustrative (`previews.tsx` says so) and never come from customer data. They must not show features that do not exist.
 - Navigation: «Далее» / back arrow buttons, ← → keys, progress segments (each is a button), swipe on the preview, «Пропустить» on the first slide, × and Escape at any time.
 - Motion: the dialog opens with `dialogSpring`; the story cross-fades with a small rise and blur; the preview slides in the direction of travel; check points and preview rows stagger in. Under reduced motion all of it becomes plain fades.
 
@@ -105,7 +105,9 @@ Runtime behavior:
 | `tour:workspace-overview` | `workspace-overview` metric tiles | `workspaces.view` in the tour workspace | workspace |
 | `tour:workspace-connections` | `workspace-connections` section | `workspaces.view` | workspace |
 | `tour:analytics-kpis` | `analytics-kpis`, fallback `analytics-empty` | `analytics.view` | analytics |
+| `tour:analytics-source` | `analytics-source` — the «Пространство / Демо» switch | `analytics.view` | analytics |
 | `tour:analytics-signals` | `analytics-signals` (skipped without data) | `analytics.view` | analytics |
+| `tour:analytics-map` | `analytics-map` — «Результат × Работа» (skipped without data) | `analytics.view` | analytics |
 | `tour:analytics-managers` | `analytics-managers` (skipped without data) | `analytics.view` | analytics |
 | `tour:catalog` | `catalog-ready` | everyone | integrations |
 | `tour:users` | `users-list` | `users.manage` | users |

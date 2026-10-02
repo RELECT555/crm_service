@@ -44,6 +44,7 @@ Login normalizes email by trimming and lowercasing. Bootstrap and password creat
 | `GET /v1/tenants/:id` | `workspaces.view` | `200 { tenant, connections }`; connection counts and backfill progress |
 | `PATCH /v1/tenants/:id` `{ name?, timezone?, currency? }` | `workspaces.manage` | `200 { tenant, connections }`; at least one recognized field required |
 | `GET /v1/tenants/:id/analytics` | `analytics.view` | `200` response from [metrics.md](metrics.md), including connection status and last sync |
+| `GET /v1/tenants/:id/analytics/demo` | `analytics.view` | `200` same shape over a fictional team, `demo: true`, `connections: []`; reads and writes nothing in the workspace ([metrics.md](metrics.md#demo-data)) |
 
 Workspace `timezone` accepts the runtime's supported IANA zones plus `UTC`; `currency` accepts three uppercase letters (the code does not validate against a currency registry). `null` clears those two fields, but not `name`. Timezone is stored for future date-window metrics; it does not filter current all-time totals. Catalog `available` means the adapter and app credentials exist, not that a live authorization has succeeded.
 

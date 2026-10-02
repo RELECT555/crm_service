@@ -1,7 +1,8 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { ExternalLink, MoreHorizontal, Power, PowerOff, RefreshCw, Trash2 } from 'lucide-react'
 import { api, type ConnectionDetail, type JobSummary } from '@/lib/api'
-import { EmptyState, ErrorNotice, Field, LoadingRows, Notice, PageHeader, ProviderMark, Stat, StatusBadge, SyncBar, ToneBadge } from '@/components/common'
+import { EmptyState, ErrorNotice, Field, Notice, PageHeader, ProviderMark, Stat, StatusBadge, SyncBar, ToneBadge } from '@/components/common'
+import { Busy, SkeletonBlock, SkeletonText, TableSkeleton, type SkeletonColumn } from '@/components/skeletons'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -48,9 +49,9 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
       <PageHeader
         crumbs={[{ label: 'Пространства', href: '#/' }, { label: tenant.data?.tenant.name ?? 'Пространство', href: `#/tenants/${tenantId}` },
           { label: data?.connection.account ?? '…' }]}
-        leading={data && <ProviderMark provider={data.connection.provider} large />}
-        title={data ? <span className="break-all">{data.connection.account}</span> : 'Подключение'}
-        actions={data && can('connections.manage', tenantId) && <>
+        leading={data ? <ProviderMark provider={data.connection.provider} large /> : <SkeletonBlock className="size-11 rounded-lg" />}
+        title={data ? <span className="break-all">{data.connection.account}</span> : <SkeletonText className="text-[22px] leading-tight" width="12em" />}
+        actions={!data ? <SkeletonBlock className="h-9 w-full rounded-lg sm:w-52" /> : can('connections.manage', tenantId) && <>
           {data.connection.status === 'disconnected'
             ? <Button size="lg" onClick={() => run(() => api.resume(tenantId, connectionId), 'Подключение возобновлено')}><Power />Возобновить</Button>
             : <Button variant="outline" size="lg" onClick={() => setConfirmResync(true)} disabled={isSyncing(data)}><RefreshCw />Полная синхронизация</Button>}
@@ -66,7 +67,7 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
           </DropdownMenu>
         </>} />
       {detail.error && <ErrorNotice message={errorText(detail.error)} onRetry={detail.reload} />}
-      {!data && !detail.error && <Card><LoadingRows rows={4} /></Card>}
+      {!data && !detail.error && <ConnectionSkeleton />}
       {data && (
         <div className="stagger grid gap-5">
           <ConnectionNotice data={data} onReauthorize={reauthorize} />
@@ -441,7 +442,7 @@ function ActivityLog({ tenantId, connectionId, live }: { tenantId: string; conne
         <CardDescription>Последние 30 заданий. Ошибки повторяются автоматически, после пяти неудач подключение помечается как сбойное.</CardDescription>
       </CardHeader>
       {jobs.error && <div className="p-5"><ErrorNotice message={errorText(jobs.error)} onRetry={jobs.reload} /></div>}
-      {!jobs.data && !jobs.error && <LoadingRows />}
+      {!jobs.data && !jobs.error && <Busy><TableSkeleton rows={5} columns={JOB_COLUMNS} /></Busy>}
       {jobs.data?.length === 0 && <EmptyState title="Заданий пока не было" />}
       {!!jobs.data?.length && (
         <Table>
@@ -467,5 +468,49 @@ function ActivityLog({ tenantId, connectionId, live }: { tenantId: string; conne
         </Table>
       )}
     </Card>
+  )
+}
+
+const JOB_COLUMNS: SkeletonColumn[] = [
+  { head: 'Время', cell: () => <SkeletonText width="8.5em" /> }, { head: 'Задание', cell: row => <SkeletonText width={['9em', '12em', '10em', '8em', '11em'][row]} /> },
+  { head: 'Статус', cell: () => <SkeletonText width="6em" /> }, { head: 'Подробности', cell: () => null },
+]
+
+/** The connection page body with placeholders: status card with its four facts, coverage table, mapping cards. */
+function ConnectionSkeleton() {
+  return (
+    <Busy className="grid gap-5">
+      <div className="rounded-xl bg-card shadow-card ring-1 ring-border">
+        <div className="flex flex-wrap items-center gap-3 border-b px-5 py-4"><SkeletonBlock className="h-6 w-32" /><SkeletonText className="flex-1" width="min(24em, 80%)" /></div>
+        <div className="grid grid-cols-2 divide-x divide-y md:grid-cols-4 md:divide-y-0 [&>*:nth-child(3)]:border-l-0 md:[&>*:nth-child(3)]:border-l">
+          {['Последняя полная синхронизация', 'Изменения из CRM', 'ID аккаунта в CRM', 'Подключено'].map(label => (
+            <div key={label} className="min-w-0 px-5 py-4"><div className="text-xs text-muted-foreground">{label}</div><SkeletonText className="mt-0.5 font-semibold" width="55%" /></div>
+          ))}
+        </div>
+      </div>
+      <Card className="gap-0 pb-0">
+        <CardHeader className="border-b">
+          <CardTitle className="font-semibold">Синхронизация данных</CardTitle>
+          <CardDescription><SkeletonText width="14em" /></CardDescription>
+        </CardHeader>
+        <TableSkeleton rows={5} columns={[
+          { head: 'Объект', cell: row => <SkeletonText className="font-medium" width={['5em', '7em', '6em', '8em', '5.5em'][row]} /> },
+          { head: 'Записей', className: 'text-right', cell: () => <SkeletonText className="justify-end" width="3em" /> },
+          { head: 'Состояние', className: 'w-[32%]', cell: () => <div className="flex items-center gap-3"><SkeletonBlock className="h-1.5 flex-1 rounded-full" /><SkeletonText className="w-24 text-xs" width="70%" /></div> },
+          { head: 'Завершено', cell: () => <SkeletonText width="8.5em" /> },
+        ]} />
+      </Card>
+      <div className="grid gap-5 lg:grid-cols-2">
+        {['Коммерческие процессы', 'Типы действий менеджеров'].map(title => (
+          <Card key={title} className="gap-0">
+            <CardHeader className="border-b"><CardTitle className="font-semibold">{title}</CardTitle><CardDescription><SkeletonText width="85%" /><SkeletonText width="50%" /></CardDescription></CardHeader>
+            <CardContent className="grid gap-3 pt-4">
+              <div className="grid gap-3 sm:grid-cols-2">{[0, 1].map(index => <div key={index} className="grid gap-1.5"><SkeletonText className="text-sm" width="40%" /><SkeletonBlock className="h-9 rounded-lg" /></div>)}</div>
+              <SkeletonBlock className="h-9 w-32 rounded-lg" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </Busy>
   )
 }

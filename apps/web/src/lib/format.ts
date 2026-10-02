@@ -73,3 +73,6 @@ export const PROVIDER_STATUS: Record<Provider['status'], { label: string; dot: s
   not_configured: { label: 'Нужны ключи приложения', dot: 'bg-warning', text: 'Коннектор готов — добавьте ключи приложения на сервер' },
   planned: { label: 'В разработке', dot: 'bg-muted-foreground/40', text: 'API изучено, коннектор ещё не реализован' },
 }
+
+/** Share as a whole percent; «—» when there is nothing to divide. */
+export const percent = (value: number | null) => (value === null ? '—' : `${Math.round(value * 100)}%`)

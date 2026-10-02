@@ -62,12 +62,22 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'tour:analytics-kpis', target: ['analytics-kpis', 'analytics-empty'], needsWorkspace: true, permission: 'analytics.view', route: analytics,
     title: 'Аналитика команды',
     body: 'Главные цифры рядом: результат — сделки, и работа — звонки, встречи, задачи. Так видно, во что превращаются усилия.',
-    fallbackBody: 'Здесь появятся главные цифры команды, слабые места и сравнение менеджеров — как только загрузятся данные из CRM.',
+    fallbackBody: 'Здесь появятся главные цифры команды, слабые места и сравнение менеджеров — как только загрузятся данные из CRM. А пока их можно посмотреть на демо-данных.',
+  },
+  {
+    id: 'tour:analytics-source', target: 'analytics-source', needsWorkspace: true, permission: 'analytics.view', route: analytics,
+    title: 'Демо-режим',
+    body: 'Переключатель показывает те же метрики на вымышленной команде — чтобы понять, как они выглядят. Данные пространства при этом не меняются.',
   },
   {
     id: 'tour:analytics-signals', target: 'analytics-signals', needsWorkspace: true, permission: 'analytics.view', route: analytics,
     title: 'Слабые места',
     body: 'Где менеджер заметно отличается от медианы команды — с объяснением, что именно не так. Это повод для разговора, а не приговор.',
+  },
+  {
+    id: 'tour:analytics-map', target: 'analytics-map', needsWorkspace: true, permission: 'analytics.view', route: analytics,
+    title: 'Результат × Работа',
+    body: 'Каждый менеджер — точка: по горизонтали работа, по вертикали сделки. Медианы делят карту на зоны — видно, кто работает без результата, а у кого результат почти без работы.',
   },
   {
     id: 'tour:analytics-managers', target: 'analytics-managers', needsWorkspace: true, permission: 'analytics.view', route: analytics,

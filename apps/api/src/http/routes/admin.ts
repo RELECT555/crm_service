@@ -1,6 +1,7 @@
 import { generateSecret } from "../../config.ts";
 import { ConnectorInputError, isMappableKind } from "../../connectors/types.ts";
 import { computeAnalytics } from "../../domain/analytics.ts";
+import { demoAnalyticsInput } from "../../domain/demo.ts";
 import { digest } from "../../security/crypto.ts";
 import type { Connection } from "../../storage/store.ts";
 import { queueFullSync } from "../../sync/worker.ts";
@@ -254,6 +255,18 @@ export function adminRoutes(router: Router, { config, store, registry }: AppCont
     const connections = store.listConnections(tenantId);
     json(res, 200, { ...computeAnalytics(store.analyticsRows(tenantId), store.ownerLabels(tenantId), tenant.currency),
       connections: connections.map(c => ({ id: c.id, provider: c.provider, account: c.account, status: c.status, lastSync: c.last_sync })) });
+  });
+
+  // Demo preview: the same metric code over a fictional team. Read-only — nothing is written to the workspace.
+  router.on("GET", "/v1/tenants/:uuid/analytics/demo", ({ res, params: [tenantId], principal }) => {
+    requirePermission(principal, "analytics.view", tenantId);
+    const tenant = store.getTenant(tenantId);
+    if (!tenant) throw new HttpError(404, "Tenant not found");
+    const currency = tenant.currency ?? "RUB";
+    const { rows, labels } = demoAnalyticsInput(currency);
+    const analytics = computeAnalytics(rows, labels, currency);
+    analytics.coverage.notes.unshift("Демо-данные: вымышленная команда. Данные пространства не используются и не меняются.");
+    json(res, 200, { ...analytics, demo: true, connections: [] });
   });
 
   // Per-connection prototype read model (metric version 1), kept for API clients.
