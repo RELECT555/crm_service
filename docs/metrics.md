@@ -58,14 +58,17 @@ Signals are heuristics that point at something worth a conversation; they do not
 
 ## Derived views (computed in the browser, no new server metric)
 
-Both charts read only fields already in the response, so `metricVersion` does not change. Code: `apps/web/src/components/team-charts.tsx`.
+These views read only fields already in the response, so `metricVersion` does not change. Code: `apps/web/src/components/team-charts.tsx` (map, radar) and `team-metrics.tsx` (rings, matrix, contribution).
 
 | View | Definition |
 | --- | --- |
-| **Результат × Работа** (`EffortMap`) | One point per manager: x = `work` (all work items), y = `deals`. Dashed lines at `team.medianWork` and `team.medianDeals` split the plane into four zones, labelled by what is true there — «Много работы и сделок», «Сделки при малой работе», «Работа без сделок», «Мало работы и сделок». Axes start at 0 and end at a rounded maximum (1, 1.5, 2, 2.5, 3, 4, 5, 6, 8 × 10ⁿ) above the largest value. Zones describe position, not quality: a manager in «Сделки при малой работе» may simply log work outside the CRM (see `deals_without_activity`). |
+| **Результат × Работа** (`EffortMap`) | One point per manager (initials): x = `work` (all work items), y = `deals`. Dashed lines at `team.medianWork` and `team.medianDeals` (values printed on the axes) split the plane into four zones; a manager exactly on a median counts as at or above it. Zones are listed under the plot with their members — «Много работы и сделок», «Сделки при малой работе», «Работа без сделок», «Мало работы и сделок». Axes start at 0; the tick step is 1, 2, 2.5 or 5 × 10ⁿ (at least 1) and the axis ends at the first step above 106 % of the largest work value / 110 % of the largest deal count. Hover or focus shows a crosshair, exact values on both axes and `workPerDeal`. Zones describe position, not quality: a manager in «Сделки при малой работе» may simply log work outside the CRM (see `deals_without_activity`). |
 | **Профиль работы** (`WorkRadar`) | For one manager: each work type (call, meeting, task, email, visit) as the manager's count ÷ the largest count of that type in the team (0–1), plus `completionRate` (0–1). The dashed polygon is the per-axis median of the same values over all managers. «Сильнее команды» lists axes where the manager is > 120 % of the median and at least 0.05 above it; «Слабее» — < 80 % and at least 0.05 below. Shapes compare people within this team only; they are not targets. |
+| **Кольца менеджеров** (`TeamRings`) | Three rings per manager, outer to inner: **Объём** = `work` ÷ `team.medianWork` (the ring closes at the median; above it a second, darker lap is drawn, capped visually at two laps; the printed value is exact, e.g. ×1,8; «—» when the median is 0); **Выполнено** = `completionRate`; **По сделкам** = `linkedWork` ÷ `work` (same link caveat as `linkedRate`; «—» without work). |
+| **Матрица работы** (`WorkMatrix`) | Rows = managers, columns = work types in the fixed slot order (call, meeting, task, email, visit) plus «Другое» when any manager has other types. Cell value = the manager's count of that type; cell shade = value ÷ the largest count of that type in the team (one hue, 10–90 % strength); zero is «—». The caption names the hovered cell and its rank (1 + the number of managers with a strictly larger count). |
+| **Вклад в команду** (`Contribution`) | Per manager, `dealShare` and `workShare` (share of the team's deals and work) on one percent axis, joined by a bar. **Отдача** = `dealShare` ÷ `workShare`, one decimal; above ×1 the manager's share of deals exceeds their share of work. «—» and last place when `workShare` is 0. Sorted by отдача, descending. Like the map, a high отдача can also mean work logged outside the CRM. |
 
-Depth (perspective, tilt, layered marks) is presentation only: positions, lengths and polygon shapes are computed in flat 2-D coordinates and never distorted.
+Depth (perspective, tilt, layered marks — used by «Профиль работы») is presentation only: positions, lengths and polygon shapes are computed in flat 2-D coordinates and never distorted.
 
 ## Demo data
 

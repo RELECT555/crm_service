@@ -81,6 +81,21 @@ export const TOUR_STEPS: TourStep[] = [
     body: 'Каждый менеджер — точка: по горизонтали работа, по вертикали сделки. Медианы делят карту на зоны — видно, кто работает без результата, а у кого результат почти без работы.',
   },
   {
+    id: 'tour:analytics-rings', target: 'analytics-rings', needsWorkspace: true, permission: 'analytics.view', route: analytics,
+    title: 'Кольца менеджеров',
+    body: 'Три кольца на человека: объём работы к медиане команды, доля выполненного и доля действий по сделкам. Незамкнутое кольцо — то, чего не хватает.',
+  },
+  {
+    id: 'tour:analytics-matrix', target: 'analytics-matrix', needsWorkspace: true, permission: 'analytics.view', route: analytics,
+    title: 'Матрица работы',
+    body: 'Кто какие действия делает: строки — менеджеры, столбцы — типы. Тёмная ячейка — близко к лидеру команды, прочерк — такой работы нет совсем.',
+  },
+  {
+    id: 'tour:analytics-contribution', target: 'analytics-contribution', needsWorkspace: true, permission: 'analytics.view', route: analytics,
+    title: 'Вклад в команду',
+    body: 'Доля человека в сделках и в работе команды. Отдача выше ×1 — его работа превращается в сделки лучше среднего.',
+  },
+  {
     id: 'tour:analytics-managers', target: 'analytics-managers', needsWorkspace: true, permission: 'analytics.view', route: analytics,
     title: 'Каждый менеджер',
     body: 'Сделки и действия против лидера команды, риска — медиана. Цветная полоса показывает, из чего состоит работа человека.',

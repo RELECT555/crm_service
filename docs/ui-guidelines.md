@@ -119,12 +119,16 @@ Built by hand in `components/charts.tsx` from the dataviz rules: thin marks, 4px
 | `MixBar` | composition of one manager's work by type (shares) |
 | `Legend` | series identity; always shown for ≥ 2 series |
 
-- Categorical colors come from `SERIES` / `SERIES_OTHER` in `lib/chart-colors.ts` (tokens `--series-*`, separate light and dark steps validated for color-vision deficiency against the card surface). Slots are assigned to entities in a **fixed order** (`TYPE_SLOTS` in `pages/Analytics.tsx`: call, meeting, task, email, visit); anything else folds into «Другое». Never cycle colors, never pick by rank.
+- Categorical colors come from `SERIES` / `SERIES_OTHER` in `lib/chart-colors.ts` (tokens `--series-*`, separate light and dark steps validated for color-vision deficiency against the card surface). Slots are assigned to entities in a **fixed order** (`TYPE_SLOTS` / `typeColor` in `lib/chart-colors.ts`: call, meeting, task, email, visit); anything else folds into «Другое». Never cycle colors, never pick by rank.
+- Magnitude within one measure (the work matrix) uses one hue, light → dark (`--primary` at 10–90 %), with the number printed in every cell. The manager rings use the primary violet and two blends of it (toward `--series-1` and `--series-5`), identified by position and label too, so they never reuse a work-type slot.
+- Axes with numbers use `niceScale` (`lib/chart-scale.ts`): steps of 1, 2, 2.5 or 5 × 10ⁿ; tick labels that would collide with a median or hover value are hidden.
 - Status colors (`warning`, `destructive`…) mark signals, always with an icon and text; they are never a chart series.
 - Every chart has a text equivalent: the manager table carries the exact numbers, tooltips repeat the value in words.
 - One measure per axis; two measures of different scale get two charts.
 
-**Charts with depth** (`components/team-charts.tsx`: `EffortMap`, `WorkRadar`, built on `Tilt3D` and `Layer`). The plot plane rises into place (rotateX 24° → 0 on a spring), marks sit on layers 14–40 px above it, and the plane tilts up to 5–7° after a mouse pointer (not touch). The data is always drawn in flat coordinates — depth never changes a position, length or area — and under reduced motion there is no rise and no tilt. Use depth only for charts that compare people or positions at a glance, never for precise reading (tables keep that job). Definitions: [metrics.md](metrics.md#derived-views-computed-in-the-browser-no-new-server-metric).
+**Team views** (`components/team-charts.tsx`, `components/team-metrics.tsx`): `EffortMap` (flat scatter with axes, medians, zone summary and a hover crosshair), `WorkRadar`, `TeamRings`, `WorkMatrix`, `Contribution`. Each has a skeleton twin in `pages/Analytics.tsx` and a tour step.
+
+**Charts with depth** (`WorkRadar`, built on `Tilt3D` and `Layer`; the effort map is flat because it is read for exact positions). The plot plane rises into place (rotateX 24° → 0 on a spring), marks sit on layers 14–40 px above it, and the plane tilts up to 5–7° after a mouse pointer (not touch). The data is always drawn in flat coordinates — depth never changes a position, length or area — and under reduced motion there is no rise and no tilt. Use depth only for charts that compare people or positions at a glance, never for precise reading (tables keep that job). Definitions: [metrics.md](metrics.md#derived-views-computed-in-the-browser-no-new-server-metric).
 
 ## Loading (skeletons)
 

@@ -108,6 +108,9 @@ Runtime behavior:
 | `tour:analytics-source` | `analytics-source` — the «Пространство / Демо» switch | `analytics.view` | analytics |
 | `tour:analytics-signals` | `analytics-signals` (skipped without data) | `analytics.view` | analytics |
 | `tour:analytics-map` | `analytics-map` — «Результат × Работа» (skipped without data) | `analytics.view` | analytics |
+| `tour:analytics-rings` | `analytics-rings` — «Кольца менеджеров» (skipped without data) | `analytics.view` | analytics |
+| `tour:analytics-matrix` | `analytics-matrix` — «Матрица работы» (skipped without data) | `analytics.view` | analytics |
+| `tour:analytics-contribution` | `analytics-contribution` — «Вклад в команду» (skipped without data) | `analytics.view` | analytics |
 | `tour:analytics-managers` | `analytics-managers` (skipped without data) | `analytics.view` | analytics |
 | `tour:catalog` | `catalog-ready` | everyone | integrations |
 | `tour:users` | `users-list` | `users.manage` | users |
@@ -119,6 +122,8 @@ Runtime behavior:
 The step ids changed on 2026-10-02 when the tour moved from sidebar items to in-page blocks; users who had seen the old tour are offered the new steps once as «Новое в админке».
 
 ## Verified
+
+Analytics views added on 2026-10-02 (rings, matrix, contribution): the three steps were offered as «Новое в админке» to an owner who had seen the rest, and each highlighted its card on the seeded workspace at 1440 px (Chromium).
 
 Settings added on 2026-10-02: the owner tour now has 12 steps. Checked the new in-page «Мои настройки» target at 1440, 820 and 390 px in Chromium/dark mode with reduced motion; its card stays clear of the profile block. Completed the tour and verified return to `/#/settings`. Replay opens from the settings help block; the mobile menu entry closes the navigation sheet.
 
