@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { MotionConfig } from 'motion/react'
 import App from '@/App'
 import { SessionProvider } from '@/components/SessionProvider'
+import { OnboardingProvider } from '@/components/onboarding/OnboardingProvider'
 import { ToastProvider } from '@/components/Toasts'
 import './index.css'
 
@@ -12,7 +13,9 @@ createRoot(document.getElementById('root')!).render(
     <MotionConfig reducedMotion="user">
       <ToastProvider>
         <SessionProvider>
-          <App />
+          <OnboardingProvider>
+            <App />
+          </OnboardingProvider>
         </SessionProvider>
       </ToastProvider>
     </MotionConfig>

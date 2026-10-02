@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { motion } from 'motion/react'
 import {
-  BarChart3, Check, ChevronsUpDown, History, KeyRound, LayoutGrid, Layers, LogOut, Menu, Monitor, Moon, PanelLeftClose,
-  PanelLeftOpen, Plug, Plus, ShieldCheck, Sun, Users,
+  BarChart3, Check, ChevronsUpDown, Compass, History, KeyRound, LayoutGrid, Layers, LogOut, Menu, Monitor, Moon, PanelLeftClose,
+  PanelLeftOpen, Plug, Plus, ShieldCheck, Sparkles, Sun, Users,
 } from 'lucide-react'
 import { Brand } from '@/components/Brand'
 import { Avatar, Field } from '@/components/common'
@@ -16,8 +16,10 @@ import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { api, type TenantSummary } from '@/lib/api'
 import { plural } from '@/lib/format'
+import { useOnboarding } from '@/lib/onboarding'
 import { navigate } from '@/lib/router'
 import { useCan, useSession } from '@/lib/session'
+import { LAST_TENANT_KEY, readStorage, writeStorage } from '@/lib/storage'
 import { setTheme, type ThemePreference, useTheme } from '@/lib/theme'
 import { errorText, useToast } from '@/lib/toast'
 import { useMediaQuery } from '@/lib/use-media'
@@ -25,14 +27,6 @@ import { useResource } from '@/lib/use-resource'
 import { cn } from '@/lib/utils'
 
 const COLLAPSE_KEY = 'crm-sidebar-collapsed'
-const LAST_TENANT_KEY = 'crm-last-tenant'
-
-function readStorage(key: string): string | null {
-  try { return localStorage.getItem(key) } catch { return null }
-}
-function writeStorage(key: string, value: string): void {
-  try { localStorage.setItem(key, value) } catch { /* preference lasts for this page only */ }
-}
 
 /**
  * Responsive navigation (docs/ui-guidelines.md#layout):
@@ -51,7 +45,7 @@ export function Sidebar({ route }: { route: string[] }) {
     <>
       <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-sidebar/85 px-4 py-2.5 backdrop-blur-md md:hidden">
         <Brand />
-        <button type="button" aria-label="Открыть меню" onClick={() => setMobileOpen(true)}
+        <button type="button" aria-label="Открыть меню" onClick={() => setMobileOpen(true)} data-tour="menu"
           className="grid size-9 place-items-center rounded-lg text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
           <Menu className="size-5" />
         </button>
@@ -84,10 +78,10 @@ function SidebarContent({ route, collapsed, onToggle, onNavigate }: {
   // Someone with a single workspace never has to pick it first.
   const current = tenants.data?.find(tenant => tenant.id === currentId) ?? (tenants.data?.length === 1 ? tenants.data[0] : null)
   const admin = [
-    can('users.manage') && { href: '#/users', icon: Users, label: 'Пользователи', active: section === 'users' },
-    can('users.manage') && { href: '#/roles', icon: ShieldCheck, label: 'Роли и права', active: section === 'roles' },
-    can('audit.view') && { href: '#/audit', icon: History, label: 'Журнал действий', active: section === 'audit' },
-  ].filter(Boolean) as Array<{ href: string; icon: typeof Users; label: string; active: boolean }>
+    can('users.manage') && { tour: 'nav-users', href: '#/users', icon: Users, label: 'Пользователи', active: section === 'users' },
+    can('users.manage') && { tour: 'nav-roles', href: '#/roles', icon: ShieldCheck, label: 'Роли и права', active: section === 'roles' },
+    can('audit.view') && { tour: 'nav-audit', href: '#/audit', icon: History, label: 'Журнал действий', active: section === 'audit' },
+  ].filter(Boolean) as Array<{ tour: string; href: string; icon: typeof Users; label: string; active: boolean }>
 
   return (
     <div className="flex h-full w-full flex-col px-3 py-3.5">
@@ -99,17 +93,17 @@ function SidebarContent({ route, collapsed, onToggle, onNavigate }: {
 
       <nav aria-label="Разделы" className="mt-4 grid gap-0.5 overflow-y-auto">
         <Section label="Пространство" collapsed={collapsed} first />
-        <NavItem href={current ? `#/tenants/${current.id}` : '#/'} icon={LayoutGrid} label="Обзор" collapsed={collapsed} onNavigate={onNavigate}
+        <NavItem tour="nav-overview" href={current ? `#/tenants/${current.id}` : '#/'} icon={LayoutGrid} label="Обзор" collapsed={collapsed} onNavigate={onNavigate}
           active={section === 'tenants' && !!routeTenant && sub !== 'analytics'} disabled={!current} />
         {(!current || can('analytics.view', current.id)) && (
-          <NavItem href={current ? `#/tenants/${current.id}/analytics` : '#/'} icon={BarChart3} label="Аналитика" collapsed={collapsed}
+          <NavItem tour="nav-analytics" href={current ? `#/tenants/${current.id}/analytics` : '#/'} icon={BarChart3} label="Аналитика" collapsed={collapsed}
             onNavigate={onNavigate} active={section === 'tenants' && sub === 'analytics'} disabled={!current} />
         )}
         {admin.length > 0 && <Section label="Администрирование" collapsed={collapsed} />}
         {admin.map(item => <NavItem key={item.href} {...item} collapsed={collapsed} onNavigate={onNavigate} />)}
         <Section label="Сервис" collapsed={collapsed} />
         <NavItem href="#/" icon={Layers} label="Все пространства" collapsed={collapsed} onNavigate={onNavigate} active={route.length === 0} />
-        <NavItem href="#/integrations" icon={Plug} label="Интеграции" collapsed={collapsed} onNavigate={onNavigate} active={section === 'integrations'} />
+        <NavItem tour="nav-integrations" href="#/integrations" icon={Plug} label="Интеграции" collapsed={collapsed} onNavigate={onNavigate} active={section === 'integrations'} />
       </nav>
 
       <div className="mt-auto grid grid-cols-[minmax(0,1fr)] gap-1 pt-3">
@@ -136,6 +130,7 @@ function WorkspaceSwitcher({ tenants, current, collapsed, onNavigate }: {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
+        data-tour="workspace-switcher"
         className={cn('flex h-11 w-full items-center gap-2.5 rounded-xl bg-card text-left shadow-card ring-1 ring-border transition-colors outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-muted/60',
           collapsed ? 'justify-center px-0' : 'px-2')}
         title={collapsed ? name : undefined}>
@@ -181,6 +176,7 @@ const THEMES: Array<{ value: ThemePreference; label: string; icon: typeof Sun }>
 
 function UserMenu({ collapsed }: { collapsed: boolean }) {
   const { me, signOut } = useSession()
+  const onboarding = useOnboarding()
   const { preference } = useTheme()
   const [passwordOpen, setPasswordOpen] = useState(false)
   const name = me.user?.name ?? 'Сервисный ключ'
@@ -189,6 +185,7 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
+          data-tour="user-menu"
           className={cn('flex h-11 w-full items-center gap-2.5 rounded-xl text-left transition-colors outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-sidebar-accent',
             collapsed ? 'justify-center px-0' : 'px-2')} title={collapsed ? name : undefined}>
           <span className="grid size-7 flex-none place-items-center rounded-full bg-accent text-[11px] font-semibold text-accent-foreground">
@@ -211,6 +208,9 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
               <DropdownMenuRadioItem key={theme.value} value={theme.value} closeOnClick={false}><theme.icon />{theme.label}</DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onboarding.startTour}><Compass />Тур по разделам</DropdownMenuItem>
+          <DropdownMenuItem onClick={onboarding.showWelcome}><Sparkles />Презентация</DropdownMenuItem>
           <DropdownMenuSeparator />
           {me.user && <DropdownMenuItem onClick={() => setPasswordOpen(true)}><KeyRound />Сменить пароль</DropdownMenuItem>}
           <DropdownMenuItem variant="destructive" onClick={() => void signOut()}><LogOut />Выйти</DropdownMenuItem>
@@ -262,11 +262,13 @@ function ChangePassword({ open, onOpenChange }: { open: boolean; onOpenChange: (
   )
 }
 
-function NavItem({ href, icon: Icon, label, active, collapsed, disabled, onNavigate }: {
+function NavItem({ href, icon: Icon, label, active, collapsed, disabled, onNavigate, tour }: {
   href: string; icon: typeof Layers; label: string; active: boolean; collapsed: boolean; disabled?: boolean; onNavigate?: () => void
+  /** `data-tour` anchor for the onboarding tour (lib/onboarding.ts). */
+  tour?: string
 }) {
   return (
-    <a href={href} onClick={onNavigate} aria-current={active ? 'page' : undefined} aria-disabled={disabled || undefined}
+    <a href={href} onClick={onNavigate} data-tour={tour} aria-current={active ? 'page' : undefined} aria-disabled={disabled || undefined}
       title={collapsed ? label : undefined}
       className={cn('relative flex h-8 items-center gap-2.5 rounded-lg text-[13px] font-medium text-sidebar-foreground no-underline transition-colors duration-150 hover:bg-sidebar-accent/70 hover:text-foreground hover:no-underline',
         collapsed ? 'justify-center px-0' : 'px-2.5',

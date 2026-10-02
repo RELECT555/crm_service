@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, useCallback, useContext } from 'react'
 import type { Me } from '@/lib/api'
 
 /** Permission ids, mirrored from apps/api/src/domain/permissions.ts. */
@@ -26,5 +26,6 @@ export function canIn(me: Me, permission: Permission, tenantId?: string): boolea
 
 export function useCan(): (permission: Permission, tenantId?: string) => boolean {
   const { me } = useSession()
-  return (permission, tenantId) => canIn(me, permission, tenantId)
+  // Stable per session, so effects may depend on it.
+  return useCallback((permission, tenantId) => canIn(me, permission, tenantId), [me])
 }

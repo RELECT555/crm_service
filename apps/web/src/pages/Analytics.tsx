@@ -70,7 +70,7 @@ function Dashboard({ data }: { data: WorkspaceAnalytics }) {
   const signals = data.managers.flatMap(manager => manager.signals.map(signal => ({ manager, signal })))
   return (
     <motion.div className="grid min-w-0 grid-cols-1 gap-5" variants={staggerList} initial="hidden" animate="show">
-      <motion.div variants={staggerItem} className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <motion.div variants={staggerItem} className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-tour="analytics-kpis">
         {kpis.map(kpi => (
           <Card key={kpi.label} className="min-w-0 gap-1 px-4 py-4 sm:px-5">
             <div className="text-[13px] text-muted-foreground">{kpi.label}</div>
@@ -91,7 +91,7 @@ function Dashboard({ data }: { data: WorkspaceAnalytics }) {
               hint: `${actionLabel(item.type)}: ${numberFormat.format(item.count)}, выполнено ${percent(item.count ? item.completed / item.count : null)}` }))} />
           </CardContent>
         </Card>
-        <Card className="min-w-0 lg:col-span-3">
+        <Card className="min-w-0 lg:col-span-3" data-tour="analytics-signals">
           <CardHeader>
             <CardTitle className="font-semibold">Слабые места</CardTitle>
             <CardDescription>Сравнение с медианой команды. Это повод для разговора, а не вывод о причинах.</CardDescription>
@@ -130,7 +130,7 @@ function Managers({ data }: { data: WorkspaceAnalytics }) {
   const maxWork = Math.max(1, ...data.managers.map(m => m.work))
   const legend = mixParts({}).map(part => ({ label: part.label, color: part.color }))
   return (
-    <Card className="gap-0 pb-0">
+    <Card className="gap-0 pb-0" data-tour="analytics-managers">
       <CardHeader className="border-b">
         <CardTitle className="font-semibold">Менеджеры</CardTitle>
         <CardDescription>Полосы сравнивают с лидером команды, вертикальная риска — медиана. Структура работы — доли типов действий.</CardDescription>

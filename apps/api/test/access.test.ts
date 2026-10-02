@@ -45,6 +45,21 @@ test("access control: bootstrap, sessions, workspace-scoped roles, escalation gu
     const me = await owner.call("/v1/me");
     assert.equal(me.data.user.email, "owner@example.com");
     assert.ok(me.data.permissions.global.includes("roles.manage"));
+
+    // Onboarding: a per-user set of offered presentation/tour ids (docs/onboarding.md).
+    assert.deepEqual(me.data.onboarding, { seen: [] });
+    assert.deepEqual((await owner.call("/v1/me/onboarding", "POST", { seen: ["welcome:1", "tour:nav-analytics"] })).data,
+      { seen: ["welcome:1", "tour:nav-analytics"] });
+    assert.deepEqual((await owner.call("/v1/me/onboarding", "POST", { seen: ["tour:nav-analytics", "tour:user-menu"] })).data,
+      { seen: ["welcome:1", "tour:nav-analytics", "tour:user-menu"] }, "marking is idempotent and keeps first-seen order");
+    assert.deepEqual((await owner.call("/v1/me")).data.onboarding.seen, ["welcome:1", "tour:nav-analytics", "tour:user-menu"]);
+    for (const seen of [[], ["Bad Id"], "welcome:1", Array.from({ length: 51 }, (_, i) => `tour:${i}`)]) {
+      assert.equal((await owner.call("/v1/me/onboarding", "POST", { seen })).status, 400, `rejects ${JSON.stringify(seen).slice(0, 30)}`);
+    }
+    assert.equal((await owner.call("/v1/me/onboarding", "POST", { seen: ["welcome:2"] }, { csrf: false })).status, 403);
+    const service = await fetch(`${base}/v1/me/onboarding`, { method: "POST", headers: { "x-admin-key": config.adminApiKey,
+      "content-type": "application/json" }, body: JSON.stringify({ seen: ["welcome:1"] }) });
+    assert.equal(service.status, 400, "the service key has no onboarding state");
     assert.equal((await owner.call("/v1/tenants", "POST", { name: "A" }, { csrf: false })).status, 403, "cookie mutations need the CSRF header");
     const tenantA = (await owner.call("/v1/tenants", "POST", { name: "A" })).data.tenantId as string;
     const tenantB = (await owner.call("/v1/tenants", "POST", { name: "B" })).data.tenantId as string;
@@ -103,6 +118,7 @@ test("access control: bootstrap, sessions, workspace-scoped roles, escalation gu
     for (const action of ["user.bootstrap_owner", "workspace.create", "role.create", "user.create", "auth.login_failed", "user.update", "role.delete"]) {
       assert.ok(auditLog.some(entry => entry.action === action), `audit has ${action}`);
     }
+    assert.ok(!auditLog.some(entry => entry.action.includes("onboarding")), "onboarding is a preference, not audited");
     assert.equal((await integrator.call("/v1/audit")).status, 403);
 
     for (let attempt = 0; attempt < 8; attempt++) await client().login("v@example.com", "bad-password");

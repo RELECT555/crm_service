@@ -49,12 +49,27 @@ export function accessRoutes(router: Router, { store }: AppContext): Router {
 
   router.on("GET", "/v1/me", ({ res, principal }) => {
     if (principal.kind === "system") {
-      return json(res, 200, { user: null, system: true, permissions: { global: PERMISSIONS.map(p => p.id), workspaces: {} } });
+      return json(res, 200, { user: null, system: true, permissions: { global: PERMISSIONS.map(p => p.id), workspaces: {} },
+        onboarding: null });
     }
     const workspaces: Record<string, string[]> = {};
     for (const [tenantId, set] of principal.grants) if (tenantId !== "*") workspaces[tenantId] = [...set];
     json(res, 200, { user: userView(principal.user.id), system: false,
-      permissions: { global: [...(principal.grants.get("*") ?? [])], workspaces } });
+      permissions: { global: [...(principal.grants.get("*") ?? [])], workspaces },
+      onboarding: { seen: access.onboardingSeen(principal.user.id) } });
+  });
+
+  // A personal UI preference, not an admin action: no permission and no audit entry.
+  router.on("POST", "/v1/me/onboarding", async ({ req, res, principal }) => {
+    if (principal.kind !== "user") throw new HttpError(400, "Service key has no onboarding state");
+    const body = await readJson(req);
+    const ids = body.seen;
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > 50 ||
+        !ids.every(id => typeof id === "string" && /^[a-z0-9][a-z0-9:._-]{0,63}$/.test(id))) {
+      throw new HttpError(400, "seen must be a list of 1-50 step ids");
+    }
+    if (new Set([...access.onboardingSeen(principal.user.id), ...ids]).size > 500) throw new HttpError(400, "Too many onboarding ids");
+    json(res, 200, { seen: access.markOnboardingSeen(principal.user.id, ids) });
   });
 
   router.on("POST", "/v1/me/password", async ({ req, res, principal }) => {

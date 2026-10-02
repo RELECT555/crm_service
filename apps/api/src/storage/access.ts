@@ -37,6 +37,9 @@ export class AccessStore {
         id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, actor_id TEXT, actor_label TEXT NOT NULL,
         action TEXT NOT NULL, target_type TEXT, target_id TEXT, tenant_id TEXT, details TEXT);
       CREATE INDEX IF NOT EXISTS audit_at ON audit_log(at DESC);
+      CREATE TABLE IF NOT EXISTS user_onboarding (
+        user_id TEXT PRIMARY KEY, seen TEXT NOT NULL, updated_at INTEGER NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
     `);
     // Built-in roles are re-synced on start so permission changes in code reach existing databases.
     const now = Date.now();
@@ -133,6 +136,19 @@ export class AccessStore {
   activeOwnerIds(): string[] {
     return (this.db.prepare(`SELECT DISTINCT u.id FROM users u JOIN role_assignments a ON a.user_id=u.id
       WHERE a.role_id='builtin:owner' AND a.tenant_id='*' AND u.status='active'`).all() as Array<{ id: string }>).map(row => row.id);
+  }
+
+  // --- Onboarding (welcome presentation and tour steps a user has been offered; docs/onboarding.md) ---
+  onboardingSeen(userId: string): string[] {
+    const row = this.db.prepare("SELECT seen FROM user_onboarding WHERE user_id=?").get(userId) as { seen: string } | undefined;
+    return row ? JSON.parse(row.seen) as string[] : [];
+  }
+  /** Adds ids to the user's seen set (idempotent, order of first sight kept) and returns the whole set. */
+  markOnboardingSeen(userId: string, ids: string[]): string[] {
+    const seen = [...new Set([...this.onboardingSeen(userId), ...ids])];
+    this.db.prepare(`INSERT INTO user_onboarding (user_id,seen,updated_at) VALUES (?,?,?)
+      ON CONFLICT(user_id) DO UPDATE SET seen=excluded.seen, updated_at=excluded.updated_at`).run(userId, JSON.stringify(seen), Date.now());
+    return seen;
   }
 
   // --- Sessions ---

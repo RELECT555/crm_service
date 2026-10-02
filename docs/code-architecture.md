@@ -15,7 +15,7 @@ apps/
       domain/permissions.ts    permission catalog + built-in roles (docs/access-control.md); pure data
       domain/analytics.ts      computeAnalytics: aggregate rows -> team/manager metrics + signals (docs/metrics.md); pure
       storage/store.ts         the only SQL for tenants, connections, records, jobs; forward-only migrations
-      storage/access.ts        the only SQL for users, roles, assignments, sessions, audit log (store.access)
+      storage/access.ts        the only SQL for users, roles, assignments, sessions, audit log, onboarding state (store.access)
       security/crypto.ts       AES-256-GCM sealing, SHA-256 digests, constant-time compare
       security/password.ts     scrypt password hashing and verification
       connectors/
@@ -39,23 +39,26 @@ apps/
         auth.ts                Principal, resolvePrincipal (cookie session or x-admin-key), can/requirePermission, CSRF, login throttle
         routes/public.ts       /healthz, /oauth/:provider/callback, /webhooks/:provider/:secret
         routes/auth.ts         /v1/auth/* (status, bootstrap, login, logout) — reachable without a principal
-        routes/access.ts       /v1/me, users, roles, permissions, audit (docs/access-control.md)
+        routes/access.ts       /v1/me (+ password, onboarding), users, roles, permissions, audit (docs/access-control.md)
         routes/admin.ts        /v1/tenants/*, connections, mappings, analytics — each route checks one permission
     test/                      node:test integration tests against an in-memory store and mocked fetch
     scripts/seed-demo.ts       demo workspaces/connections for UI work without a CRM (npm run seed:demo)
   web/                         React 19 + Vite + Tailwind CSS + shadcn (Base UI) + Motion admin UI
     src/
-      main.tsx                 MotionConfig (reduced motion) -> SessionProvider -> App
+      main.tsx                 MotionConfig (reduced motion) -> SessionProvider -> OnboardingProvider -> App
       App.tsx                  hash routes -> page + required permission; lazy page chunks; page transitions
       components/ui/           shadcn primitives (button, card, dialog, sheet, dropdown-menu, table, ...); overlays animated with Motion
       components/              app building blocks composed from ui/: Sidebar, SessionProvider, charts, common
       components/LoginBackdrop.tsx  decorative sign-in canvas; Motion loop, reduced motion, visibility and context lifecycle
+      components/onboarding/   welcome presentation, guided tour, OnboardingProvider (docs/onboarding.md); lazy chunks
       pages/                   one file per screen; owns data loading for that screen
                                Workspaces, Workspace, Connection, Catalog, Analytics, Users, Roles, Audit, Login
       lib/api.ts               typed client for /v1; the only module that calls fetch; cookie session + CSRF header
       lib/session.ts           session context, Permission ids (mirror of domain/permissions.ts), useCan()
       lib/motion.ts            Motion presets (springs, stagger variants) — docs/ui-guidelines.md#motion
       lib/login-shader.ts      sign-in WebGL renderer; theme-token uniforms, bounded resolution, static CSS fallback
+      lib/onboarding.ts        WELCOME_ID, TOUR_STEPS registry, eligibleSteps, useOnboarding
+      lib/storage.ts           localStorage helpers and keys (never for state that must persist)
       lib/chart-colors.ts      validated categorical chart slots (CSS tokens --series-*)
       lib/use-media.ts         useMediaQuery for behavior that changes by breakpoint
       lib/                     router, use-resource hook, formatting/labels, toasts, theme, cn()
@@ -143,6 +146,7 @@ Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_requ
 - All copy is Russian, concise, and states consequences ("запустит полную пересинхронизацию").
 - Sign-in is by email and password; the session is an HttpOnly cookie the browser script cannot read. `lib/api.ts` sends the CSRF header on every request and fires a session-expired event on 401, which returns the app to the login screen. The operator key is typed only once, on the first-owner bootstrap screen.
 - Permission-gated UI uses `useCan()`; pages register their required permission in `resolve()` in `App.tsx`.
+- Onboarding: the presentation and tour are data-driven (`lib/onboarding.ts`); a new section adds a `data-tour` anchor and a tour step ([onboarding.md](onboarding.md)).
 - Animations use Motion presets from `lib/motion.ts`; responsive layouts follow the three-layout rule (phone top bar, tablet rail, desktop sidebar). Both are specified in [ui-guidelines.md](ui-guidelines.md).
 
 ## Testing

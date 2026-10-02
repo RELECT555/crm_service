@@ -109,6 +109,8 @@ export type Me = {
   user: (UserView & { assignments: AssignmentInput[] }) | null
   system: boolean
   permissions: { global: string[]; workspaces: Record<string, string[]> }
+  /** Presentation and tour ids already offered to this user (docs/onboarding.md); null for the service key. */
+  onboarding: { seen: string[] } | null
 }
 export type PermissionInfo = { id: string; scope: 'global' | 'workspace'; group: string; label: string; description: string }
 export type AssignmentInput = { roleId: string; tenantId: string | null }
@@ -194,6 +196,8 @@ export const api = {
   me: () => request<Me>('/v1/me', { quiet401: true }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request('/v1/me/password', { method: 'POST', body: { currentPassword, newPassword } }),
+  markOnboarding: (seen: string[]) =>
+    request<{ seen: string[] }>('/v1/me/onboarding', { method: 'POST', body: { seen } }).then(r => r.seen),
 
   // --- Access control ---
   permissions: () => request<{ permissions: PermissionInfo[] }>('/v1/permissions').then(r => r.permissions),

@@ -65,6 +65,7 @@ Lists are filtered, not refused: `GET /v1/tenants` returns only workspaces the c
 | `POST /v1/auth/logout` | anyone | Deletes the session, clears the cookie |
 | `GET /v1/me` | signed in | User, assignments, and permissions: `{ global: [...], workspaces: { id: [...] } }` |
 | `POST /v1/me/password` | user | Requires the current password; ends the user's other sessions |
+| `POST /v1/me/onboarding` | user | Marks presentation/tour ids as offered to this user; a preference, not audited ([onboarding.md](onboarding.md)) |
 
 Sessions: a random 256-bit token in the `crm_session` cookie (`HttpOnly; SameSite=Strict; Path=/`, plus `Secure` on HTTPS). Only its SHA-256 hash is stored. 12-hour sliding expiry. Disabling a user or resetting their password ends their sessions.
 

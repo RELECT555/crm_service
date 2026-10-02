@@ -53,7 +53,7 @@ The sign-in screen is the explicit exception (decision 25): one centered form, n
 
 Two layers, each with one job:
 
-1. **Motion (`motion/react`)** — everything that enters, leaves or changes size: menus, dialogs, sheets, page transitions, staggered lists, the sidebar width, the KPI count-up. Presets live in `lib/motion.ts`; use them instead of inline numbers.
+1. **Motion (`motion/react`)** — everything that enters, leaves or changes size: menus, dialogs, sheets, page transitions, staggered lists, the sidebar width, the KPI count-up. Presets live in `lib/motion.ts`; use them instead of inline numbers. The one exception is the onboarding presentation, whose slower keynote choreography lives in `components/onboarding/` and is described in [onboarding.md](onboarding.md#presentation).
 2. **CSS utilities in `src/index.css`** — ambient, looping or purely decorative effects: `animate-indeterminate` (running progress), `shimmer` (skeletons), `animate-enter` / `stagger` / `animate-fade` in older screens and toasts.
 
 | Preset (`lib/motion.ts`) | Where |
@@ -118,6 +118,15 @@ Built by hand in `components/charts.tsx` from the dataviz rules: thin marks, 4px
 
 `useCan()` (`lib/session.ts`) mirrors the server rule from [access-control.md](access-control.md): global grants apply everywhere, workspace grants only to that workspace. Use it to hide navigation, buttons and forms the user cannot use, and render forms read-only with a sentence naming the missing permission. It is a convenience only — the API checks every request. A route the user cannot open shows «Нет доступа» with a way back, never a blank page. A `401` from any request fires the session-expired event and returns to the login screen.
 
+## Onboarding (presentation and tour)
+
+The welcome presentation and the guided tour are specified in [onboarding.md](onboarding.md). UI rules that apply only there:
+
+- The presentation stage is always dark: render it with the `.dark` class on `bg-stage`, and use tokens (`text-foreground/60`, `bg-foreground/5`), not raw white.
+- Exception to «no gradients, no glows», for the stage only: one accent phrase per slide may use the `from-series-1 via-primary to-series-5` text gradient, and one soft radial light per slide may sit behind the content (decision 26).
+- The tour dims the page with `--scrim` and outlines the target with `ring-primary`; its card is a normal `bg-card` surface in the current theme.
+- A new section is not done until it has a `data-tour` anchor and a tour step (checklist in onboarding.md).
+
 ## Copy
 
 Russian, short, operator-oriented. Buttons are verbs («Подключить CRM», «Сохранить»). Destructive or expensive actions say what will happen («Все объекты будут перечитаны… расходует лимит запросов»). Errors come from `errorText` in `lib/toast.ts` — add a translation there when the API gains a new error message. Never show tokens or secrets.
@@ -129,4 +138,5 @@ Russian, short, operator-oriented. Buttons are verbs («Подключить CRM
 3. Keyboard: all actions reachable with Tab; table rows that navigate respond to Enter; dialogs close on Escape.
 4. Checked in light and dark themes at 1440, 1280, 820 (tablet rail) and 360px widths with no horizontal page scroll; checked with reduced motion.
 5. Controls gated by the right permission (`useCan`), and the page added to `resolve()` in `App.tsx` with its permission.
-6. `npm run check` passes with no lint warnings.
+6. A new section has a `data-tour` anchor and a step in `TOUR_STEPS` ([onboarding.md](onboarding.md#tour)).
+7. `npm run check` passes with no lint warnings.

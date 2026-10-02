@@ -1,6 +1,6 @@
 # CRM admin interface
 
-Operator admin UI for the CRM analytics backend, built with React, TypeScript, Vite, Tailwind CSS, shadcn components on Base UI, and Motion. Screens: sign-in and first-owner setup, workspaces (tenants), CRM connection wizard and catalog, connection health and sync coverage, commercial/activity mappings, team analytics, users, roles and permissions, audit log.
+Operator admin UI for the CRM analytics backend, built with React, TypeScript, Vite, Tailwind CSS, shadcn components on Base UI, and Motion. Screens: sign-in and first-owner setup, workspaces (tenants), CRM connection wizard and catalog, connection health and sync coverage, commercial/activity mappings, team analytics, users, roles and permissions, audit log, plus a welcome presentation and guided tour on first sign-in ([docs/onboarding.md](../../docs/onboarding.md)).
 
 From the repository root:
 
@@ -26,6 +26,7 @@ src/
   index.css               Tailwind theme and design tokens (light + dark)
   components/ui/          shadcn primitives on Base UI (button, badge, card, dialog, sheet, dropdown-menu, input, table, ...)
   components/             app building blocks (common.tsx), Sidebar, SessionProvider, charts, ThemeSwitch, provider catalog, connect sheet, toasts
+  components/onboarding/  Welcome (presentation), Tour (spotlight), OnboardingProvider (when to show what)
   pages/                  one file per screen; owns its data loading (Analytics, Users, Roles, Audit, Login, ...)
   lib/api.ts              typed client for /v1 — the only module that calls fetch
   lib/use-resource.ts     data loading + polling hook
@@ -35,6 +36,8 @@ src/
   lib/toast.ts            toast context and error messages
   lib/session.ts          session context, permission ids, useCan()
   lib/motion.ts           Motion presets (springs, stagger variants)
+  lib/onboarding.ts       presentation id and tour steps registry (add a step when a section ships)
+  lib/storage.ts          localStorage helpers
   lib/chart-colors.ts     validated chart series slots
   lib/use-media.ts        useMediaQuery
   lib/utils.ts            cn()

@@ -47,6 +47,8 @@ Set each pair completely or not at all; a CRM without credentials shows as «Н�
 2. `npm run seed:demo` once, then `npm run dev:api` and `npm run dev:web`.
 3. Open `http://localhost:5173` and sign in as `owner@example.com` / `demo-password-1` (owner of everything) or `analyst@example.com` / `demo-password-1` (analyst on one workspace — use it to see the permission-gated UI). You get three workspaces, one connection mid-backfill with mappings and five named managers with different work profiles (analytics and weak-spot signals have data), and one connection that needs re-authorization.
 
+On the first sign-in each user sees the welcome presentation and can take the tour ([onboarding.md](onboarding.md)); to see them again use «Презентация» / «Тур по разделам» in the user menu, or delete the demo database file and run `npm run seed:demo` again.
+
 The demo passwords are public and exist only in the seed script; never seed a database that is reachable by anyone else.
 
 Demo tokens are fake. Clicking «Полная синхронизация» or «Переавторизовать» on demo data will fail against Bitrix24 — that is expected and shows the error states.

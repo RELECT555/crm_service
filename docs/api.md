@@ -12,7 +12,7 @@ All routes are served by `apps/api` (`src/http/routes/*`). JSON in and out. `/v1
 
 ## Authentication and current user
 
-See [access-control.md](access-control.md#authentication): `GET /v1/auth/status`, `POST /v1/auth/bootstrap|login|logout`, `GET /v1/me`, `POST /v1/me/password`.
+See [access-control.md](access-control.md#authentication): `GET /v1/auth/status`, `POST /v1/auth/bootstrap|login|logout`, `GET /v1/me`, `POST /v1/me/password`, `POST /v1/me/onboarding` ([onboarding.md](onboarding.md#server-state)).
 
 ## Workspaces
 
