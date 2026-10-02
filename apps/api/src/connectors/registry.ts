@@ -6,6 +6,10 @@ import { PLANNED_PROVIDERS } from "./catalog.ts";
 import { kommoInfo } from "./kommo/info.ts";
 import { KommoConnector } from "./kommo/index.ts";
 import { AMOCRM, KOMMO } from "./kommo/platforms.ts";
+import { HubSpotConnector } from "./hubspot/index.ts";
+import { HUBSPOT_INFO } from "./hubspot/info.ts";
+import { PipedriveConnector } from "./pipedrive/index.ts";
+import { PIPEDRIVE_INFO } from "./pipedrive/info.ts";
 import type { Connector, ProviderInfo } from "./types.ts";
 
 type Adapter = { info: ProviderInfo; create: (() => Connector) | null };
@@ -28,10 +32,16 @@ export class ConnectorRegistry {
     const bitrix = credentials(config.bitrixClientId, config.bitrixClientSecret);
     const kommo = credentials(config.kommoClientId, config.kommoClientSecret);
     const amocrm = credentials(config.amocrmClientId, config.amocrmClientSecret);
+    const pipedrive = credentials(config.pipedriveClientId, config.pipedriveClientSecret);
+    const hubspotApp = credentials(config.hubspotClientId, config.hubspotClientSecret);
+    // HubSpot also needs the app's exact scope list for the consent URL.
+    const hubspot = hubspotApp && config.hubspotScopes ? { ...hubspotApp, scopes: config.hubspotScopes } : null;
     const adapters: Adapter[] = [
       { info: BITRIX24_INFO, create: bitrix && (() => new Bitrix24Connector(config, store, fetcher)) },
       { info: kommoInfo(AMOCRM), create: amocrm && (() => new KommoConnector(AMOCRM, amocrm, config, store, fetcher)) },
       { info: kommoInfo(KOMMO), create: kommo && (() => new KommoConnector(KOMMO, kommo, config, store, fetcher)) },
+      { info: PIPEDRIVE_INFO, create: pipedrive && (() => new PipedriveConnector(pipedrive, config, store, fetcher)) },
+      { info: HUBSPOT_INFO, create: hubspot && (() => new HubSpotConnector(hubspot, config, store, fetcher)) },
     ];
     return new ConnectorRegistry(
       adapters.flatMap(adapter => (adapter.create ? [adapter.create()] : [])),

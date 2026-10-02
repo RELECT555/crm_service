@@ -9,6 +9,8 @@ export type Provider = {
   auth: 'oauth2' | 'api_key'
   accountLabel: string
   accountHint: string
+  /** The account is picked on the provider's consent screen; nothing is typed. */
+  accountChosenOnConsent?: boolean
   setupSteps: string[]
   scopes: string[]
   commercialData: string[]

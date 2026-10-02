@@ -29,6 +29,8 @@ With a fresh database, start `npm run dev:api` and `npm run dev:web` in separate
 | `BITRIX_CLIENT_ID`, `BITRIX_CLIENT_SECRET` | no | Bitrix24 application credentials. Leave both empty when working without a CRM. |
 | `KOMMO_CLIENT_ID`, `KOMMO_CLIENT_SECRET` | no | Kommo integration credentials. |
 | `AMOCRM_CLIENT_ID`, `AMOCRM_CLIENT_SECRET` | no | amoCRM integration credentials. |
+| `PIPEDRIVE_CLIENT_ID`, `PIPEDRIVE_CLIENT_SECRET` | no | Pipedrive app credentials (scopes are set in the app, not here). |
+| `HUBSPOT_CLIENT_ID`, `HUBSPOT_CLIENT_SECRET`, `HUBSPOT_SCOPES` | no | HubSpot app credentials and the space-separated list of the app's required scopes, copied verbatim from the app settings. All three are needed for HubSpot to show as available. |
 | `PORT` | no | Default 3000. |
 | `DB_PATH` | no | Default `./data/crm.sqlite` (relative to `apps/api`). |
 | `ADMIN_ORIGIN` | no | Where the OAuth callback sends the browser. Set `http://localhost:5173` when using the Vite dev server. |

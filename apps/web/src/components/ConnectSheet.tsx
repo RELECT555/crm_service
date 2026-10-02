@@ -61,11 +61,19 @@ export function ConnectSheet({ tenantId, open, onOpenChange, initialProvider = n
               )}
               {available && (
                 <form id="connect-form" onSubmit={submit}>
-                  <Field label={selected.accountLabel} htmlFor="account" error={error}
-                    hint="Доступ только на чтение. Ключи CRM хранятся на сервере в зашифрованном виде.">
-                    <Input id="account" required autoFocus value={account} autoComplete="off" spellCheck={false}
-                      placeholder={selected.accountHint} onChange={event => setAccount(event.target.value)} />
-                  </Field>
+                  {selected.accountChosenOnConsent ? (
+                    <div className="grid gap-1.5 rounded-xl bg-muted/40 p-4 text-[13px] ring-1 ring-border">
+                      <span className="font-medium">{selected.accountLabel} выбирается на экране {selected.name}</span>
+                      <span className="text-muted-foreground">Нажмите «Авторизоваться», войдите в {selected.name} и подтвердите доступ к нужному аккаунту клиента. Доступ только на чтение; ключи хранятся на сервере в зашифрованном виде.</span>
+                      {error && <span role="alert" className="text-destructive">{error}</span>}
+                    </div>
+                  ) : (
+                    <Field label={selected.accountLabel} htmlFor="account" error={error}
+                      hint="Доступ только на чтение. Ключи CRM хранятся на сервере в зашифрованном виде.">
+                      <Input id="account" required autoFocus value={account} autoComplete="off" spellCheck={false}
+                        placeholder={selected.accountHint} onChange={event => setAccount(event.target.value)} />
+                    </Field>
+                  )}
                 </form>
               )}
               <ProviderDetails provider={selected} />

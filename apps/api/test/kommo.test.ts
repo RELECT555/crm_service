@@ -87,7 +87,7 @@ test("Kommo: OAuth with account check, paged backfill, polling fallback, token r
     assert.equal(catalog.find(info => info.id === "amocrm")?.status, "not_configured");
     assert.equal(catalog.find(info => info.id === "amocrm")?.callbackUrl, "http://localhost:3000/oauth/amocrm/callback",
       "the redirect URI is shown before the app is configured, so the operator can register it");
-    assert.equal(catalog.find(info => info.id === "hubspot")?.callbackUrl, null);
+    assert.equal(catalog.find(info => info.id === "salesforce")?.callbackUrl, null, "planned providers have no redirect URI yet");
     assert.equal(catalog.find(info => info.id === "bitrix24")?.status, "not_configured");
 
     const tenantId = (await api("/v1/tenants", "POST", { name: "Acme" })).data.tenantId as string;

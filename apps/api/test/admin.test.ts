@@ -137,8 +137,13 @@ test("every catalog provider is fully described and has a connector playbook", a
   const store = new Store(":memory:");
   try {
     const catalog = ConnectorRegistry.create(config, store).catalog();
-    assert.deepEqual(catalog.filter(info => info.status === "not_configured").map(info => info.id).sort(), ["amocrm", "kommo"]);
-    assert.ok(catalog.filter(info => info.status === "not_configured").every(info => info.requiredEnv?.length === 2));
+    assert.deepEqual(catalog.filter(info => info.status === "not_configured").map(info => info.id).sort(), ["amocrm", "hubspot", "kommo", "pipedrive"]);
+    // Every adapter needs its app ID and secret; HubSpot also needs the app's exact scope list.
+    for (const info of catalog.filter(item => item.status === "not_configured")) {
+      const prefix = info.id.toUpperCase();
+      assert.ok(info.requiredEnv?.includes(`${prefix}_CLIENT_ID`) && info.requiredEnv.includes(`${prefix}_CLIENT_SECRET`), info.id);
+    }
+    assert.deepEqual(catalog.find(info => info.id === "hubspot")?.requiredEnv, ["HUBSPOT_CLIENT_ID", "HUBSPOT_CLIENT_SECRET", "HUBSPOT_SCOPES"]);
     assert.equal(new Set(catalog.map(info => info.id)).size, catalog.length);
     for (const info of catalog) {
       assert.ok(info.setupSteps.length > 0 && info.commercialData.length > 0 && info.workData.length > 0, info.id);

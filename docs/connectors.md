@@ -4,7 +4,7 @@ Research date: 2026-09-30, refreshed 2026-10-02. Links point to official vendor 
 
 ## Implementation and verification status
 
-Bitrix24 and shared Kommo/amoCRM adapters exist in `apps/api/src/connectors/`; the other providers below are research/catalog entries, not empty adapters. Kommo/amoCRM still needs sandbox verification. The capability tables describe vendor research, while [`apps/api/test`](../apps/api/test/) contains implementation checks with mocked responses. Neither a research date nor passing mocks is a live-account verification date.
+Bitrix24, shared Kommo/amoCRM, Pipedrive and HubSpot adapters exist in `apps/api/src/connectors/`; the other providers below are research/catalog entries, not empty adapters. Kommo/amoCRM, Pipedrive and HubSpot still need sandbox verification. Pipedrive and HubSpot endpoints were taken from the vendors' official SDKs (see their playbooks) because the vendor documentation sites could not be fetched from the research environment. The capability tables describe vendor research, while [`apps/api/test`](../apps/api/test/) contains implementation checks with mocked responses. Neither a research date nor passing mocks is a live-account verification date.
 
 The runtime catalog reports `available` when an adapter is registered and both app credentials are non-empty, `not_configured` when its credentials are missing, and `planned` when no adapter exists. Placeholder credentials can show `available`; the registry does not validate tokens, plan access or event delivery. Operator setup and observed sandbox evidence belong in the provider playbook. Before implementing a researched provider, use the [selection rule](#connector-selection-rule) below.
 
@@ -28,10 +28,10 @@ What the operator enters and how each provider behaves. Details, endpoints and s
 
 | CRM | Operator enters | Credential | Token lifetime | List page | Rate limit (summary) | Change capture | Playbook |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Bitrix24 | Portal host | OAuth app | Access short-lived, refresh via oauth.bitrix.info | 50 | Leaky bucket ~2 rps (5 rps Enterprise), 503 `QUERY_LIMIT_EXCEEDED` | `event.bind`, no retries → reconcile | [bitrix24.md](connectors/bitrix24.md) |
+| Bitrix24 | Portal host (manager names need the `user_brief` scope) | OAuth app | Access short-lived, refresh via oauth.bitrix.info | 50 | Leaky bucket ~2 rps (5 rps Enterprise), 503 `QUERY_LIMIT_EXCEEDED` | `event.bind`, no retries → reconcile | [bitrix24.md](connectors/bitrix24.md) |
 | Kommo / amoCRM (**implemented**, sandbox pending) | Account subdomain | OAuth integration | Access 24 h, refresh 3 months, rotated | 250 | 7 rps | Webhooks with retries; API registration plan-dependent | [kommo.md](connectors/kommo.md) |
-| HubSpot | Nothing (account picker) | OAuth app | Access ~30 min, refresh until revoked | 100 (search: 10k cap) | Per-app burst; search ~5 rps | App webhook subscriptions | [hubspot.md](connectors/hubspot.md) |
-| Pipedrive | Nothing (company picker) | OAuth app | Access 60 min, refresh expires after 60 days unused | 500 (cursor) | Daily company budget + burst | Webhooks v2 | [pipedrive.md](connectors/pipedrive.md) |
+| HubSpot (**implemented**, sandbox pending) | Nothing (account picker); server sets `HUBSPOT_SCOPES` | OAuth app | Access ~30 min, refresh until revoked | 100 (search: 10k cap) | Per-app burst; search ~5 rps | Hourly reconciliation now; app webhooks need an app-level route (next step) | [hubspot.md](connectors/hubspot.md) |
+| Pipedrive (**implemented**, sandbox pending) | Nothing (company picker) | OAuth app | Access 60 min, refresh expires after 60 days unused | 500 (cursor) | Daily company budget + burst | Webhooks v2 per connection; 403 → hourly reconciliation | [pipedrive.md](connectors/pipedrive.md) |
 | Salesforce | Login domain (prod/sandbox/My Domain) | External Client App | Org policy | 2,000 (REST) / Bulk 2.0 | Daily org allocation | CDC via Pub/Sub, 72 h replay | [salesforce.md](connectors/salesforce.md) |
 | Zoho CRM | Data center (if needed) | OAuth client | Access 1 h, refresh until revoked (20/user cap) | 200, `page_token` after 2,000 | Credits per edition | Watch channels ≤ 1 week, renew | [zoho.md](connectors/zoho.md) |
 | Dynamics 365 | Environment URL | Entra app | Access ~1 h, refresh rotated | Server-driven | Service protection 429 | Change tracking delta links | [dynamics.md](connectors/dynamics.md) |

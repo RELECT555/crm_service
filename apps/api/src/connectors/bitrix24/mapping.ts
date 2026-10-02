@@ -39,6 +39,11 @@ export function normalizeBitrixRecord(kind: string, raw: JsonObject, mapping: Re
   if (kind === "contact") return { kind, externalId: id, axis: "context",
     sourceUpdatedAt: valueString(raw.updatedTime), payload: { id, assignedById: raw.assignedById,
       updatedTime: raw.updatedTime } };
+  if (kind === "user") {
+    const name = [valueString(raw.NAME), valueString(raw.LAST_NAME)].filter(Boolean).join(" ").trim();
+    return { kind, externalId: id, axis: "context", label: name || undefined,
+      payload: { ID: id, NAME: raw.NAME, LAST_NAME: raw.LAST_NAME, ACTIVE: raw.ACTIVE } };
+  }
   if (kind === "pipeline" || kind === "stage") return { kind, externalId: id, axis: "context",
     label: valueString(raw.name ?? raw.NAME), payload: raw };
   throw new Error(`Unsupported Bitrix kind ${kind}`);

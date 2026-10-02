@@ -25,6 +25,8 @@ apps/
         registry.ts            which adapters exist; catalog = available adapters + planned providers
         catalog.ts             researched-but-not-implemented providers (admin UI catalog)
         kommo/                 Kommo + amoCRM adapter (platforms.ts holds the two registrations)
+        pipedrive/             Pipedrive adapter (API v2 lists, v1 users/webhooks; follows api_domain)
+        hubspot/               HubSpot adapter (CRM v3 objects/owners/pipelines; polling mode)
         bitrix24/              one folder per provider; nothing outside it may know Bitrix field names
           index.ts             Bitrix24Connector implements Connector
           client.ts            authenticated REST transport, token refresh, retry/backoff
@@ -171,7 +173,8 @@ Jobs persist in SQLite. Startup returns interrupted `running` jobs to `queued`; 
 ## Connector contract highlights
 
 - `info` — catalog entry; the registry marks it `not_configured` when the provider's app credentials are missing (`requiredEnv`).
-- `completeAuthorization` may return non-secret `settings` (e.g. account currency) stored on the connection.
+- `completeAuthorization` may return non-secret `settings` (e.g. account currency, Bitrix24 granted scopes) stored on the connection; re-authorization replaces them.
+- `info.accountChosenOnConsent` — the CRM picks the account on its consent screen (Pipedrive, HubSpot). The connect route then accepts a missing `account`, `normalizePickedAccount` validates an optional one, and `completeAuthorization` calls `assertPickedAccount` so a re-authorization cannot silently switch accounts. The admin UI shows a note instead of the account field.
 - `subscribe` returns the events mode; `parseEvents` returns every change in a webhook body (one body can carry several).
 - `fetchRecord` returns null only when the provider says the record does not exist; any other failure throws. Null is skipped after a change event and tombstones during a deletion check.
 - `deletionCheck(kind)` declares how a finished full pass detects missed deletes: `complete` when the listing returns every live record (keyset order, single response), `verify` when it can skip rows (page numbers) and `fetchRecord` can confirm each one, `none` otherwise. Never declare `complete` for a listing that can skip rows: unseen records would be tombstoned.
@@ -179,8 +182,9 @@ Jobs persist in SQLite. Startup returns interrupted `running` jobs to `queued`; 
 
 ## Known debt
 
-- Single-process SQLite and in-process worker; rate limiting is per process (Kommo client spaces requests per connection).
-- Kommo backfill uses page numbers; Bitrix24 uses id keysets. Incremental `updated_at` scans would make polling-mode reconciliation cheaper.
+- Single-process SQLite and in-process worker; rate limiting is per process (Kommo, Pipedrive and HubSpot clients space requests per connection).
+- HubSpot has no change events yet: its webhooks are per app and signed, so they need an app-level route that resolves the connection from a verified signature (docs/connectors/hubspot.md).
+- Kommo backfill uses page numbers; Bitrix24 uses id keysets; Pipedrive and HubSpot use provider cursors. Incremental `updated_at` scans would make polling-mode reconciliation cheaper.
 - Deletion detection compares wall-clock `observed_at` with the pass start. A server clock stepping backwards during a pass could make seen records look unseen; the mass-deletion guard limits the damage. A monotonic observation sequence would remove the assumption.
 - Records that disappear because the CRM user lost permission to them are indistinguishable from deletions and are tombstoned (they reappear when access returns).
 - Existing databases keep the old `UNIQUE(tenant_id, account_id)` connection key; new databases use `(tenant_id, provider, account_id)`.

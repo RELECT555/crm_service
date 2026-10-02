@@ -75,7 +75,7 @@ Depth (perspective, tilt, layered marks) is presentation only: positions, length
 
 - Deals in other currencies, unclassified records, work without a responsible user, managers without names.
 - No time window: metrics use all loaded data. Stage history is not reconstructed (AGENTS.md: never infer transitions from a snapshot), so conversion and cycle time are not offered yet.
-- Bitrix24 user names are not synced yet (needs the `user` scope); Bitrix managers appear by ID.
+- Managers are named from the CRM user directory (Bitrix24 `user.get`, Kommo users, Pipedrive users, HubSpot owners). A Bitrix24 portal authorized without a user scope (`user_brief`, `user_basic` or `user`) has no names; its managers appear by ID until the app gets the scope and is re-authorized.
 
 ## Response time and freshness
 

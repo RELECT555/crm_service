@@ -10,6 +10,8 @@ import { actorOf, can, type Principal, requirePermission } from "../auth.ts";
 import { HttpError, json, readJson } from "../respond.ts";
 import type { Router } from "../router.ts";
 
+/** Pipeline IDs are numeric in Bitrix24/Kommo/Pipedrive and strings in HubSpot (e.g. `default`); `*` = every pipeline. */
+const PIPELINE_ID = /^[A-Za-z0-9_-]{1,64}$|^\*$/;
 const FIELD = /^[A-Za-z][A-Za-z0-9_]{0,100}$/;
 /** Workspace time zone drives future metric day boundaries; validated against the runtime's IANA list. */
 const TIMEZONES = new Set([...Intl.supportedValuesOf("timeZone"), "UTC"]);
@@ -96,9 +98,12 @@ export function adminRoutes(router: Router, { config, store, registry }: AppCont
     const connector = registry.get(provider);
     if (!connector) throw new HttpError(404, "Provider is not available yet");
     const body = await readJson(req);
-    if (typeof body.account !== "string") throw new HttpError(400, "account is required");
+    // Consent-screen providers (accountChosenOnConsent) need no account for a new connection.
+    if (typeof body.account !== "string" && !(connector.info.accountChosenOnConsent && body.account === undefined)) {
+      throw new HttpError(400, "account is required");
+    }
     let account: string;
-    try { account = connector.normalizeAccount(body.account); }
+    try { account = connector.normalizeAccount(typeof body.account === "string" ? body.account : ""); }
     catch (error) {
       if (error instanceof ConnectorInputError) throw new HttpError(400, error.message);
       throw error;
@@ -185,7 +190,7 @@ export function adminRoutes(router: Router, { config, store, registry }: AppCont
     const amountField = fields ? body.amountField ?? fields.amountDefault : null;
     const currencyField = fields ? body.currencyField ?? fields.currencyDefault : null;
     if (typeof sourceKind !== "string" || !isMappableKind(options, sourceKind) ||
-        (direction !== "sale" && direction !== "purchase") || !/^\d{1,18}$|^\*$/.test(category) ||
+        (direction !== "sale" && direction !== "purchase") || !PIPELINE_ID.test(category) ||
         (fields && (typeof amountField !== "string" || !FIELD.test(amountField) ||
           typeof currencyField !== "string" || !FIELD.test(currencyField))) ||
         (!fields && (body.amountField !== undefined || body.currencyField !== undefined))) {
@@ -200,7 +205,7 @@ export function adminRoutes(router: Router, { config, store, registry }: AppCont
     json(res, 202, { mapped: true, syncQueued: true });
   });
 
-  router.on("DELETE", "/v1/tenants/:uuid/connections/:uuid/commercial-sources/([a-z]{1,32}(?::\\d{1,9})?)/(\\d{1,18}|\\*)",
+  router.on("DELETE", "/v1/tenants/:uuid/connections/:uuid/commercial-sources/([a-z]{1,32}(?::\\d{1,9})?)/([A-Za-z0-9_-]{1,64}|\\*)",
     ({ res, params: [tenantId, connectionId, sourceKind, category], principal }) => {
       requirePermission(principal, "mappings.manage", tenantId);
       const connection = connectionOr404(tenantId, connectionId);

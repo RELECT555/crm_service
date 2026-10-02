@@ -33,7 +33,7 @@ This sequence describes the target release, not a list of wholly unimplemented f
 3. **Second connector:** Kommo, including OAuth, form-encoded webhooks, custom fields, and strict API throttling. Validate that the canonical model holds across two different CRM structures.
 4. **Standalone release:** harden the implemented operator authentication, tenant administration, sync status, repair and coverage displays; choose customer authentication and prove freshness with real data before making a promise.
 5. **First embed:** Bitrix24 CRM tab or app page using the existing analytics API. Verify installation, launch context, session exchange, frame behavior, and navigation in a real test portal.
-6. **Expansion:** prioritize HubSpot, Pipedrive, Salesforce, Zoho, and Dataverse based on actual customer demand, API access, cost, and support burden. Research each embedded experience independently.
+6. **Expansion:** Pipedrive and HubSpot adapters exist (mock-tested, built from the official SDKs, sandbox pending; HubSpot app-level webhooks still to design). Prioritize sandbox runs for them, then Salesforce, Zoho, and Dataverse based on actual customer demand, API access, cost, and support burden. Research each embedded experience independently.
 
 ## Acceptance criteria for the vertical slice
 

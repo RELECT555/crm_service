@@ -14,6 +14,12 @@ export type Config = {
   kommoClientSecret?: string;
   amocrmClientId?: string;
   amocrmClientSecret?: string;
+  pipedriveClientId?: string;
+  pipedriveClientSecret?: string;
+  hubspotClientId?: string;
+  hubspotClientSecret?: string;
+  /** Space-separated scopes exactly as required in the HubSpot app settings (the consent URL must match them). */
+  hubspotScopes?: string;
   adminApiKey: string;
   dataKey: Buffer;
 };
@@ -44,6 +50,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const [bitrixClientId, bitrixClientSecret] = pair("BITRIX_CLIENT_ID", "BITRIX_CLIENT_SECRET");
   const [kommoClientId, kommoClientSecret] = pair("KOMMO_CLIENT_ID", "KOMMO_CLIENT_SECRET");
   const [amocrmClientId, amocrmClientSecret] = pair("AMOCRM_CLIENT_ID", "AMOCRM_CLIENT_SECRET");
+  const [pipedriveClientId, pipedriveClientSecret] = pair("PIPEDRIVE_CLIENT_ID", "PIPEDRIVE_CLIENT_SECRET");
+  const [hubspotClientId, hubspotClientSecret] = pair("HUBSPOT_CLIENT_ID", "HUBSPOT_CLIENT_SECRET");
+  const hubspotScopes = env.HUBSPOT_SCOPES?.trim().split(/\s+/).filter(Boolean).join(" ") || undefined;
+  if (hubspotScopes && !/^[a-z0-9._ -]+$/i.test(hubspotScopes)) throw new Error("HUBSPOT_SCOPES must be space-separated scope names");
   const adminOrigin = env.ADMIN_ORIGIN ? new URL(env.ADMIN_ORIGIN).origin : undefined;
   return {
     port,
@@ -54,6 +64,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     bitrixClientId, bitrixClientSecret,
     kommoClientId, kommoClientSecret,
     amocrmClientId, amocrmClientSecret,
+    pipedriveClientId, pipedriveClientSecret,
+    hubspotClientId, hubspotClientSecret, hubspotScopes,
     adminApiKey,
     dataKey,
   };

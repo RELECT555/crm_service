@@ -4,38 +4,6 @@ import type { ProviderInfo } from "./types.ts";
 // When an adapter ships, move its entry into connectors/<id>/info.ts and register it in registry.ts.
 export const PLANNED_PROVIDERS: ProviderInfo[] = [
   {
-    id: "hubspot", name: "HubSpot", status: "planned", auth: "oauth2",
-    accountLabel: "Аккаунт", accountHint: "Выбирается на экране согласия HubSpot",
-    setupSteps: [
-      "Один раз на сервис: создайте приложение на текущей платформе разработчика HubSpot только с правами чтения.",
-      "Нажмите «Авторизоваться» и выберите аккаунт клиента.",
-      "При необходимости отметьте воронки закупок.",
-    ],
-    scopes: ["crm.objects.deals.read", "crm.objects.contacts.read", "crm.objects.companies.read", "чтение звонков, встреч, задач"],
-    commercialData: ["Сделки: сумма, валюта, этап, владелец"],
-    workData: ["Звонки, встречи, задачи, письма, заметки", "Связи этих действий со сделками"],
-    changeCapture: "Webhook-подписки приложения + сверка по hs_lastmodifieddate",
-    embed: "App Cards / App Home",
-    limits: "Access-токен ~30 мин; поиск — до 10 000 результатов на запрос и ~5 запросов/с.",
-    docsUrl: "https://developers.hubspot.com/docs/apps/developer-platform/build-apps/authentication/oauth/oauth-quickstart-guide",
-  },
-  {
-    id: "pipedrive", name: "Pipedrive", status: "planned", auth: "oauth2",
-    accountLabel: "Компания", accountHint: "Выбирается на экране согласия Pipedrive",
-    setupSteps: [
-      "Один раз на сервис: создайте приложение Marketplace (для пилота можно не публиковать) с правами чтения.",
-      "Нажмите «Авторизоваться» и выберите компанию клиента.",
-      "Сопоставьте типы активностей (звонок, встреча, пользовательские).",
-    ],
-    scopes: ["deals:read", "activities:read", "contacts:read", "users:read"],
-    commercialData: ["Сделки: сумма, валюта, статус", "Статус: открыта, выиграна или проиграна"],
-    workData: ["Действия по типам и отметка «выполнено»"],
-    changeCapture: "Webhooks v2 + курсорная сверка",
-    embed: "App extensions: панели, модальные окна, действия",
-    limits: "Дневной бюджет запросов компании и лимит всплесков; до 500 записей на страницу. Запросы — только на api_domain.",
-    docsUrl: "https://developers.pipedrive.com/docs/api/v1/Oauth",
-  },
-  {
     id: "salesforce", name: "Salesforce", status: "planned", auth: "oauth2",
     accountLabel: "Домен входа", accountHint: "login.salesforce.com, test.salesforce.com или My Domain",
     setupSteps: [

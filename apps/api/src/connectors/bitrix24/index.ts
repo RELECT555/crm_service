@@ -11,6 +11,8 @@ import { type JsonObject, object, requiredString, valueString } from "./values.t
 
 /** Reference data first so stages/pipelines exist before the records that point at them. */
 const BASE_KINDS = ["pipeline", "stage", "deal", "contact", "activity"];
+/** Any of these scopes allows user.get with at least ID, NAME and LAST_NAME (docs/connectors/bitrix24.md#manager-names). */
+const USER_SCOPES = ["user_brief", "user_basic", "user"];
 const PAGE_SIZE = 50;
 
 export class Bitrix24Connector implements Connector {
@@ -45,14 +47,18 @@ export class Bitrix24Connector implements Connector {
     if (portal !== expectedAccount) throw new ConnectorInputError("OAuth account mismatch");
     const member = callback.get("member_id");
     if (member && member !== tokens.member_id) throw new ConnectorInputError("OAuth member mismatch");
-    if (!tokens.scope?.split(",").includes("crm")) throw new ConnectorInputError("Bitrix CRM scope is required");
+    const scopes = tokens.scope?.split(",").map(scope => scope.trim()).filter(Boolean) ?? [];
+    if (!scopes.includes("crm")) throw new ConnectorInputError("Bitrix CRM scope is required");
+    // Granted scopes decide which reference kinds can be read (manager names need a user scope).
     return { accountId: tokens.member_id, account: portal, accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token, expiresIn: tokens.expires_in };
+      refreshToken: tokens.refresh_token, expiresIn: tokens.expires_in, settings: { scopes } };
   }
 
   syncKinds(connection: Connection): string[] {
-    // Smart processes are read only once the operator mapped them as commercial.
-    return [...BASE_KINDS, ...this.store.mappedSourceKinds(connection.id).filter(kind => kind.startsWith("smart:"))];
+    // Users are read only when the app was granted a user scope; smart processes only once mapped as commercial.
+    const kinds = grantedScopes(connection).some(scope => USER_SCOPES.includes(scope))
+      ? [...BASE_KINDS.slice(0, 2), "user", ...BASE_KINDS.slice(2)] : BASE_KINDS;
+    return [...kinds, ...this.store.mappedSourceKinds(connection.id).filter(kind => kind.startsWith("smart:"))];
   }
 
   async listPage(connection: Connection, kind: string, cursor: string | null): Promise<SyncPage> {
@@ -89,6 +95,13 @@ export class Bitrix24Connector implements Connector {
       const body = await this.client.call(connection, "crm.status.list", { start: after });
       raw = (body.result as JsonObject[]).filter(row => valueString(row.ENTITY_ID)?.startsWith("DEAL_STAGE"));
       next = valueString(body.next) ?? null;
+    } else if (kind === "user") {
+      // Fixed pages of 50, offset by `start`; dismissed employees are included because they still own history.
+      const body = await this.client.call(connection, "user.get", {
+        sort: "ID", order: "ASC", select: ["ID", "NAME", "LAST_NAME", "ACTIVE"], start: after,
+      });
+      raw = body.result as JsonObject[];
+      next = valueString(body.next) ?? null;
     } else throw new Error(`Unsupported kind ${kind}`);
     if (!Array.isArray(raw)) throw new ConnectorUpstreamError(`Unexpected Bitrix ${kind} list`);
     return { items: raw.map(row => this.normalize(connection, kind, object(row))), next };
@@ -104,7 +117,9 @@ export class Bitrix24Connector implements Connector {
     return this.normalize(connection, kind, object(raw));
   }
 
-  deletionCheck(): DeletionCheck {
+  deletionCheck(kind: string): DeletionCheck {
+    // Users only label managers (dismissed ones still own history); offset paging could skip one, so never remove them.
+    if (kind === "user") return "none";
     // Records use keyset pagination by ID, so a pass sees every row that existed throughout it. Pipelines and stages
     // use offset paging but fit in one page in practice; a rare shift only hides a label until the next pass.
     // fetchRecord cannot verify those reference kinds, so a full listing is the only signal for them.
@@ -162,4 +177,10 @@ export class Bitrix24Connector implements Connector {
     }
     return normalizeBitrixRecord(kind, row);
   }
+}
+
+function grantedScopes(connection: Connection): string[] {
+  if (!connection.settings) return [];
+  const { scopes } = JSON.parse(connection.settings) as { scopes?: unknown };
+  return Array.isArray(scopes) ? scopes.filter((scope): scope is string => typeof scope === "string") : [];
 }

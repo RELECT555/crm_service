@@ -20,6 +20,12 @@ export type ProviderInfo = {
   /** What the operator types to start a connection, e.g. a portal address. */
   accountLabel: string;
   accountHint: string;
+  /**
+   * True when the provider's consent screen lets the user pick the account (HubSpot, Pipedrive): the operator types
+   * nothing, `normalizeAccount` accepts an empty string, and the adapter learns the account from the token. On
+   * re-authorization the stored account is passed back and must match.
+   */
+  accountChosenOnConsent?: boolean;
   /** Step-by-step setup for the admin UI, in the order the operator performs them. */
   setupSteps: string[];
   /** Read permissions we request; the first release never asks for write scopes. */
@@ -107,6 +113,23 @@ export interface Connector {
 
   /** Describes which commercial objects the operator can map and how. */
   mappingOptions(): MappingOptions;
+}
+
+/**
+ * `normalizeAccount` for providers whose consent screen picks the account: empty for a new connection, or the stored
+ * account address when re-authorizing (it is compared with the account the token belongs to).
+ */
+export function normalizePickedAccount(input: string): string {
+  const value = input.trim().toLowerCase();
+  if (value && !/^[a-z0-9][a-z0-9.-]{0,252}$/.test(value)) throw new ConnectorInputError("Invalid account");
+  return value;
+}
+
+/** For consent-picked accounts: a re-authorization must come back with the same account it started from. */
+export function assertPickedAccount(expected: string, actual: string): void {
+  if (expected && expected !== actual) {
+    throw new ConnectorInputError("OAuth account mismatch: choose the same account as in the existing connection");
+  }
 }
 
 /** True when `kind` is one of the connector's fixed mappable kinds or a valid custom process kind. */

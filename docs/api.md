@@ -55,7 +55,7 @@ Workspace `timezone` accepts the runtime's supported IANA zones plus `UTC`; `cur
 
 | Method and path | Permission | Notes |
 | --- | --- | --- |
-| `POST /v1/tenants/:id/connect/:provider` `{ account }` | `connections.manage` | `200 { authorizeUrl, redirectUri }`; provider validates/normalizes the account |
+| `POST /v1/tenants/:id/connect/:provider` `{ account? }` | `connections.manage` | `200 { authorizeUrl, redirectUri }`; provider validates/normalizes the account. `account` may be omitted only when the catalog entry has `accountChosenOnConsent: true` (the user picks it on the CRM consent screen); when given, re-authorization must return to that account or the callback gets 400 |
 | `GET /v1/tenants/:id/connections` | `workspaces.view` | `200 { connections }` |
 | `GET /v1/tenants/:id/connections/:cid` | `workspaces.view` | `200 { connection, sync, mappingOptions, pipelines, commercialSources, actionTypes }` |
 | `GET …/activity` | `workspaces.view` | `200 { jobs }`; latest 30, including attempts/errors |
@@ -73,7 +73,7 @@ Workspace `timezone` accepts the runtime's supported IANA zones plus `UTC`; `cur
 Commercial mapping: `{ sourceKind, direction, categoryId?, amountField?, currencyField? }`.
 
 - Take `sourceKind` from `mappingOptions.sources` or the declared `customSource` family. `direction` is `sale` or `purchase`.
-- Omitted/empty `categoryId` means `*` (all pipelines); otherwise use a numeric pipeline id, or literal `*`.
+- Omitted/empty `categoryId` means `*` (all pipelines); otherwise a pipeline id from the connection's `pipelines` (1–64 Latin letters, digits, `_` or `-`; HubSpot ids such as `default` are strings), or literal `*`.
 - Supply field names only when `mappingOptions.fieldMapping` is non-null; omitted names use its defaults. When null, sending either field gets 400. Names begin with a Latin letter, then letters/digits/underscores, maximum 101 characters.
 
 Work-type mapping: `{ providerTypeId, actionType }`. Provider code is 1–100 Latin letters/digits/underscores/hyphens; canonical type is 1–40 lowercase letters/underscores, starting with a letter. These routes queue rereading the affected source kind; changes are visible after sync, not immediately after the 202 response. A disconnected connection's worker drops queued work until resume.
