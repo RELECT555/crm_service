@@ -1,9 +1,17 @@
 import { useState, type FormEvent } from 'react'
-import { api } from '../api.ts'
-import { ConnectDrawer } from '../components/ConnectDrawer.tsx'
-import { Button, Card, EmptyState, ErrorAlert, Field, Modal, PageHeader, ProviderMark, Skeleton, StatusBadge } from '../components/ui.tsx'
-import { formatAgo, formatDate, navigate, useResource } from '../lib.ts'
-import { errorText, useToast } from '../toast.ts'
+import { Pencil, Plus } from 'lucide-react'
+import { api } from '@/lib/api'
+import { ConnectSheet } from '@/components/ConnectSheet'
+import { EmptyState, ErrorNotice, Field, LoadingRows, PageHeader, ProviderMark, StatusBadge } from '@/components/common'
+import { Button } from '@/components/ui/button'
+import { Card, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { formatAgo, formatDate } from '@/lib/format'
+import { navigate } from '@/lib/router'
+import { errorText, useToast } from '@/lib/toast'
+import { useResource } from '@/lib/use-resource'
 
 export function Workspace({ tenantId }: { tenantId: string }) {
   const detail = useResource(() => api.tenant(tenantId), [tenantId],
@@ -11,60 +19,64 @@ export function Workspace({ tenantId }: { tenantId: string }) {
   const [connecting, setConnecting] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const name = detail.data?.tenant.name ?? (detail.data ? 'Без названия' : '…')
+  const connect = <Button size="lg" onClick={() => setConnecting(true)}><Plus />Подключить CRM</Button>
 
   return (
     <>
       <PageHeader crumbs={[{ label: 'Пространства', href: '#/' }, { label: name }]} title={name}
         subtitle="CRM-аккаунты клиента. Каждое подключение синхронизируется отдельно и только на чтение."
         actions={<>
-          <Button icon="edit" onClick={() => setRenaming(true)} disabled={!detail.data}>Переименовать</Button>
-          <Button variant="primary" icon="plus" onClick={() => setConnecting(true)}>Подключить CRM</Button>
+          <Button variant="outline" size="lg" onClick={() => setRenaming(true)} disabled={!detail.data}><Pencil />Переименовать</Button>
+          {connect}
         </>} />
-      {detail.error && <ErrorAlert message={errorText(detail.error)} onRetry={detail.reload} />}
-      <Card title="Подключения" flush>
-        {!detail.data && !detail.error && <Skeleton />}
+      {detail.error && <div className="mb-5"><ErrorNotice message={errorText(detail.error)} onRetry={detail.reload} /></div>}
+      <Card className="gap-0 pb-0">
+        <CardHeader className="border-b"><CardTitle className="font-semibold">Подключения</CardTitle></CardHeader>
+        {!detail.data && !detail.error && <LoadingRows />}
         {detail.data?.connections.length === 0 && (
-          <EmptyState title="CRM ещё не подключена"
-            action={<Button variant="primary" icon="plus" onClick={() => setConnecting(true)}>Подключить CRM</Button>}>
-            Выберите систему клиента, авторизуйтесь в ней — загрузка данных начнётся автоматически.
+          <EmptyState title="CRM ещё не подключена" action={connect}>
+            Выберите систему клиента и авторизуйтесь в ней — загрузка данных начнётся автоматически.
           </EmptyState>
         )}
         {!!detail.data?.connections.length && (
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Аккаунт</th><th>Статус</th><th>Синхронизация</th><th>Подключено</th></tr></thead>
-              <tbody>
-                {detail.data.connections.map(connection => {
-                  const open = () => navigate(`/tenants/${tenantId}/connections/${connection.id}`)
-                  return (
-                    <tr key={connection.id} className="row-link" tabIndex={0} onClick={open} onKeyDown={event => { if (event.key === 'Enter') open() }}>
-                      <td>
-                        <div className="row">
-                          <ProviderMark provider={connection.provider} />
-                          <div><div className="cell-main">{connection.account}</div><div className="cell-sub">ID аккаунта {connection.account_id}</div></div>
-                        </div>
-                      </td>
-                      <td><StatusBadge status={connection.status} /></td>
-                      <td className="subtle">{formatAgo(connection.last_sync)}</td>
-                      <td className="subtle">{formatDate(connection.created_at)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow><TableHead>Аккаунт</TableHead><TableHead>Статус</TableHead><TableHead>Синхронизация</TableHead><TableHead>Подключено</TableHead></TableRow>
+            </TableHeader>
+            <TableBody>
+              {detail.data.connections.map(connection => {
+                const open = () => navigate(`/tenants/${tenantId}/connections/${connection.id}`)
+                return (
+                  <TableRow key={connection.id} tabIndex={0} onClick={open} onKeyDown={event => { if (event.key === 'Enter') open() }}
+                    className="cursor-pointer hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none">
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <ProviderMark provider={connection.provider} />
+                        <div><div className="font-medium">{connection.account}</div><div className="text-xs text-muted-foreground">ID аккаунта {connection.account_id}</div></div>
+                      </div>
+                    </TableCell>
+                    <TableCell><StatusBadge status={connection.status} /></TableCell>
+                    <TableCell className="text-muted-foreground">{formatAgo(connection.last_sync)}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDate(connection.created_at)}</TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
         )}
       </Card>
-      {connecting && <ConnectDrawer tenantId={tenantId} onClose={() => setConnecting(false)} />}
-      {renaming && detail.data && (
-        <RenameWorkspace tenantId={tenantId} current={detail.data.tenant.name ?? ''}
-          onClose={() => setRenaming(false)} onDone={() => { setRenaming(false); void detail.reload() }} />
+      <ConnectSheet tenantId={tenantId} open={connecting} onOpenChange={setConnecting} />
+      {detail.data && (
+        <RenameWorkspace key={String(renaming)} tenantId={tenantId} current={detail.data.tenant.name ?? ''} open={renaming}
+          onOpenChange={setRenaming} onDone={() => { setRenaming(false); detail.reload() }} />
       )}
     </>
   )
 }
 
-function RenameWorkspace({ tenantId, current, onClose, onDone }: { tenantId: string; current: string; onClose: () => void; onDone: () => void }) {
+function RenameWorkspace({ tenantId, current, open, onOpenChange, onDone }: {
+  tenantId: string; current: string; open: boolean; onOpenChange: (open: boolean) => void; onDone: () => void
+}) {
   const [name, setName] = useState(current)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -82,13 +94,21 @@ function RenameWorkspace({ tenantId, current, onClose, onDone }: { tenantId: str
     }
   }
   return (
-    <Modal title="Переименовать пространство" onClose={onClose}
-      footer={<><Button onClick={onClose}>Отмена</Button><Button variant="primary" type="submit" form="rename-tenant" loading={busy}>Сохранить</Button></>}>
-      <form id="rename-tenant" onSubmit={submit}>
-        <Field label="Название" htmlFor="rename" error={error}>
-          <input id="rename" className="input" required maxLength={120} autoFocus value={name} onChange={event => setName(event.target.value)} />
-        </Field>
-      </form>
-    </Modal>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form onSubmit={submit}>
+          <DialogHeader><DialogTitle>Переименовать пространство</DialogTitle></DialogHeader>
+          <DialogBody>
+            <Field label="Название" htmlFor="rename" error={error}>
+              <Input id="rename" required maxLength={120} autoFocus value={name} onChange={event => setName(event.target.value)} />
+            </Field>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>Отмена</Button>
+            <Button type="submit" size="lg" disabled={busy}>Сохранить</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

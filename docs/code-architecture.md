@@ -34,12 +34,13 @@ apps/
         routes/public.ts       /healthz, /oauth/:provider/callback, /webhooks/:provider/:secret
         routes/admin.ts        /v1/* operator API (x-admin-key)
     test/                      node:test integration tests against an in-memory store and mocked fetch
-  web/                         React 19 + Vite admin UI (no analytics screens yet)
+  web/                         React 19 + Vite + Tailwind CSS + shadcn (Base UI) admin UI; no analytics screens yet
     src/
-      api.ts                   typed client for /v1; the only module that calls fetch
-      lib.ts                   hash router, data hook, formatting, Russian labels
-      components/              presentational building blocks (no API calls)
+      components/ui/           shadcn primitives (button, badge, card, dialog, sheet, input, table, ...)
+      components/              app building blocks composed from ui/ (no API calls)
       pages/                   one file per screen; owns data loading for that screen
+      lib/api.ts               typed client for /v1; the only module that calls fetch
+      lib/                     router, use-resource hook, formatting/labels, toasts, cn()
 docs/
   connectors.md                capability matrix and quick reference
   connectors/<provider>.md     per-provider playbooks (setup, auth, data, change capture, limits, sources)
@@ -56,8 +57,8 @@ sync/*        -> connectors/types + registry, storage, security, domain
 connectors/<p>/* -> connectors/types, domain, storage (mapping config + token persistence only), security, config
 storage/*     -> domain
 domain/*      -> nothing
-web/pages     -> web/api.ts, web/lib.ts, web/components
-web/components -> web/lib.ts (formatting only)
+web/pages      -> web/lib/*, web/components
+web/components -> web/components/ui, web/lib/*  (components/ui imports only web/lib/utils)
 ```
 
 - **Provider knowledge lives only in `connectors/<provider>/`.** Routes, worker, store and UI never branch on a provider ID or read provider field names. The current exception is listed under Known debt.
@@ -104,15 +105,16 @@ Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_requ
 
 ## Admin UI conventions (`apps/web`)
 
+- Stack: React, Vite, Tailwind CSS v4, shadcn components on Base UI (`@base-ui/react`), icons from `lucide-react`. Do not add Radix UI.
 - Hash routing (`#/tenants/:id/connections/:id`) so the backend can serve the build as static files.
-- Pages own data loading through `useResource`; components are presentational and receive data via props.
-- All copy is Russian, concise, and states consequences ("запустит полную пересинхронизацию"). Status colors come from the `STATUS` table, never ad hoc.
-- Design tokens live in `src/styles.css` (`--color-*`, `--space-*`, `--radius-*`); do not hardcode colors in components. Light and dark themes are both required.
-- The operator key is kept in `sessionStorage`; there is no customer login yet.
+- Pages own data loading through `useResource`; `components/ui` stays generic (shadcn), `components/common.tsx` holds app building blocks.
+- Colors come only from tokens in `src/index.css` via Tailwind classes (`bg-primary`, `text-muted-foreground`, `text-success`, ...). Status colors come from `STATUS` in `lib/format.ts`. Light and dark themes are both required.
+- All copy is Russian, concise, and states consequences ("запустит полную пересинхронизацию").
+- The operator key is typed at runtime and kept in `sessionStorage`; there is no customer login yet.
 
 ## Testing
 
-`npm test` runs `node --test` over `apps/api/test`. Tests start the real HTTP server on an ephemeral port with `:memory:` SQLite and a fake `fetch`; they never call a real CRM. Drain the queue with `while (await worker.tick()) {}`. `npm run check` type-checks the API (`tsc`) and the web app (`tsc -b` + `oxlint`).
+`npm test` runs `node --test` over `apps/api/test`. Tests start the real HTTP server on an ephemeral port with `:memory:` SQLite and a fake `fetch`; they never call a real CRM. Drain the queue with `while (await worker.tick()) {}`. `npm run check` type-checks the API (`tsc`) and the web app (`tsc -b` + `oxlint`; shadcn files in `components/ui` are exempt from the fast-refresh export rule).
 
 ## Known debt
 

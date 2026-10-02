@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { api, type Provider } from '../api.ts'
-import { ProviderDetails } from '../components/ProviderDetails.tsx'
-import { ProviderGrid } from '../components/ProviderGrid.tsx'
-import { Drawer, ErrorAlert, PageHeader, Skeleton } from '../components/ui.tsx'
-import { useResource } from '../lib.ts'
-import { errorText } from '../toast.ts'
+import { api, type Provider } from '@/lib/api'
+import { ErrorNotice, LoadingRows, PageHeader } from '@/components/common'
+import { ProviderDetails } from '@/components/ProviderDetails'
+import { ProviderGrid } from '@/components/ProviderGrid'
+import { Card } from '@/components/ui/card'
+import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { errorText } from '@/lib/toast'
+import { useResource } from '@/lib/use-resource'
 
 export function Catalog() {
   const providers = useResource(() => api.providers(), [])
@@ -12,19 +14,26 @@ export function Catalog() {
   const available = providers.data?.filter(provider => provider.status === 'available').length ?? 0
   return (
     <>
-      <PageHeader title="Интеграции"
+      <PageHeader eyebrow="Интеграции" title="Поддерживаемые CRM"
         subtitle={providers.data
           ? `Готово к подключению: ${available} из ${providers.data.length}. Для остальных CRM API изучено, адаптеры в разработке.`
-          : 'Поддерживаемые CRM и что из них забирается.'} />
-      {providers.error && <ErrorAlert message={errorText(providers.error)} onRetry={providers.reload} />}
-      {!providers.data && !providers.error && <div className="card"><Skeleton rows={4} /></div>}
+          : 'Какие CRM поддерживаются и что из них забирается.'} />
+      {providers.error && <ErrorNotice message={errorText(providers.error)} onRetry={providers.reload} />}
+      {!providers.data && !providers.error && <Card><LoadingRows rows={4} /></Card>}
       {providers.data && <ProviderGrid providers={providers.data} selected={selected?.id} onSelect={setSelected} />}
-      {selected && (
-        <Drawer title={selected.name} subtitle={selected.status === 'available' ? 'Доступно — подключается из пространства клиента' : 'Коннектор в разработке'}
-          onClose={() => setSelected(null)}>
-          <ProviderDetails provider={selected} />
-        </Drawer>
-      )}
+      <Sheet open={!!selected} onOpenChange={open => { if (!open) setSelected(null) }}>
+        <SheetContent>
+          {selected && (
+            <>
+              <SheetHeader>
+                <SheetTitle>{selected.name}</SheetTitle>
+                <SheetDescription>{selected.status === 'available' ? 'Доступно — подключается из пространства клиента' : 'Коннектор в разработке'}</SheetDescription>
+              </SheetHeader>
+              <SheetBody><ProviderDetails provider={selected} /></SheetBody>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </>
   )
 }

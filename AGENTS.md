@@ -13,6 +13,8 @@ This repository contains a runnable CRM analytics backend prototype (`apps/api`)
 
 Build a multi-tenant, read-first CRM analytics service in TypeScript. It ingests CRM data through customer-approved APIs, keeps a coherent canonical model, and serves both a standalone UI and provider-specific embedded UI from one backend. The analytical goal (confirmed by the user) has two axes: commercial outcomes (sales, purchases) and non-commercial work (meetings, calls, visits, tasks), compared per manager to show what each person lacks for good sales.
 
+The web app lives in `apps/web` and uses React, Vite, Tailwind CSS, and shadcn components built on Base UI. Do not add Radix UI packages or primitives.
+
 ## Engineering rules
 
 - Separate provider adapters from the canonical model and analytics logic. Provider-specific field names, IDs and tokens stay inside `apps/api/src/connectors/<provider>/`.
@@ -36,7 +38,7 @@ These are hard rules. A change that breaks one is not done.
 - **Tests prove behavior, not lines.** Every new route, connector method or state transition gets an integration test in `apps/api/test` with a mocked `fetch`. Never weaken or delete an assertion to make a test pass; fix the code or explain the behavior change.
 - **Small, coherent diffs.** Match the surrounding style (2-space indent; API uses semicolons and double quotes, web uses no semicolons and single quotes). Do not reformat untouched code. Do not add dependencies without a stated reason; the API currently has zero runtime dependencies.
 - **Docs move with code.** If you change a boundary, route, status, env var or operator step, update `docs/code-architecture.md`, README and the relevant connector playbook in the same change.
-- **UI is strict and consistent.** Use the design tokens and components in `apps/web/src`; Russian copy; every async action shows progress, success and error; empty states explain the next step; works at 360 px width and in dark mode.
+- **UI is strict and consistent.** Build screens from the shadcn primitives in `apps/web/src/components/ui` (Base UI underneath) and Tailwind classes bound to the tokens in `src/index.css`; no ad-hoc colors or one-off CSS files; Russian copy; every async action shows progress, success and error; empty states explain the next step; works at 360 px width and in dark mode.
 
 ## Definition of done
 

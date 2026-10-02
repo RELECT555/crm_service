@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+
+@theme inline {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-canvas: var(--canvas);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-border: var(--sidebar-border);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* Design tokens. Components use only these (via Tailwind classes); both themes are required. */
+:root {
+  --radius: 0.625rem;
+  --background: #ffffff;
+  --foreground: #22212d;
+  --card: #ffffff;
+  --card-foreground: #22212d;
+  --primary: #785be3;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f2f7;
+  --secondary-foreground: #343340;
+  --muted: #f4f3f8;
+  --muted-foreground: #777684;
+  --accent: #f3f0fd;
+  --accent-foreground: #503b9b;
+  --border: #e9e8ef;
+  --input: #e9e8ef;
+  --ring: #9b85ec;
+  --destructive: #d95757;
+  --success: #1f9d62;
+  --warning: #c27a12;
+  --info: #3b6fd8;
+  --canvas: #f8f7fb;
+  --sidebar: #191927;
+  --sidebar-foreground: #e6e5ee;
+  --sidebar-muted: #8a89a0;
+  --sidebar-accent: #26253a;
+  --sidebar-border: #2c2b40;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #14131d;
+    --foreground: #ecebf3;
+    --card: #1b1a27;
+    --card-foreground: #ecebf3;
+    --primary: #8f76ec;
+    --primary-foreground: #ffffff;
+    --secondary: #242333;
+    --secondary-foreground: #dcdbe6;
+    --muted: #222131;
+    --muted-foreground: #9a99ab;
+    --accent: #2a2442;
+    --accent-foreground: #c9bdf7;
+    --border: #2c2b3d;
+    --input: #34334a;
+    --ring: #8f76ec;
+    --destructive: #f07272;
+    --success: #4cc68b;
+    --warning: #f0b14a;
+    --info: #7da3f2;
+    --canvas: #100f17;
+    --sidebar: #0d0c14;
+    --sidebar-accent: #1f1e2e;
+    --sidebar-border: #232233;
+    color-scheme: dark;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  html, body, #root { @apply h-full; }
+  body {
+    @apply bg-canvas text-foreground font-sans antialiased;
+    font-size: 14px;
+    font-feature-settings: "tnum" 1, "cv11" 1;
+  }
+  a { @apply text-primary; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

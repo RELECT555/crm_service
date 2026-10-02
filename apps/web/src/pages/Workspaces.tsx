@@ -1,60 +1,74 @@
 import { useState, type FormEvent } from 'react'
-import { api } from '../api.ts'
-import { Badge, Button, Card, EmptyState, ErrorAlert, Field, Modal, PageHeader, Skeleton } from '../components/ui.tsx'
-import { formatDate, navigate, numberFormat, useResource } from '../lib.ts'
-import { errorText, useToast } from '../toast.ts'
+import { Plus } from 'lucide-react'
+import { api } from '@/lib/api'
+import { EmptyState, ErrorNotice, Field, LoadingRows, PageHeader, ToneBadge } from '@/components/common'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { formatDate, numberFormat } from '@/lib/format'
+import { navigate } from '@/lib/router'
+import { errorText, useToast } from '@/lib/toast'
+import { useResource } from '@/lib/use-resource'
 
 export function Workspaces() {
   const tenants = useResource(() => api.tenants(), [])
   const [creating, setCreating] = useState(false)
+  const create = <Button size="lg" onClick={() => setCreating(true)}><Plus />Новое пространство</Button>
 
   return (
     <>
-      <PageHeader title="Пространства"
+      <PageHeader eyebrow="Клиенты" title="Пространства"
         subtitle="Пространство — это клиент сервиса. Внутри него подключаются CRM-аккаунты; данные разных пространств изолированы."
-        actions={<Button variant="primary" icon="plus" onClick={() => setCreating(true)}>Новое пространство</Button>} />
-      {tenants.error && <ErrorAlert message={errorText(tenants.error)} onRetry={tenants.reload} />}
-      <Card flush>
-        {!tenants.data && !tenants.error && <Skeleton />}
+        actions={create} />
+      {tenants.error && <div className="mb-5"><ErrorNotice message={errorText(tenants.error)} onRetry={tenants.reload} /></div>}
+      <Card className="py-0">
+        {!tenants.data && !tenants.error && <LoadingRows />}
         {tenants.data?.length === 0 && (
-          <EmptyState title="Пока нет ни одного пространства"
-            action={<Button variant="primary" icon="plus" onClick={() => setCreating(true)}>Создать пространство</Button>}>
+          <EmptyState title="Пока нет ни одного пространства" action={create}>
             Создайте пространство для клиента, затем подключите его CRM.
           </EmptyState>
         )}
         {!!tenants.data?.length && (
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Название</th><th className="num">Подключения</th><th>Состояние</th><th>Создано</th></tr></thead>
-              <tbody>
-                {tenants.data.map(tenant => (
-                  <tr key={tenant.id} className="row-link" tabIndex={0} onClick={() => navigate(`/tenants/${tenant.id}`)}
-                    onKeyDown={event => { if (event.key === 'Enter') navigate(`/tenants/${tenant.id}`) }}>
-                    <td><div className="cell-main">{tenant.name ?? 'Без названия'}</div><div className="cell-sub mono">{tenant.id}</div></td>
-                    <td className="num">{numberFormat.format(tenant.connections)}</td>
-                    <td>
-                      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                        {tenant.connections === 0 && <Badge plain>Нет подключений</Badge>}
-                        {tenant.live > 0 && <Badge tone="ok">Работают: {tenant.live}</Badge>}
-                        {tenant.attention > 0 && <Badge tone="danger">Требуют внимания: {tenant.attention}</Badge>}
-                        {tenant.connections - tenant.live - tenant.attention > 0 &&
-                          <Badge tone="progress">Загружаются: {tenant.connections - tenant.live - tenant.attention}</Badge>}
+          <Table>
+            <TableHeader>
+              <TableRow><TableHead>Название</TableHead><TableHead className="text-right">Подключения</TableHead><TableHead>Состояние</TableHead><TableHead>Создано</TableHead></TableRow>
+            </TableHeader>
+            <TableBody>
+              {tenants.data.map(tenant => {
+                const open = () => navigate(`/tenants/${tenant.id}`)
+                const loading = tenant.connections - tenant.live - tenant.attention
+                return (
+                  <TableRow key={tenant.id} tabIndex={0} onClick={open} onKeyDown={event => { if (event.key === 'Enter') open() }}
+                    className="cursor-pointer hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none">
+                    <TableCell>
+                      <div className="font-medium">{tenant.name ?? 'Без названия'}</div>
+                      <div className="font-mono text-xs text-muted-foreground">{tenant.id}</div>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{numberFormat.format(tenant.connections)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1.5">
+                        {tenant.connections === 0 && <ToneBadge dot={false}>Нет подключений</ToneBadge>}
+                        {tenant.live > 0 && <ToneBadge tone="ok">Работают: {tenant.live}</ToneBadge>}
+                        {tenant.attention > 0 && <ToneBadge tone="danger">Требуют внимания: {tenant.attention}</ToneBadge>}
+                        {loading > 0 && <ToneBadge tone="progress">Загружаются: {loading}</ToneBadge>}
                       </div>
-                    </td>
-                    <td className="subtle">{formatDate(tenant.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{formatDate(tenant.created_at)}</TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
         )}
       </Card>
-      {creating && <CreateWorkspace onClose={() => setCreating(false)} />}
+      <CreateWorkspace open={creating} onOpenChange={setCreating} />
     </>
   )
 }
 
-function CreateWorkspace({ onClose }: { onClose: () => void }) {
+function CreateWorkspace({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -72,13 +86,21 @@ function CreateWorkspace({ onClose }: { onClose: () => void }) {
     }
   }
   return (
-    <Modal title="Новое пространство" onClose={onClose}
-      footer={<><Button onClick={onClose}>Отмена</Button><Button variant="primary" type="submit" form="create-tenant" loading={busy}>Создать</Button></>}>
-      <form id="create-tenant" onSubmit={submit}>
-        <Field label="Название клиента" htmlFor="tenant-name" error={error} hint="Например, юридическое название или бренд.">
-          <input id="tenant-name" className="input" required maxLength={120} autoFocus value={name} onChange={event => setName(event.target.value)} />
-        </Field>
-      </form>
-    </Modal>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form onSubmit={submit}>
+          <DialogHeader><DialogTitle>Новое пространство</DialogTitle></DialogHeader>
+          <DialogBody>
+            <Field label="Название клиента" htmlFor="tenant-name" error={error} hint="Например, юридическое название или бренд.">
+              <Input id="tenant-name" required maxLength={120} autoFocus value={name} onChange={event => setName(event.target.value)} />
+            </Field>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>Отмена</Button>
+            <Button type="submit" size="lg" disabled={busy}>Создать</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

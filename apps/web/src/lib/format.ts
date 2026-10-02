@@ -1,54 +1,6 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import type { ConnectionStatus } from './api.ts'
+import type { ConnectionStatus } from '@/lib/api'
 
-// --- Routing (hash based, so the backend can serve the build as static files) ---
-
-function subscribeHash(callback: () => void) {
-  window.addEventListener('hashchange', callback)
-  return () => window.removeEventListener('hashchange', callback)
-}
-export function useRoute(): string[] {
-  const hash = useSyncExternalStore(subscribeHash, () => window.location.hash)
-  return hash.replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean)
-}
-export function navigate(path: string): void {
-  window.location.hash = `#${path}`
-}
-
-// --- Data loading ---
-
-/**
- * Loads data for a page. `deps` identify the resource (stale data from other deps is never shown);
- * `pollMs` returns an interval while the data says work is still in progress, or null to stop polling.
- */
-export function useResource<T>(loader: () => Promise<T>, deps: unknown[], pollMs?: (data: T) => number | null) {
-  const key = JSON.stringify(deps)
-  const loaderRef = useRef(loader)
-  useEffect(() => { loaderRef.current = loader })
-  const [state, setState] = useState<{ key: string; data?: T; error?: Error }>({ key })
-  const [version, setVersion] = useState(0)
-  const reload = useCallback(() => setVersion(value => value + 1), [])
-
-  useEffect(() => {
-    let cancelled = false
-    loaderRef.current().then(
-      data => { if (!cancelled) setState({ key, data }) },
-      (error: Error) => { if (!cancelled) setState(previous => ({ key, error, data: previous.key === key ? previous.data : undefined })) },
-    )
-    return () => { cancelled = true }
-  }, [key, version])
-
-  const current = state.key === key ? state : { key, data: undefined, error: undefined }
-  const interval = current.data !== undefined && pollMs ? pollMs(current.data) : null
-  useEffect(() => {
-    if (!interval) return
-    const timer = window.setInterval(reload, interval)
-    return () => window.clearInterval(timer)
-  }, [interval, reload])
-  return { data: current.data, error: current.error, reload }
-}
-
-// --- Formatting ---
+// Russian formatting and labels shared by all screens.
 
 const dateTime = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 const dateOnly = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -71,7 +23,9 @@ export function formatAgo(ms: number | null | undefined): string {
   return relative.format(Math.round(seconds / 86400), 'day')
 }
 
-export const STATUS: Record<ConnectionStatus, { label: string; tone: 'ok' | 'progress' | 'warn' | 'danger' | 'muted'; hint: string }> = {
+export type Tone = 'ok' | 'progress' | 'warn' | 'danger' | 'muted'
+
+export const STATUS: Record<ConnectionStatus, { label: string; tone: Tone; hint: string }> = {
   connecting: { label: 'Подключение', tone: 'progress', hint: 'Авторизация получена, подготавливаем синхронизацию.' },
   backfilling: { label: 'Первичная загрузка', tone: 'progress', hint: 'Загружаем исторические данные и подписываемся на события.' },
   live: { label: 'Работает', tone: 'ok', hint: 'Данные загружены, изменения поступают по событиям и сверкам.' },

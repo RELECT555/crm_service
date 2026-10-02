@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
-import { type Toast, ToastContext } from '../toast.ts'
+import { type Toast, ToastContext } from '@/lib/toast'
+import { cn } from '@/lib/utils'
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -13,8 +14,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="toasts" role="status" aria-live="polite">
-        {toasts.map(toast => <div key={toast.id} className={`toast ${toast.tone === 'error' ? 'error' : ''}`}>{toast.message}</div>)}
+      <div role="status" aria-live="polite" className="fixed right-5 bottom-5 z-[60] grid max-w-[calc(100vw-2rem)] gap-2">
+        {toasts.map(toast => (
+          <div key={toast.id} className={cn('max-w-sm min-w-64 rounded-lg px-4 py-3 text-sm shadow-xl',
+            toast.tone === 'error' ? 'bg-destructive text-white' : 'bg-foreground text-background')}>
+            {toast.message}
+          </div>
+        ))}
       </div>
     </ToastContext.Provider>
   )

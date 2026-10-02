@@ -5,7 +5,7 @@ This repository contains a TypeScript backend prototype, an operator admin UI, a
 | Path | What it is |
 | --- | --- |
 | `apps/api` | HTTP API, connector adapters, sync worker, SQLite store ([architecture](docs/code-architecture.md)) |
-| `apps/web` | React admin UI: workspaces, CRM connection wizard, sync status, mappings |
+| `apps/web` | React admin UI (Vite, Tailwind CSS, shadcn on Base UI): workspaces, CRM connection wizard, sync status, mappings |
 | `docs/` | Product design, connector research and per-CRM playbooks |
 
 ## Run the Bitrix24 prototype
@@ -17,7 +17,7 @@ npm install
 Copy-Item apps/api/.env.example apps/api/.env
 ```
 
-Set `APP_ORIGIN`, `BITRIX_CLIENT_ID`, `BITRIX_CLIENT_SECRET`, `ADMIN_API_KEY` (at least 32 random characters), and `DATA_KEY_BASE64` (32 random bytes encoded as Base64) in `.env`. Keep `.env` private. Generate the encryption key with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`. Then run:
+Set `APP_ORIGIN`, `BITRIX_CLIENT_ID`, `BITRIX_CLIENT_SECRET`, `ADMIN_API_KEY` (at least 32 random characters), and `DATA_KEY_BASE64` (32 random bytes encoded as Base64) in `apps/api/.env`. Keep `.env` private. Generate the encryption key with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`. Then run:
 
 ```powershell
 npm run check     # API typecheck + web typecheck/lint
