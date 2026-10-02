@@ -10,7 +10,7 @@ Start here. Each document has one job; when they disagree about current behavior
 | [access-control.md](access-control.md) | users, roles, permissions, sessions, audit — rules and guards | developers, agents, security review |
 | [metrics.md](metrics.md) | exact definition of every analytics number and signal | product, developers, agents |
 | [code-architecture.md](code-architecture.md) | know where code goes, what may import what, how a connection flows, how to add a connector | developers, agents |
-| [ui-guidelines.md](ui-guidelines.md) | build or change an admin screen: tokens, components, badges, motion, copy | developers, agents, design |
+| [ui-guidelines.md](ui-guidelines.md) | build or change an admin screen: tokens, components, badges, motion (Motion + Base UI), responsive layouts, charts, permission-aware UI, copy | developers, agents, design |
 | [decisions.md](decisions.md) | understand why something is the way it is before changing it | everyone |
 | [architecture.md](architecture.md) | product scope, tenancy, analytics semantics | product, developers |
 | [connectors.md](connectors.md) | compare CRMs at a glance | product, developers |

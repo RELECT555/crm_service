@@ -1,16 +1,26 @@
-import { useEffect, useState } from 'react'
-import { Check, ChevronsUpDown, LayoutGrid, Layers, LogOut, Menu, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Plug, Plus, Sun } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { motion } from 'motion/react'
+import {
+  BarChart3, Check, ChevronsUpDown, History, KeyRound, LayoutGrid, Layers, LogOut, Menu, Monitor, Moon, PanelLeftClose,
+  PanelLeftOpen, Plug, Plus, ShieldCheck, Sun, Users,
+} from 'lucide-react'
 import { Brand } from '@/components/Brand'
-import { Avatar } from '@/components/common'
+import { Avatar, Field } from '@/components/common'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuLinkItem,
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
-import { api, setAdminKey, type TenantSummary } from '@/lib/api'
-import { navigate } from '@/lib/router'
-import { setTheme, type ThemePreference, useTheme } from '@/lib/theme'
+import { api, type TenantSummary } from '@/lib/api'
 import { plural } from '@/lib/format'
+import { navigate } from '@/lib/router'
+import { useCan, useSession } from '@/lib/session'
+import { setTheme, type ThemePreference, useTheme } from '@/lib/theme'
+import { errorText, useToast } from '@/lib/toast'
+import { useMediaQuery } from '@/lib/use-media'
 import { useResource } from '@/lib/use-resource'
 import { cn } from '@/lib/utils'
 
@@ -24,20 +34,25 @@ function writeStorage(key: string, value: string): void {
   try { localStorage.setItem(key, value) } catch { /* preference lasts for this page only */ }
 }
 
-/** Desktop: sticky, collapsible to icons. Mobile: top bar with a left sheet holding the same content. */
+/**
+ * Responsive navigation (docs/ui-guidelines.md#layout):
+ * phone (< md) — top bar + left sheet; tablet (md–lg) — 68px icon rail; desktop (≥ lg) — 256px, collapsible.
+ */
 export function Sidebar({ route }: { route: string[] }) {
-  const [collapsed, setCollapsed] = useState(() => readStorage(COLLAPSE_KEY) === '1')
+  const desktop = useMediaQuery('(min-width: 1024px)')
+  const [userCollapsed, setUserCollapsed] = useState(() => readStorage(COLLAPSE_KEY) === '1')
   const [mobileOpen, setMobileOpen] = useState(false)
+  const collapsed = !desktop || userCollapsed
   const toggle = () => {
-    writeStorage(COLLAPSE_KEY, collapsed ? '0' : '1')
-    setCollapsed(!collapsed)
+    writeStorage(COLLAPSE_KEY, userCollapsed ? '0' : '1')
+    setUserCollapsed(!userCollapsed)
   }
   return (
     <>
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-sidebar/90 px-4 py-2.5 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-sidebar/85 px-4 py-2.5 backdrop-blur-md md:hidden">
         <Brand />
         <button type="button" aria-label="Открыть меню" onClick={() => setMobileOpen(true)}
-          className="grid size-9 place-items-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent">
+          className="grid size-9 place-items-center rounded-lg text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
           <Menu className="size-5" />
         </button>
       </header>
@@ -47,10 +62,10 @@ export function Sidebar({ route }: { route: string[] }) {
           <SidebarContent route={route} collapsed={false} onNavigate={() => setMobileOpen(false)} />
         </SheetContent>
       </Sheet>
-      <aside className={cn('sticky top-0 hidden h-screen flex-none border-r bg-sidebar transition-[width] duration-300 ease-out lg:block',
-        collapsed ? 'w-[68px]' : 'w-[256px]')}>
-        <SidebarContent route={route} collapsed={collapsed} onToggle={toggle} />
-      </aside>
+      <motion.aside initial={false} animate={{ width: collapsed ? 68 : 256 }} transition={{ type: 'spring', bounce: 0, visualDuration: 0.3 }}
+        className="sticky top-0 hidden h-screen flex-none overflow-hidden border-r bg-sidebar md:block">
+        <SidebarContent route={route} collapsed={collapsed} onToggle={desktop ? toggle : undefined} />
+      </motion.aside>
     </>
   )
 }
@@ -58,29 +73,41 @@ export function Sidebar({ route }: { route: string[] }) {
 function SidebarContent({ route, collapsed, onToggle, onNavigate }: {
   route: string[]; collapsed: boolean; onToggle?: () => void; onNavigate?: () => void
 }) {
-  const [section, routeTenant] = route
+  const can = useCan()
+  const [section, routeTenant, sub] = route
   const tenants = useResource(() => api.tenants(), [])
   // Refresh in the background on navigation; the switcher keeps showing the last list meanwhile.
   const { reload } = tenants
   useEffect(() => { reload() }, [section, routeTenant, reload])
   useEffect(() => { if (section === 'tenants' && routeTenant) writeStorage(LAST_TENANT_KEY, routeTenant) }, [section, routeTenant])
   const currentId = section === 'tenants' ? routeTenant : readStorage(LAST_TENANT_KEY)
-  const current = tenants.data?.find(tenant => tenant.id === currentId) ?? null
+  // Someone with a single workspace never has to pick it first.
+  const current = tenants.data?.find(tenant => tenant.id === currentId) ?? (tenants.data?.length === 1 ? tenants.data[0] : null)
+  const admin = [
+    can('users.manage') && { href: '#/users', icon: Users, label: 'Пользователи', active: section === 'users' },
+    can('users.manage') && { href: '#/roles', icon: ShieldCheck, label: 'Роли и права', active: section === 'roles' },
+    can('audit.view') && { href: '#/audit', icon: History, label: 'Журнал действий', active: section === 'audit' },
+  ].filter(Boolean) as Array<{ href: string; icon: typeof Users; label: string; active: boolean }>
 
   return (
-    <div className="flex h-full flex-col px-3 py-3.5">
+    <div className="flex h-full w-full flex-col px-3 py-3.5">
       <div className={cn('mb-3 flex h-8 items-center', collapsed ? 'justify-center' : 'px-1.5')}>
         <Brand compact={collapsed} />
       </div>
 
       <WorkspaceSwitcher tenants={tenants.data ?? []} current={current} collapsed={collapsed} onNavigate={onNavigate} />
 
-      <nav aria-label="Разделы" className="mt-4 grid gap-0.5">
-        {!collapsed && <div className="px-2.5 pb-1 text-[11px] font-medium text-sidebar-muted">Рабочее пространство</div>}
+      <nav aria-label="Разделы" className="mt-4 grid gap-0.5 overflow-y-auto">
+        <Section label="Пространство" collapsed={collapsed} first />
         <NavItem href={current ? `#/tenants/${current.id}` : '#/'} icon={LayoutGrid} label="Обзор" collapsed={collapsed} onNavigate={onNavigate}
-          active={section === 'tenants' && !!routeTenant} disabled={!current} />
-        {!collapsed && <div className="px-2.5 pt-4 pb-1 text-[11px] font-medium text-sidebar-muted">Сервис</div>}
-        {collapsed && <div className="my-2 h-px bg-sidebar-border" />}
+          active={section === 'tenants' && !!routeTenant && sub !== 'analytics'} disabled={!current} />
+        {(!current || can('analytics.view', current.id)) && (
+          <NavItem href={current ? `#/tenants/${current.id}/analytics` : '#/'} icon={BarChart3} label="Аналитика" collapsed={collapsed}
+            onNavigate={onNavigate} active={section === 'tenants' && sub === 'analytics'} disabled={!current} />
+        )}
+        {admin.length > 0 && <Section label="Администрирование" collapsed={collapsed} />}
+        {admin.map(item => <NavItem key={item.href} {...item} collapsed={collapsed} onNavigate={onNavigate} />)}
+        <Section label="Сервис" collapsed={collapsed} />
         <NavItem href="#/" icon={Layers} label="Все пространства" collapsed={collapsed} onNavigate={onNavigate} active={route.length === 0} />
         <NavItem href="#/integrations" icon={Plug} label="Интеграции" collapsed={collapsed} onNavigate={onNavigate} active={section === 'integrations'} />
       </nav>
@@ -96,9 +123,15 @@ function SidebarContent({ route, collapsed, onToggle, onNavigate }: {
   )
 }
 
+function Section({ label, collapsed, first }: { label: string; collapsed: boolean; first?: boolean }) {
+  if (collapsed) return first ? null : <div className="mx-2 my-2 h-px bg-sidebar-border" />
+  return <div className={cn('px-2.5 pb-1 text-[11px] font-medium text-sidebar-muted', !first && 'pt-4')}>{label}</div>
+}
+
 function WorkspaceSwitcher({ tenants, current, collapsed, onNavigate }: {
   tenants: TenantSummary[]; current: TenantSummary | null; collapsed: boolean; onNavigate?: () => void
 }) {
+  const can = useCan()
   const name = current?.name ?? (current ? 'Без названия' : 'Выберите пространство')
   return (
     <DropdownMenu>
@@ -112,15 +145,16 @@ function WorkspaceSwitcher({ tenants, current, collapsed, onNavigate }: {
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-medium text-foreground">{name}</span>
               <span className="block truncate text-[11px] text-muted-foreground">
-                {current ? `${current.connections} ${plural(current.connections, 'подключение', 'подключения', 'подключений')}` : `${tenants.length} в сервисе`}
+                {current ? `${current.connections} ${plural(current.connections, 'подключение', 'подключения', 'подключений')}` : `${tenants.length} доступно`}
               </span>
             </span>
             <ChevronsUpDown className="size-4 flex-none text-muted-foreground" />
           </>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-60" align="start">
+      <DropdownMenuContent className="w-60" align="start" side={collapsed ? 'right' : 'bottom'}>
         <DropdownMenuLabel>Пространства</DropdownMenuLabel>
+        {tenants.length === 0 && <div className="px-2.5 py-2 text-[13px] text-muted-foreground">Нет доступных пространств</div>}
         {tenants.slice(0, 8).map(tenant => (
           <DropdownMenuLinkItem key={tenant.id} href={`#/tenants/${tenant.id}`} onClick={onNavigate}>
             <Avatar name={tenant.name ?? '?'} small />
@@ -130,8 +164,10 @@ function WorkspaceSwitcher({ tenants, current, collapsed, onNavigate }: {
           </DropdownMenuLinkItem>
         ))}
         {tenants.length > 8 && <DropdownMenuLinkItem href="#/" onClick={onNavigate}><Layers />Все пространства ({tenants.length})</DropdownMenuLinkItem>}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => { navigate('/?new=1'); onNavigate?.() }}><Plus />Новое пространство</DropdownMenuItem>
+        {can('workspaces.create') && <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => { navigate('/?new=1'); onNavigate?.() }}><Plus />Новое пространство</DropdownMenuItem>
+        </>}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -144,34 +180,85 @@ const THEMES: Array<{ value: ThemePreference; label: string; icon: typeof Sun }>
 ]
 
 function UserMenu({ collapsed }: { collapsed: boolean }) {
+  const { me, signOut } = useSession()
   const { preference } = useTheme()
+  const [passwordOpen, setPasswordOpen] = useState(false)
+  const name = me.user?.name ?? 'Сервисный ключ'
+  const subtitle = me.user?.email ?? 'Полный доступ'
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        className={cn('flex h-11 w-full items-center gap-2.5 rounded-xl text-left transition-colors outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-sidebar-accent',
-          collapsed ? 'justify-center px-0' : 'px-2')} title={collapsed ? 'Оператор' : undefined}>
-        <span className="grid size-7 flex-none place-items-center rounded-full bg-accent text-[11px] font-semibold text-accent-foreground">ОП</span>
-        {!collapsed && (
-          <>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-medium text-foreground">Оператор</span>
-              <span className="block truncate text-[11px] text-muted-foreground">Доступ к CRM — только чтение</span>
-            </span>
-            <ChevronsUpDown className="size-4 flex-none text-muted-foreground" />
-          </>
-        )}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side={collapsed ? 'right' : 'top'} align={collapsed ? 'end' : 'start'} className="w-56">
-        <DropdownMenuLabel>Тема</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={preference} onValueChange={value => setTheme(value as ThemePreference)}>
-          {THEMES.map(theme => (
-            <DropdownMenuRadioItem key={theme.value} value={theme.value} closeOnClick={false}><theme.icon />{theme.label}</DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={() => setAdminKey(null)}><LogOut />Выйти</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className={cn('flex h-11 w-full items-center gap-2.5 rounded-xl text-left transition-colors outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-sidebar-accent',
+            collapsed ? 'justify-center px-0' : 'px-2')} title={collapsed ? name : undefined}>
+          <span className="grid size-7 flex-none place-items-center rounded-full bg-accent text-[11px] font-semibold text-accent-foreground">
+            {initials(name)}
+          </span>
+          {!collapsed && (
+            <>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-medium text-foreground">{name}</span>
+                <span className="block truncate text-[11px] text-muted-foreground">{subtitle}</span>
+              </span>
+              <ChevronsUpDown className="size-4 flex-none text-muted-foreground" />
+            </>
+          )}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side={collapsed ? 'right' : 'top'} align={collapsed ? 'end' : 'start'} className="w-60">
+          <DropdownMenuLabel>Тема</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={preference} onValueChange={value => setTheme(value as ThemePreference)}>
+            {THEMES.map(theme => (
+              <DropdownMenuRadioItem key={theme.value} value={theme.value} closeOnClick={false}><theme.icon />{theme.label}</DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          {me.user && <DropdownMenuItem onClick={() => setPasswordOpen(true)}><KeyRound />Сменить пароль</DropdownMenuItem>}
+          <DropdownMenuItem variant="destructive" onClick={() => void signOut()}><LogOut />Выйти</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ChangePassword key={String(passwordOpen)} open={passwordOpen} onOpenChange={setPasswordOpen} />
+    </>
+  )
+}
+
+function ChangePassword({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const toast = useToast()
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    setBusy(true)
+    try {
+      await api.changePassword(current, next)
+      toast.show('Пароль изменён. Другие сессии завершены.')
+      onOpenChange(false)
+    } catch (failure) {
+      setError(errorText(failure))
+      setBusy(false)
+    }
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form onSubmit={submit}>
+          <DialogHeader><DialogTitle>Смена пароля</DialogTitle></DialogHeader>
+          <DialogBody className="grid gap-4">
+            <Field label="Текущий пароль" htmlFor="current-password">
+              <Input id="current-password" type="password" autoComplete="current-password" required autoFocus value={current} onChange={e => setCurrent(e.target.value)} />
+            </Field>
+            <Field label="Новый пароль" htmlFor="new-password" hint="Не короче 10 символов." error={error}>
+              <Input id="new-password" type="password" autoComplete="new-password" required minLength={10} value={next} onChange={e => setNext(e.target.value)} />
+            </Field>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>Отмена</Button>
+            <Button type="submit" size="lg" disabled={busy}>Сменить</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -181,12 +268,15 @@ function NavItem({ href, icon: Icon, label, active, collapsed, disabled, onNavig
   return (
     <a href={href} onClick={onNavigate} aria-current={active ? 'page' : undefined} aria-disabled={disabled || undefined}
       title={collapsed ? label : undefined}
-      className={cn('flex h-8 items-center gap-2.5 rounded-lg text-[13px] font-medium text-sidebar-foreground no-underline transition-colors duration-150 hover:bg-sidebar-accent hover:text-foreground hover:no-underline',
+      className={cn('relative flex h-8 items-center gap-2.5 rounded-lg text-[13px] font-medium text-sidebar-foreground no-underline transition-colors duration-150 hover:bg-sidebar-accent/70 hover:text-foreground hover:no-underline',
         collapsed ? 'justify-center px-0' : 'px-2.5',
-        active && 'bg-sidebar-accent text-foreground',
+        active && 'text-foreground',
         disabled && 'pointer-events-none opacity-40')}>
-      <Icon className={cn('size-4 flex-none', active ? 'text-foreground' : 'text-sidebar-muted')} />
-      {!collapsed && <span className="truncate">{label}</span>}
+      {/* Shared layout highlight slides between items instead of blinking. */}
+      {active && <motion.span layoutId={collapsed ? 'nav-active-rail' : 'nav-active'} className="absolute inset-0 rounded-lg bg-sidebar-accent"
+        transition={{ type: 'spring', stiffness: 500, damping: 38 }} />}
+      <Icon className={cn('relative size-4 flex-none', active ? 'text-foreground' : 'text-sidebar-muted')} />
+      {!collapsed && <span className="relative truncate">{label}</span>}
     </a>
   )
 }
@@ -199,4 +289,8 @@ function SidebarButton({ label, collapsed, onClick, icon: Icon }: { label: strin
       <Icon className="size-4" />{!collapsed && label}
     </button>
   )
+}
+
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase() || '?'
 }

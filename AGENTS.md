@@ -1,6 +1,6 @@
 # Instructions for coding agents
 
-This repository contains a runnable CRM analytics backend prototype (`apps/api`), an admin UI (`apps/web`), and product/connector design documents (`docs/`). Treat [README.md](README.md), the code in `apps/`, and `docs/` as the source of truth, in that order of precedence when they disagree about *current behavior*. Node.js 24.17+ runs the API's TypeScript directly; SQLite is used for this single-process prototype. Customer authentication, production hosting and analytics screens do not exist yet — do not assume them.
+This repository contains a runnable CRM analytics backend prototype (`apps/api`), an admin UI (`apps/web`), and product/connector design documents (`docs/`). Treat [README.md](README.md), the code in `apps/`, and `docs/` as the source of truth, in that order of precedence when they disagree about *current behavior*. Node.js 24.17+ runs the API's TypeScript directly; SQLite is used for this single-process prototype. Operator sign-in with roles (docs/access-control.md) and a first team-analytics screen (docs/metrics.md) exist; customer-facing authentication, CRM embedding and production hosting do not — do not assume them.
 
 ## Read before changing code
 
@@ -9,7 +9,8 @@ This repository contains a runnable CRM analytics backend prototype (`apps/api`)
 2. [docs/architecture.md](docs/architecture.md) — product scope, tenancy, analytics semantics.
 3. [docs/connectors.md](docs/connectors.md) and `docs/connectors/<provider>.md` — what each CRM actually supports, with sources.
 4. [docs/delivery-plan.md](docs/delivery-plan.md) — milestones and open decisions.
-5. [docs/ui-guidelines.md](docs/ui-guidelines.md) before touching `apps/web`; [docs/decisions.md](docs/decisions.md) before reversing an existing choice (add an entry when you make a new one).
+5. [docs/access-control.md](docs/access-control.md) before adding a route or a permission; [docs/metrics.md](docs/metrics.md) before changing an analytics number.
+6. [docs/ui-guidelines.md](docs/ui-guidelines.md) before touching `apps/web`; [docs/decisions.md](docs/decisions.md) before reversing an existing choice (add an entry when you make a new one).
 
 ## Objective
 
@@ -40,7 +41,7 @@ These are hard rules. A change that breaks one is not done.
 - **Tests prove behavior, not lines.** Every new route, connector method or state transition gets an integration test in `apps/api/test` with a mocked `fetch`. Never weaken or delete an assertion to make a test pass; fix the code or explain the behavior change.
 - **Small, coherent diffs.** Match the surrounding style (2-space indent; API uses semicolons and double quotes, web uses no semicolons and single quotes). Do not reformat untouched code. Do not add dependencies without a stated reason; the API currently has zero runtime dependencies.
 - **Docs move with code.** If you change a boundary, route, status, env var or operator step, update `docs/code-architecture.md`, README and the relevant connector playbook in the same change.
-- **UI is strict and consistent.** Follow [docs/ui-guidelines.md](docs/ui-guidelines.md). Build screens from the shadcn primitives in `apps/web/src/components/ui` (Base UI underneath) and Tailwind classes bound to the tokens in `src/index.css`; no ad-hoc colors or one-off CSS files; Russian copy; every async action shows progress, success and error; empty states explain the next step; works at 360 px width and in dark mode.
+- **UI is strict and consistent.** Follow [docs/ui-guidelines.md](docs/ui-guidelines.md). Build screens from the shadcn primitives in `apps/web/src/components/ui` (Base UI underneath) and Tailwind classes bound to the tokens in `src/index.css`; no ad-hoc colors or one-off CSS files; Russian copy; every async action shows progress, success and error; empty states explain the next step; works at 360 px width (no horizontal page scroll), on the tablet rail and in dark mode; animation only through the Motion presets in `lib/motion.ts` and honoring reduced motion; controls the user lacks permission for are hidden with `useCan` (the server still enforces every permission).
 
 ## Definition of done
 

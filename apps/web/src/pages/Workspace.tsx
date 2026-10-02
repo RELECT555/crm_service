@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowUpRight, MoreHorizontal, Pencil, Plus, RefreshCw, Settings2, Power, PowerOff } from 'lucide-react'
+import { ArrowUpRight, BarChart3, MoreHorizontal, Pencil, Plus, RefreshCw, Settings2, Power, PowerOff } from 'lucide-react'
+import { useCan } from '@/lib/session'
 import { api, type ConnectionSummary, type Provider, type Tenant } from '@/lib/api'
 import { ConnectSheet } from '@/components/ConnectSheet'
-import { Avatar, ErrorNotice, Field, LoadingRows, ProviderMark, StatusBadge, SyncBar } from '@/components/common'
+import { Avatar, EmptyState, ErrorNotice, Field, LoadingRows, ProviderMark, StatusBadge, SyncBar } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -23,6 +24,9 @@ export function Workspace({ tenantId }: { tenantId: string }) {
   const detail = useResource(() => api.tenant(tenantId), [tenantId], data => data.connections.some(isLoading) ? 4000 : null)
   const [connect, setConnect] = useState<{ open: boolean; provider: Provider | null; key: number }>({ open: false, provider: null, key: 0 })
   const [renaming, setRenaming] = useState(false)
+  const can = useCan()
+  const manageConnections = can('connections.manage', tenantId)
+  const manageWorkspace = can('workspaces.manage', tenantId)
   const openConnect = (provider: Provider | null = null) => setConnect(state => ({ open: true, provider, key: state.key + 1 }))
   const data = detail.data
   const connections = data?.connections ?? []
@@ -47,9 +51,12 @@ export function Workspace({ tenantId }: { tenantId: string }) {
               .filter(Boolean).join(' · ')}
           </p>
         </div>
-        <div className="flex basis-full gap-2 sm:basis-auto">
-          <Button size="lg" className="flex-1 sm:flex-none" onClick={() => openConnect()}><Plus />Подключить CRM</Button>
-          <DropdownMenu>
+        <div className="flex basis-full flex-wrap gap-2 sm:basis-auto">
+          {can('analytics.view', tenantId) && (
+            <Button variant="outline" size="lg" className="flex-1 sm:flex-none" onClick={() => navigate(`/tenants/${tenantId}/analytics`)}><BarChart3 />Аналитика</Button>
+          )}
+          {manageConnections && <Button size="lg" className="flex-1 sm:flex-none" onClick={() => openConnect()}><Plus />Подключить CRM</Button>}
+          {manageWorkspace && <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="outline" size="icon-lg" aria-label="Действия с пространством" />}>
               <MoreHorizontal />
             </DropdownMenuTrigger>
@@ -59,7 +66,7 @@ export function Workspace({ tenantId }: { tenantId: string }) {
                 <Settings2 />Часовой пояс и валюта
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu>}
         </div>
       </header>
 
@@ -70,18 +77,20 @@ export function Workspace({ tenantId }: { tenantId: string }) {
           <h2 className="text-[15px] font-semibold">Подключения</h2>
           {connections.length > 0 && <span className="text-[13px] text-muted-foreground">{connections.length} {plural(connections.length, 'аккаунт', 'аккаунта', 'аккаунтов')} CRM</span>}
         </div>
-        {connections.length === 0 ? <FirstConnection onPick={openConnect} /> : (
+        {connections.length === 0 ? (manageConnections ? <FirstConnection onPick={openConnect} />
+          : <Card><EmptyState title="CRM ещё не подключены">Подключить CRM может пользователь с правом «Управление подключениями».</EmptyState></Card>) : (
           <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {connections.map(connection => <ConnectionCard key={connection.id} tenantId={tenantId} connection={connection} onChange={detail.reload} />)}
-            <button type="button" onClick={() => openConnect()}
+            {connections.map(connection => <ConnectionCard key={connection.id} tenantId={tenantId} connection={connection} onChange={detail.reload}
+              canManage={manageConnections} />)}
+            {manageConnections && <button type="button" onClick={() => openConnect()}
               className="flex min-h-44 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border text-[13px] text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground">
               <Plus className="size-5" />Подключить ещё одну CRM
-            </button>
+            </button>}
           </div>
         )}
       </section>
 
-      <WorkspaceSettings tenant={data.tenant} onSaved={detail.reload} />
+      {manageWorkspace && <WorkspaceSettings tenant={data.tenant} onSaved={detail.reload} />}
 
       <ConnectSheet key={connect.key} tenantId={tenantId} open={connect.open} initialProvider={connect.provider}
         onOpenChange={open => setConnect(state => ({ ...state, open }))} />
@@ -117,7 +126,9 @@ function Overview({ connections }: { connections: ConnectionSummary[] }) {
   )
 }
 
-function ConnectionCard({ tenantId, connection, onChange }: { tenantId: string; connection: ConnectionSummary; onChange: () => void }) {
+function ConnectionCard({ tenantId, connection, onChange, canManage }: {
+  tenantId: string; connection: ConnectionSummary; onChange: () => void; canManage: boolean
+}) {
   const toast = useToast()
   const href = `#/tenants/${tenantId}/connections/${connection.id}`
   const loading = isLoading(connection)
@@ -135,7 +146,7 @@ function ConnectionCard({ tenantId, connection, onChange }: { tenantId: string; 
           <div className="truncate font-medium">{connection.account}</div>
           <div className="mt-1"><StatusBadge status={connection.status} /></div>
         </div>
-        <DropdownMenu>
+        {canManage && <DropdownMenu>
           <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className="relative z-10 -mt-1 -mr-2" aria-label="Действия с подключением" />}>
             <MoreHorizontal />
           </DropdownMenuTrigger>
@@ -151,7 +162,7 @@ function ConnectionCard({ tenantId, connection, onChange }: { tenantId: string; 
               ? <DropdownMenuItem onClick={() => run(() => api.resume(tenantId, connection.id), 'Подключение возобновлено')}><Power />Возобновить</DropdownMenuItem>
               : <DropdownMenuItem variant="destructive" onClick={() => run(() => api.disconnect(tenantId, connection.id), 'Подключение отключено, данные сохранены')}><PowerOff />Отключить</DropdownMenuItem>}
           </DropdownMenuContent>
-        </DropdownMenu>
+        </DropdownMenu>}
       </div>
       <div className="px-5 pt-4 pb-4">
         {loading && connection.kinds_total > 0 ? (

@@ -12,8 +12,12 @@ apps/
       app.ts                   composition root: registry + routers + worker; request pipeline; error mapping
       config.ts                environment -> typed Config (fails fast on missing secrets)
       domain/model.ts          canonical, provider-neutral types (CanonicalRecord, ChangeEvent, statuses)
-      storage/store.ts         the only SQL; tenant-scoped reads/writes, forward-only migrations
+      domain/permissions.ts    permission catalog + built-in roles (docs/access-control.md); pure data
+      domain/analytics.ts      computeAnalytics: aggregate rows -> team/manager metrics + signals (docs/metrics.md); pure
+      storage/store.ts         the only SQL for tenants, connections, records, jobs; forward-only migrations
+      storage/access.ts        the only SQL for users, roles, assignments, sessions, audit log (store.access)
       security/crypto.ts       AES-256-GCM sealing, SHA-256 digests, constant-time compare
+      security/password.ts     scrypt password hashing and verification
       connectors/
         types.ts               Connector contract, ProviderInfo, connector error classes
         registry.ts            which adapters exist; catalog = available adapters + planned providers
@@ -32,17 +36,27 @@ apps/
         respond.ts             HttpError, JSON helpers, body limits
         static.ts              serves apps/web/dist with CSP
         context.ts             AppContext passed to route modules
+        auth.ts                Principal, resolvePrincipal (cookie session or x-admin-key), can/requirePermission, CSRF, login throttle
         routes/public.ts       /healthz, /oauth/:provider/callback, /webhooks/:provider/:secret
-        routes/admin.ts        /v1/* operator API (x-admin-key)
+        routes/auth.ts         /v1/auth/* (status, bootstrap, login, logout) — reachable without a principal
+        routes/access.ts       /v1/me, users, roles, permissions, audit (docs/access-control.md)
+        routes/admin.ts        /v1/tenants/*, connections, mappings, analytics — each route checks one permission
     test/                      node:test integration tests against an in-memory store and mocked fetch
     scripts/seed-demo.ts       demo workspaces/connections for UI work without a CRM (npm run seed:demo)
-  web/                         React 19 + Vite + Tailwind CSS + shadcn (Base UI) admin UI; no analytics screens yet
+  web/                         React 19 + Vite + Tailwind CSS + shadcn (Base UI) + Motion admin UI
     src/
-      components/ui/           shadcn primitives (button, badge, card, dialog, sheet, input, table, ...)
-      components/              app building blocks composed from ui/ (no API calls)
+      main.tsx                 MotionConfig (reduced motion) -> SessionProvider -> App
+      App.tsx                  hash routes -> page + required permission; lazy page chunks; page transitions
+      components/ui/           shadcn primitives (button, card, dialog, sheet, dropdown-menu, table, ...); overlays animated with Motion
+      components/              app building blocks composed from ui/: Sidebar, SessionProvider, charts, common
       pages/                   one file per screen; owns data loading for that screen
-      lib/api.ts               typed client for /v1; the only module that calls fetch
-      lib/                     router, use-resource hook, formatting/labels, toasts, cn()
+                               Workspaces, Workspace, Connection, Catalog, Analytics, Users, Roles, Audit, Login
+      lib/api.ts               typed client for /v1; the only module that calls fetch; cookie session + CSRF header
+      lib/session.ts           session context, Permission ids (mirror of domain/permissions.ts), useCan()
+      lib/motion.ts            Motion presets (springs, stagger variants) — docs/ui-guidelines.md#motion
+      lib/chart-colors.ts      validated categorical chart slots (CSS tokens --series-*)
+      lib/use-media.ts         useMediaQuery for behavior that changes by breakpoint
+      lib/                     router, use-resource hook, formatting/labels, toasts, theme, cn()
 docs/
   connectors.md                capability matrix and quick reference
   connectors/<provider>.md     per-provider playbooks (setup, auth, data, change capture, limits, sources)
@@ -59,6 +73,7 @@ sync/*        -> connectors/types + registry, storage, security, domain
 connectors/<p>/* -> connectors/types, domain, storage (mapping config + token persistence only), security, config
 storage/*     -> domain
 domain/*      -> nothing
+domain/analytics.ts, domain/permissions.ts -> nothing (pure; tested without HTTP)
 web/pages      -> web/lib/*, web/components
 web/components -> web/components/ui, web/lib/*  (components/ui imports only web/lib/utils)
 ```
@@ -72,8 +87,9 @@ web/components -> web/components/ui, web/lib/*  (components/ui imports only web/
 
 1. Public router: health, OAuth callback (proved by single-use `state`), webhooks (proved by per-connection secret URL + provider account ID in the body).
 2. Static admin UI for non-`/v1` GETs when `apps/web/dist` exists.
-3. Operator key check (`x-admin-key`, constant-time compare). This is a development credential, not customer authentication.
-4. Admin router; unknown path → 404, wrong method → 405.
+3. Auth router (`/v1/auth/status`, `bootstrap`, `login`, `logout`) — the only `/v1` routes without a principal.
+4. Principal: the `crm_session` cookie (a user) or `x-admin-key` (the system principal, for scripts and first-owner bootstrap). No principal → 401. Cookie requests other than GET/HEAD must carry `x-requested-with: crm-admin` (CSRF guard) or get 403.
+5. Admin + access routers. Every route calls `requirePermission(principal, permission, tenantId?)` before touching data and writes an audit entry for each change; unknown path → 404, wrong method → 405.
 
 Errors: `HttpError` → its status; `ConnectorInputError` → 400; connector auth/upstream → 502; anything else → 500 with a generic message (details only in server logs, never tokens).
 
@@ -109,6 +125,12 @@ Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_requ
 5. Update `docs/connectors.md` quick reference and README if operator setup changed.
 6. Run `npm run check` and `npm test` at the repository root. Both must pass.
 
+## Access control and analytics (summary)
+
+- Permissions and built-in roles are data in `domain/permissions.ts`; custom roles are rows in `roles`. A grant is (user, role, workspace or `*`). Global-scope permissions (users, roles, audit, workspace creation) only count from `*` grants. Full model, guards and endpoints: [access-control.md](access-control.md).
+- Adding a permission: add it to `PERMISSIONS` (and to the right built-in role), mirror the id in `web/src/lib/session.ts`, gate the route with `requirePermission`, gate the UI with `useCan`, add a test in `test/access.test.ts`, document it in access-control.md.
+- Analytics: `store.analyticsRows()` aggregates records with SQL `GROUP BY` per connection/owner/axis/type; `domain/analytics.ts` turns rows into metrics and signals. Definitions and thresholds: [metrics.md](metrics.md). Bump `METRIC_VERSION` when a definition changes.
+
 ## Admin UI conventions (`apps/web`)
 
 - Stack: React, Vite, Tailwind CSS v4, shadcn components on Base UI (`@base-ui/react`), icons from `lucide-react`. Do not add Radix UI.
@@ -117,7 +139,9 @@ Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_requ
 - Full rules: [ui-guidelines.md](ui-guidelines.md). Theme preference (light/dark/system) lives in `lib/theme.ts`.
 - Colors come only from tokens in `src/index.css` via Tailwind classes (`bg-primary`, `text-muted-foreground`, `text-success`, ...). Status colors come from `STATUS` in `lib/format.ts`. Light and dark themes are both required.
 - All copy is Russian, concise, and states consequences ("запустит полную пересинхронизацию").
-- The operator key is typed at runtime and kept in `sessionStorage`; there is no customer login yet.
+- Sign-in is by email and password; the session is an HttpOnly cookie the browser script cannot read. `lib/api.ts` sends the CSRF header on every request and fires a session-expired event on 401, which returns the app to the login screen. The operator key is typed only once, on the first-owner bootstrap screen.
+- Permission-gated UI uses `useCan()`; pages register their required permission in `resolve()` in `App.tsx`.
+- Animations use Motion presets from `lib/motion.ts`; responsive layouts follow the three-layout rule (phone top bar, tablet rail, desktop sidebar). Both are specified in [ui-guidelines.md](ui-guidelines.md).
 
 ## Testing
 
@@ -136,4 +160,6 @@ Statuses: `connecting`, `backfilling`, `live`, `degraded`, `reauthorization_requ
 - Single-process SQLite and in-process worker; rate limiting is per process (Kommo client spaces requests per connection).
 - Kommo backfill uses page numbers; Bitrix24 uses id keysets. Incremental `updated_at` scans would make polling-mode reconciliation cheaper.
 - Existing databases keep the old `UNIQUE(tenant_id, account_id)` connection key; new databases use `(tenant_id, provider, account_id)`.
-- The analytics read model (`store.dashboard`) is a prototype and has no UI.
+- `GET …/connections/:id/dashboard` (`store.dashboard`) predates the workspace analytics endpoint and has no UI; remove it once nothing calls it.
+- Analytics has no date filter yet: metrics cover all loaded data (see metrics.md, «Coverage and limits»).
+- Sessions and login throttling live in one process; a multi-instance deployment needs a shared store.

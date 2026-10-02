@@ -105,6 +105,47 @@ export type ConnectionDetail = {
   actionTypes: ActionTypeMapping[]
 }
 
+export type Me = {
+  user: (UserView & { assignments: AssignmentInput[] }) | null
+  system: boolean
+  permissions: { global: string[]; workspaces: Record<string, string[]> }
+}
+export type PermissionInfo = { id: string; scope: 'global' | 'workspace'; group: string; label: string; description: string }
+export type AssignmentInput = { roleId: string; tenantId: string | null }
+export type UserView = {
+  id: string; email: string; name: string; status: 'active' | 'disabled'; created_at: number; last_login_at: number | null
+  assignments: AssignmentInput[]
+}
+export type Role = {
+  id: string; key: string | null; name: string; description: string; permissions: string[]; builtin: boolean
+  created_at: number; updated_at: number; users?: number
+}
+export type AuditEntry = {
+  id: number; at: number; actor_id: string | null; actor_label: string; action: string
+  target_type: string | null; target_id: string | null; tenant_id: string | null; details: Record<string, unknown> | null
+}
+
+/** Mirrors apps/api/src/domain/analytics.ts (metric version 2). */
+export type Signal = { code: string; severity: 'warning' | 'info'; title: string; detail: string }
+export type ManagerMetrics = {
+  key: string; connectionId: string; ownerId: string; name: string; named: boolean
+  deals: number; dealAmount: number; purchases: number; purchaseAmount: number
+  work: number; completed: number; completionRate: number | null; linkedWork: number
+  workByType: Record<string, number>; meetings: number; workPerDeal: number | null
+  dealShare: number; workShare: number; signals: Signal[]
+}
+export type WorkspaceAnalytics = {
+  metricVersion: number; generatedAt: number; currency: string | null
+  team: { managers: number; deals: number; dealAmount: number; purchases: number; purchaseAmount: number; unclassified: number
+    work: number; completed: number; completionRate: number | null; linkedWork: number; linkedRate: number | null
+    workPerDeal: number | null; medianWork: number; medianDeals: number }
+  workByType: Array<{ type: string; count: number; completed: number }>
+  managers: ManagerMetrics[]
+  coverage: { otherCurrencyDeals: number; otherCurrencies: string[]; unassigned: { deals: number; work: number }
+    unnamedManagers: number; notes: string[] }
+  connections: Array<{ id: string; provider: string; account: string; status: ConnectionStatus; lastSync: number | null }>
+}
+
 export class ApiError extends Error {
   readonly status: number
   constructor(status: number, message: string) {
@@ -113,32 +154,28 @@ export class ApiError extends Error {
   }
 }
 
-const KEY_STORAGE = 'crm-admin-key'
+/** Fired when the server answers 401: the session ended (expired, logged out elsewhere, user disabled). */
+export const SESSION_EXPIRED = 'crm-session-expired'
 
-export function getAdminKey(): string | null {
-  try { return sessionStorage.getItem(KEY_STORAGE) } catch { return null }
-}
-export function setAdminKey(key: string | null): void {
-  try {
-    if (key) sessionStorage.setItem(KEY_STORAGE, key)
-    else sessionStorage.removeItem(KEY_STORAGE)
-  } catch { /* storage unavailable: the key lives only in memory for this page */ }
-  window.dispatchEvent(new Event('admin-key-changed'))
-}
-
-async function request<T>(path: string, init: { method?: string; body?: unknown; key?: string } = {}): Promise<T> {
-  const key = init.key ?? getAdminKey()
+/**
+ * The only module that calls fetch. Auth is a same-origin HttpOnly session cookie; mutating requests carry
+ * `x-requested-with: crm-admin`, which the server requires as a CSRF guard (docs/access-control.md).
+ */
+async function request<T>(path: string, init: { method?: string; body?: unknown; headers?: Record<string, string>; quiet401?: boolean } = {}): Promise<T> {
+  const method = init.method ?? 'GET'
   const response = await fetch(path, {
-    method: init.method ?? 'GET',
+    method,
+    credentials: 'same-origin',
     headers: {
-      ...(key ? { 'x-admin-key': key } : {}),
+      ...(method !== 'GET' ? { 'x-requested-with': 'crm-admin' } : {}),
       ...(init.body !== undefined ? { 'content-type': 'application/json' } : {}),
+      ...init.headers,
     },
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
   })
   const data = await response.json().catch(() => ({})) as { error?: string }
   if (!response.ok) {
-    if (response.status === 401 && !init.key) setAdminKey(null)
+    if (response.status === 401 && !init.quiet401) window.dispatchEvent(new Event(SESSION_EXPIRED))
     throw new ApiError(response.status, data.error ?? `HTTP ${response.status}`)
   }
   return data as T
@@ -147,7 +184,34 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
 const base = (tenantId: string, connectionId: string) => `/v1/tenants/${tenantId}/connections/${connectionId}`
 
 export const api = {
-  verifyKey: (key: string) => request<{ providers: Provider[] }>('/v1/providers', { key }),
+  // --- Session ---
+  authStatus: () => request<{ hasUsers: boolean }>('/v1/auth/status'),
+  login: (email: string, password: string) =>
+    request<{ user: { id: string; email: string; name: string } }>('/v1/auth/login', { method: 'POST', body: { email, password }, quiet401: true }),
+  bootstrap: (adminKey: string, body: { email: string; name: string; password: string }) =>
+    request('/v1/auth/bootstrap', { method: 'POST', body, headers: { 'x-admin-key': adminKey }, quiet401: true }),
+  logout: () => request('/v1/auth/logout', { method: 'POST' }),
+  me: () => request<Me>('/v1/me', { quiet401: true }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request('/v1/me/password', { method: 'POST', body: { currentPassword, newPassword } }),
+
+  // --- Access control ---
+  permissions: () => request<{ permissions: PermissionInfo[] }>('/v1/permissions').then(r => r.permissions),
+  users: () => request<{ users: UserView[] }>('/v1/users').then(r => r.users),
+  createUser: (body: { email: string; name: string; password: string; assignments: AssignmentInput[] }) =>
+    request<{ user: UserView }>('/v1/users', { method: 'POST', body }),
+  updateUser: (id: string, body: Partial<{ name: string; email: string; status: 'active' | 'disabled'; password: string; assignments: AssignmentInput[] }>) =>
+    request<{ user: UserView }>(`/v1/users/${id}`, { method: 'PATCH', body }),
+  deleteUser: (id: string) => request(`/v1/users/${id}`, { method: 'DELETE' }),
+  roles: () => request<{ roles: Role[] }>('/v1/roles').then(r => r.roles),
+  createRole: (body: { name: string; description: string; permissions: string[] }) => request<{ role: Role }>('/v1/roles', { method: 'POST', body }),
+  updateRole: (id: string, body: Partial<{ name: string; description: string; permissions: string[] }>) =>
+    request<{ role: Role }>(`/v1/roles/${id}`, { method: 'PATCH', body }),
+  deleteRole: (id: string) => request(`/v1/roles/${id}`, { method: 'DELETE' }),
+  audit: (before?: number) => request<{ entries: AuditEntry[]; next: number | null }>(`/v1/audit${before ? `?before=${before}` : ''}`),
+
+  // --- Workspaces ---
+  analytics: (tenantId: string) => request<WorkspaceAnalytics>(`/v1/tenants/${tenantId}/analytics`),
   providers: () => request<{ providers: Provider[] }>('/v1/providers').then(r => r.providers),
   tenants: () => request<{ tenants: TenantSummary[] }>('/v1/tenants').then(r => r.tenants),
   createTenant: (name: string) => request<{ tenantId: string }>('/v1/tenants', { method: 'POST', body: { name } }),

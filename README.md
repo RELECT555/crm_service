@@ -1,11 +1,11 @@
 # CRM analytics integration foundation
 
-This repository contains a TypeScript backend prototype, an operator admin UI, and the design for a service that reads customer-authorized CRM data and builds analytics across two axes: commercial outcomes and non-commercial work, compared per manager. Implemented adapters: Bitrix24 and Kommo/amoCRM (the latter not yet verified in a sandbox). HubSpot, Pipedrive, Salesforce, Zoho, Dynamics 365 and RetailCRM are researched and shown in the admin catalog as planned. Customer login, analytics screens, CRM embedding, and additional adapters are still planned.
+This repository contains a TypeScript backend prototype, an operator admin UI, and the design for a service that reads customer-authorized CRM data and builds analytics across two axes: commercial outcomes and non-commercial work, compared per manager. Implemented adapters: Bitrix24 and Kommo/amoCRM (the latter not yet verified in a sandbox). HubSpot, Pipedrive, Salesforce, Zoho, Dynamics 365 and RetailCRM are researched and shown in the admin catalog as planned. The admin UI has email/password sign-in with progressive roles, custom roles and an audit log, and a team analytics screen that puts each manager's results next to their work. CRM embedding, customer-facing login and additional adapters are still planned.
 
 | Path | What it is |
 | --- | --- |
 | `apps/api` | HTTP API, connector adapters, sync worker, SQLite store ([architecture](docs/code-architecture.md)) |
-| `apps/web` | React admin UI (Vite, Tailwind CSS, shadcn on Base UI): workspaces, CRM connection wizard, sync status, mappings |
+| `apps/web` | React admin UI (Vite, Tailwind CSS, shadcn on Base UI, Motion): workspaces, CRM connection wizard, sync status, mappings, team analytics, users/roles/audit |
 | `docs/` | Product design, connector research and per-CRM playbooks |
 
 ## Run the Bitrix24 prototype
@@ -28,13 +28,13 @@ npm run dev:web   # optional: admin UI with hot reload on :5173 (set ADMIN_ORIGI
 npm run seed:demo # optional: demo workspaces and connections for UI work without a CRM
 ```
 
-Open the API origin (or the Vite dev server) and sign in with `ADMIN_API_KEY`. In the admin UI: create a workspace → *Подключить CRM* → pick Bitrix24 → enter the portal → authorize in Bitrix24. You return to the connection page, which shows sync progress per object, the event subscription, errors, and the purchase/activity mappings.
+Open the API origin (or the Vite dev server). On a fresh database the UI asks for `ADMIN_API_KEY` once to create the first owner; after that everyone signs in with email and password (demo data: `owner@example.com` / `demo-password-1`). In the admin UI: create a workspace → *Подключить CRM* → pick Bitrix24 → enter the portal → authorize in Bitrix24. You return to the connection page, which shows sync progress per object, the event subscription, errors, and the purchase/activity mappings.
 
 The prototype stores encrypted OAuth tokens and raw CRM payloads in a local SQLite file. Do not reuse this single-process SQLite deployment as a production architecture without a storage, authentication, and operations review.
 
 ## API flow
 
-All `/v1` routes require the `x-admin-key` header. This is a development-only operator credential, not customer authentication. The admin UI uses exactly these routes.
+`/v1` routes need a principal: the admin UI's session cookie (plus the `x-requested-with: crm-admin` header on writes) or, for scripts, the `x-admin-key` header. Every route checks a permission ([access-control.md](docs/access-control.md)); the full list is in [docs/api.md](docs/api.md).
 
 1. `GET /v1/providers` returns the connector catalog (available and planned CRMs, setup steps, data per axis, limits, callback URL).
 2. `POST /v1/tenants` with optional `{"name":"Acme"}` creates a workspace; `GET /v1/tenants` lists them. `GET /v1/tenants/{tenantId}` returns the workspace and its connections with record counts and backfill progress; `PATCH` updates `name`, `timezone` (IANA) and `currency` (ISO 4217, `null` clears).
@@ -45,7 +45,7 @@ All `/v1` routes require the `x-admin-key` header. This is a development-only op
 7. `POST …/action-types` maps a provider activity code, e.g. `{"providerTypeId":"TRAVEL","actionType":"visit"}`; `DELETE …/action-types/{providerTypeId}` removes it.
 8. `POST …/disconnect` stops syncing locally (pending jobs cancelled, CRM events ignored, data and mappings kept; nothing changes in the CRM); `POST …/resume` restarts with a full sync. `GET …/activity` returns the last 30 jobs with their errors.
 9. `POST …/resync` starts a full reconciliation. The worker also schedules one after a live connection becomes 24 hours stale.
-10. `GET …/dashboard` returns the prototype two-axis read model (commercial/work groups, `byOwner`, linked work, coverage, limitations). It has no UI yet.
+10. `GET /v1/tenants/{tenantId}/analytics` returns team and per-manager metrics on both axes with weak-spot signals and coverage notes ([metrics.md](docs/metrics.md)). The older per-connection `GET …/dashboard` read model remains for compatibility and has no UI.
 
 Bitrix24 deals are classified as sales processes by default; deal opportunity amounts are pipeline values, not booked revenue. Purchases require explicit mappings. Activity counts currently include Bitrix CRM activities; external tasks and multi-entity activity bindings are not yet fully covered. The API reports links as relationships, not proof that an activity caused a commercial outcome. A missed delete event can leave a stale record because an absent record may also mean changed read permissions; confirmed delete events are handled, while reliable delete reconciliation remains open.
 
@@ -54,7 +54,8 @@ Bitrix24 deals are classified as sales processes by default; deal opportunity am
 1. [Documentation map](docs/README.md) — what each document is for, plus a glossary.
 2. [Development guide](docs/development.md) — setup, environment variables, demo data, troubleshooting.
 3. [Code architecture](docs/code-architecture.md) — layers, dependency rules, connection lifecycle, how to add a connector.
-4. [UI guidelines](docs/ui-guidelines.md) — tokens, themes, components, badges, motion and copy for the admin UI.
-5. [Product and architecture](docs/architecture.md), [CRM connector research](docs/connectors.md) with [per-CRM playbooks](docs/connectors/), [ingestion contract](docs/ingestion-contract.md), [delivery plan](docs/delivery-plan.md), [decision log](docs/decisions.md).
+4. [UI guidelines](docs/ui-guidelines.md) — tokens, themes, components, motion, responsive layouts, charts and copy for the admin UI.
+5. [Access control](docs/access-control.md), [metrics](docs/metrics.md) and [API reference](docs/api.md).
+6. [Product and architecture](docs/architecture.md), [CRM connector research](docs/connectors.md) with [per-CRM playbooks](docs/connectors/), [ingestion contract](docs/ingestion-contract.md), [delivery plan](docs/delivery-plan.md), [decision log](docs/decisions.md).
 
 `AGENTS.md` gives coding agents the project constraints and the expected workflow. Product choices marked **proposed** are design recommendations, not facts established by a running system.

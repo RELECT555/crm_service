@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ACTION_TYPES, actionLabel, formatAgo, formatDateTime, kindLabel, numberFormat, STATUS } from '@/lib/format'
 import { errorText, useToast } from '@/lib/toast'
 import { useResource } from '@/lib/use-resource'
+import { useCan } from '@/lib/session'
 import { cn } from '@/lib/utils'
 
 const eventsLabel = (data: ConnectionDetail) =>
@@ -26,6 +27,7 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
   const tenant = useResource(() => api.tenant(tenantId), [tenantId])
   const [confirmResync, setConfirmResync] = useState(false)
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
+  const can = useCan()
   const toast = useToast()
   const data = detail.data
   const run = async (action: () => Promise<unknown>, done: string) => {
@@ -47,7 +49,7 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
         crumbs={[{ label: 'Пространства', href: '#/' }, { label: tenant.data?.tenant.name ?? 'Пространство', href: `#/tenants/${tenantId}` },
           { label: data?.connection.account ?? '…' }]}
         title={data ? <span className="flex items-center gap-3"><ProviderMark provider={data.connection.provider} large /><span className="min-w-0 break-all">{data.connection.account}</span></span> : 'Подключение'}
-        actions={data && <>
+        actions={data && can('connections.manage', tenantId) && <>
           {data.connection.status === 'disconnected'
             ? <Button size="lg" onClick={() => run(() => api.resume(tenantId, connectionId), 'Подключение возобновлено')}><Power />Возобновить</Button>
             : <Button variant="outline" size="lg" onClick={() => setConfirmResync(true)} disabled={isSyncing(data)}><RefreshCw />Полная синхронизация</Button>}
@@ -82,8 +84,8 @@ export function Connection({ tenantId, connectionId }: { tenantId: string; conne
           </Card>
           <SyncCoverage data={data} />
           <div className="grid gap-5 lg:grid-cols-2">
-            <CommercialSources data={data} tenantId={tenantId} onChange={detail.reload} />
-            <ActionTypes data={data} tenantId={tenantId} onChange={detail.reload} />
+            <CommercialSources data={data} tenantId={tenantId} onChange={detail.reload} readOnly={!can('mappings.manage', tenantId)} />
+            <ActionTypes data={data} tenantId={tenantId} onChange={detail.reload} readOnly={!can('mappings.manage', tenantId)} />
           </div>
           <ActivityLog tenantId={tenantId} connectionId={connectionId} live={isSyncing(data)} />
         </div>
@@ -208,7 +210,7 @@ function MappingCard({ title, description, table, children }: { title: string; d
   )
 }
 
-function CommercialSources({ data, tenantId, onChange }: { data: ConnectionDetail; tenantId: string; onChange: () => void }) {
+function CommercialSources({ data, tenantId, onChange, readOnly }: { data: ConnectionDetail; tenantId: string; onChange: () => void; readOnly: boolean }) {
   const options = data.mappingOptions
   const pipelineNames = new Map(data.pipelines.map(pipeline => [pipeline.id, pipeline.label]))
   const [source, setSource] = useState(options?.sources[0]?.kind ?? '')
@@ -268,14 +270,14 @@ function CommercialSources({ data, tenantId, onChange }: { data: ConnectionDetai
                 <TableCell>{row.category_id === '*' ? 'Все' : pipelineNames.get(row.category_id) ?? row.category_id}</TableCell>
                 <TableCell><ToneBadge tone={row.direction === 'purchase' ? 'warn' : 'ok'}>{row.direction === 'purchase' ? 'Закупка' : 'Продажа'}</ToneBadge></TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon-sm" aria-label="Удалить разметку" onClick={() => remove(row.source_kind, row.category_id)}><Trash2 /></Button>
+                  {!readOnly && <Button variant="ghost" size="icon-sm" aria-label="Удалить разметку" onClick={() => remove(row.source_kind, row.category_id)}><Trash2 /></Button>}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       )}>
-      <form onSubmit={submit} className="grid gap-3">
+      {readOnly ? <p className="text-[13px] text-muted-foreground">Менять разметку может пользователь с правом «Разметка данных».</p> : <form onSubmit={submit} className="grid gap-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Источник" htmlFor="cs-source">
             <NativeSelect id="cs-source" value={source} onChange={event => { setSource(event.target.value); setCategory('') }}>
@@ -321,12 +323,12 @@ function CommercialSources({ data, tenantId, onChange }: { data: ConnectionDetai
           </div>
           <Button type="submit" size="lg" disabled={busy}>Сохранить</Button>
         </div>
-      </form>
+      </form>}
     </MappingCard>
   )
 }
 
-function ActionTypes({ data, tenantId, onChange }: { data: ConnectionDetail; tenantId: string; onChange: () => void }) {
+function ActionTypes({ data, tenantId, onChange, readOnly }: { data: ConnectionDetail; tenantId: string; onChange: () => void; readOnly: boolean }) {
   const [providerTypeId, setProviderTypeId] = useState('')
   const [actionType, setActionType] = useState('visit')
   const [busy, setBusy] = useState(false)
@@ -365,14 +367,14 @@ function ActionTypes({ data, tenantId, onChange }: { data: ConnectionDetail; ten
                 <TableCell className="font-mono text-xs">{row.provider_type_id}</TableCell>
                 <TableCell>{actionLabel(row.action_type)}</TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon-sm" aria-label="Удалить сопоставление" onClick={() => remove(row.provider_type_id)}><Trash2 /></Button>
+                  {!readOnly && <Button variant="ghost" size="icon-sm" aria-label="Удалить сопоставление" onClick={() => remove(row.provider_type_id)}><Trash2 /></Button>}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       )}>
-      <form onSubmit={submit} className="grid gap-3">
+      {readOnly ? <p className="text-[13px] text-muted-foreground">Менять разметку может пользователь с правом «Разметка данных».</p> : <form onSubmit={submit} className="grid gap-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={options?.activityCodeLabel ?? 'Код типа в CRM'} htmlFor="at-code" hint={options?.activityCodeHint}>
             <Input id="at-code" required className="font-mono" pattern="[A-Za-z0-9_\-]{1,100}" value={providerTypeId} onChange={event => setProviderTypeId(event.target.value)} />
@@ -384,7 +386,7 @@ function ActionTypes({ data, tenantId, onChange }: { data: ConnectionDetail; ten
           </Field>
         </div>
         <div className="mt-1 flex justify-end"><Button type="submit" size="lg" disabled={busy || !options}>Сопоставить</Button></div>
-      </form>
+      </form>}
     </MappingCard>
   )
 }

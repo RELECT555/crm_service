@@ -4,6 +4,7 @@
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { digest, encrypt } from "../src/security/crypto.ts";
+import { hashPassword } from "../src/security/password.ts";
 import { Store } from "../src/storage/store.ts";
 
 const dbPath = process.env.DB_PATH ?? "./data/crm.sqlite";
@@ -33,14 +34,36 @@ store.saveCheckpoint(loading.id, "activity", "4150", false);
 // Scheduled far ahead so the worker never calls Bitrix24 with the fake token.
 store.enqueue(loading.id, "sync", "activity", "4150", null, null, Date.now() + 365 * 86_400_000);
 store.markEventsBound(loading.id, "webhook");
-const counts: Array<[string, "commercial" | "work" | "context", number]> =
-  [["pipeline", "context", 4], ["stage", "context", 27], ["deal", "commercial", 1284], ["contact", "context", 3120], ["activity", "work", 4150]];
+// Five managers with different profiles so analytics and weak-spot signals have something to show.
+const managers = [
+  { id: "11", name: "Анна Соколова", deals: 64, amount: 410_000, work: { call: 220, meeting: 48, task: 90, email: 60 }, done: 0.86 },
+  { id: "12", name: "Борис Ким", deals: 9, amount: 150_000, work: { call: 410, task: 70, email: 25 }, done: 0.38 },
+  { id: "13", name: "Вера Лебедева", deals: 52, amount: 520_000, work: { call: 30, meeting: 6, task: 12 }, done: 0.9 },
+  { id: "14", name: "Глеб Орлов", deals: 41, amount: 260_000, work: { call: 180, meeting: 30, visit: 22, task: 60 }, done: 0.74 },
+  { id: "15", name: "Дарья Миронова", deals: 33, amount: 300_000, work: { call: 140, meeting: 25, task: 70, email: 40 }, done: 0.81 },
+];
+const counts: Array<[string, "commercial" | "work" | "context", number]> = [["stage", "context", 27], ["contact", "context", 3120]];
 const pipelineNames = ["Продажи", "Закупки", "Тендеры", "Сервис"];
 store.transaction(() => {
   pipelineNames.forEach((label, index) => store.upsertRecord(loading,
     { kind: "pipeline", externalId: String(index + 1), axis: "context", label, payload: {} }, encrypt(dataKey, "{}")));
+  let deal = 0;
+  let activity = 0;
+  for (const manager of managers) {
+    store.upsertRecord(loading, { kind: "user", externalId: manager.id, axis: "context", label: manager.name, payload: {} }, encrypt(dataKey, "{}"));
+    for (let index = 0; index < manager.deals; index++) {
+      store.upsertRecord(loading, { kind: "deal", externalId: String(++deal), axis: "commercial", direction: "sale", currency: "RUB",
+        amount: Math.round(manager.amount * (0.5 + ((index * 37) % 100) / 100)), ownerId: manager.id, payload: {} }, encrypt(dataKey, "{}"));
+    }
+    for (const [type, total] of Object.entries(manager.work)) {
+      for (let index = 0; index < total; index++) {
+        store.upsertRecord(loading, { kind: "activity", externalId: String(++activity), axis: "work", actionType: type,
+          status: index < total * manager.done ? "completed" : "open", ownerId: manager.id,
+          targetKind: index % 3 ? "deal" : undefined, targetId: index % 3 ? String((index % deal) + 1) : undefined, payload: {} }, encrypt(dataKey, "{}"));
+      }
+    }
+  }
   for (const [kind, axis, total] of counts) {
-    if (kind === "pipeline") continue;
     for (let index = 1; index <= total; index++) {
       store.upsertRecord(loading, { kind, externalId: String(index), axis, payload: {} }, encrypt(dataKey, "{}"));
     }
@@ -56,5 +79,14 @@ store.setActionType(loading.id, "TRAVEL", "visit");
 const revoked = addConnection("sv-moscow.bitrix24.ru", "demo-member-2");
 store.setConnectionStatus(revoked.id, "reauthorization_required", "Bitrix OAuth failed: invalid_grant");
 
+// Sign-in for the demo: owner and an analyst limited to this workspace.
+const ownerId = store.access.createUser("owner@example.com", "Ольга Владелец", await hashPassword("demo-password-1"));
+store.access.setAssignments(ownerId, [{ role_id: "builtin:owner", tenant_id: "*" }]);
+const analystId = store.access.createUser("analyst@example.com", "Алексей Аналитик", await hashPassword("demo-password-1"));
+store.access.setAssignments(analystId, [{ role_id: "builtin:analyst", tenant_id: tenantId }]);
+store.access.audit({ actor_id: null, actor_label: "seed-demo", action: "user.create", target_type: "user", target_id: ownerId, tenant_id: null,
+  details: { email: "owner@example.com" } });
+
 store.close();
 console.log(`Demo data written to ${dbPath}. Workspace: ${tenantId}`);
+console.log("Sign in: owner@example.com / demo-password-1 (owner), analyst@example.com / demo-password-1 (analyst, one workspace)");

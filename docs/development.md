@@ -18,7 +18,7 @@ node -e "console.log(require('node:crypto').randomBytes(24).toString('base64url'
 | Variable (`apps/api/.env`) | Required | Purpose |
 | --- | --- | --- |
 | `APP_ORIGIN` | yes | Public origin of the API. OAuth redirect URI is `${APP_ORIGIN}/oauth/<provider>/callback`. HTTPS except `localhost`. |
-| `ADMIN_API_KEY` | yes | Operator key for the admin UI and `/v1` routes, ≥ 32 characters. |
+| `ADMIN_API_KEY` | yes | Service key, ≥ 32 characters: creates the first owner in the UI and authenticates scripts (`x-admin-key`, acts as the `system` principal). People sign in with email and password. |
 | `DATA_KEY_BASE64` | yes | 32-byte AES-256-GCM key for tokens and payloads. Losing it makes stored tokens unreadable. |
 | `BITRIX_CLIENT_ID`, `BITRIX_CLIENT_SECRET` | no | Bitrix24 application credentials (placeholders are fine with demo data). |
 | `KOMMO_CLIENT_ID`, `KOMMO_CLIENT_SECRET` | no | Kommo integration credentials. |
@@ -45,9 +45,19 @@ Set each pair completely or not at all; a CRM without credentials shows as «Н�
 
 1. Set `ADMIN_ORIGIN=http://localhost:5173` in `apps/api/.env`.
 2. `npm run seed:demo` once, then `npm run dev:api` and `npm run dev:web`.
-3. Open `http://localhost:5173`, sign in with `ADMIN_API_KEY`. You get three workspaces, one connection mid-backfill with mappings, and one that needs re-authorization.
+3. Open `http://localhost:5173` and sign in as `owner@example.com` / `demo-password-1` (owner of everything) or `analyst@example.com` / `demo-password-1` (analyst on one workspace — use it to see the permission-gated UI). You get three workspaces, one connection mid-backfill with mappings and five named managers with different work profiles (analytics and weak-spot signals have data), and one connection that needs re-authorization.
+
+The demo passwords are public and exist only in the seed script; never seed a database that is reachable by anyone else.
 
 Demo tokens are fake. Clicking «Полная синхронизация» or «Переавторизовать» on demo data will fail against Bitrix24 — that is expected and shows the error states.
+
+## First sign-in on a fresh database
+
+With no users the UI shows «Первый запуск»: enter `ADMIN_API_KEY` once, plus the owner's name, email and a password (≥ 10 characters). The owner then adds people in «Пользователи» and gives them roles (built-in: Наблюдатель → Аналитик → Интегратор → Администратор → Владелец, or custom roles in «Роли и права»). Model and guards: [access-control.md](access-control.md). Sessions last 12 hours from the last request. Changing your own password ends your other sessions; an admin resetting a password, deactivating or deleting a user ends all of that user’s sessions.
+
+## Checking the UI before a commit
+
+Look at every changed screen in light and dark themes at 1440, 1280, 820 and 360 px, and once with the OS «reduce motion» setting on (Chromium DevTools → Rendering → `prefers-reduced-motion`). At 360 px `document.documentElement.scrollWidth` must equal the window width. Rules: [ui-guidelines.md](ui-guidelines.md).
 
 ## Connecting a real Bitrix24 portal
 
@@ -60,7 +70,11 @@ Follow [connectors/bitrix24.md](connectors/bitrix24.md). In short: expose the AP
 | `Unable to resolve @typescript/typescript-linux-x64` | The lockfile was produced on another OS. Run `npm install --no-save @typescript/typescript-linux-x64@<typescript version>`; do not commit lockfile churn. A plain `npm install` removes it again. |
 | `package-lock.json` changes after `npm install` with no dependency change | Different npm version rewrote metadata (`libc` fields). Revert the file. |
 | Admin UI on the API origin looks outdated after `git pull` (missing features, old styles) | The API serves `apps/web/dist`, which is not in git. Run `npm run build`, or use `npm run dev:web`. |
-| Admin UI shows «Ключ администратора не подошёл» | The key differs from `ADMIN_API_KEY`, or the API restarted with a new `.env`. |
+| «Первый запуск» rejects the service key | The key differs from `ADMIN_API_KEY`, or the API restarted with a new `.env`. |
+| «Слишком много попыток входа» | Login throttling: 8 wrong passwords for one email within 15 minutes; wait, or restart the API (throttle state is in memory). |
+| Signed out unexpectedly | Session older than 12 h of inactivity, password changed elsewhere, or the user was removed/deactivated. |
+| «Нет доступа» on a page | The user's roles lack the page's permission in this workspace; global pages (users, roles, audit) need a role granted on «Все пространства». |
+| Page scrolls sideways on a phone | A grid without explicit columns or a child without `min-w-0`; see ui-guidelines.md, «Responsive layout». |
 | «Сервер недоступен» in the UI | API not running on the port the Vite proxy expects (`API_TARGET`, default `http://localhost:3000`). |
 | OAuth callback ends on the API origin instead of the dev server | `ADMIN_ORIGIN` not set. |
 | Connection stuck in «Первичная загрузка» | Check the queue counts on the connection page and API logs (`Sync job failed …`). Bitrix24 events also need a public `APP_ORIGIN`. |

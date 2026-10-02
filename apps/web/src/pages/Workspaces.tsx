@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDate, numberFormat } from '@/lib/format'
 import { navigate, useHashQuery } from '@/lib/router'
+import { useCan } from '@/lib/session'
 import { errorText, useToast } from '@/lib/toast'
 import { useResource } from '@/lib/use-resource'
 
@@ -19,7 +20,8 @@ export function Workspaces() {
   // `#/?new=1` (from the workspace switcher) opens the dialog; closing it clears the parameter.
   const creating = creatingLocal || query.get('new') === '1'
   const setCreating = (open: boolean) => { setCreatingLocal(open); if (!open && query.get('new')) navigate('/') }
-  const create = <Button size="lg" onClick={() => setCreating(true)}><Plus />Новое пространство</Button>
+  const can = useCan()
+  const create = can('workspaces.create') ? <Button size="lg" onClick={() => setCreating(true)}><Plus />Новое пространство</Button> : null
 
   return (
     <>

@@ -1,35 +1,47 @@
 import * as React from "react"
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
+import { AnimatePresence, motion } from "motion/react"
 import { X } from "lucide-react"
+import { exitFast, sheetSpring } from "@/lib/motion"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
-/** Right-side panel built on the Base UI dialog (focus trap, Escape, scroll lock). */
-function Sheet(props: SheetPrimitive.Root.Props) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />
+/** Side panel built on the Base UI dialog (focus trap, Escape, scroll lock), animated with Motion like Dialog. */
+const SheetOpenContext = React.createContext(false)
+
+function Sheet({ open = false, ...props }: SheetPrimitive.Root.Props) {
+  return (
+    <SheetOpenContext.Provider value={open}>
+      <SheetPrimitive.Root data-slot="sheet" open={open} {...props} />
+    </SheetOpenContext.Provider>
+  )
 }
 
 function SheetContent({ className, children, side = "right", ...props }: SheetPrimitive.Popup.Props & { side?: "left" | "right" }) {
+  const open = React.useContext(SheetOpenContext)
+  const offset = side === "right" ? 48 : -48
   return (
-    <SheetPrimitive.Portal>
-      <SheetPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] transition-opacity duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-      <SheetPrimitive.Popup
-        data-slot="sheet-content"
-        className={cn(
-          "fixed inset-y-0 z-50 flex h-full w-full flex-col bg-card text-card-foreground shadow-pop ring-1 ring-border transition-[translate,opacity] duration-250 ease-out outline-none data-ending-style:opacity-0 data-starting-style:opacity-0",
-          side === "right"
-            ? "right-0 max-w-xl data-ending-style:translate-x-10 data-starting-style:translate-x-10"
-            : "left-0 max-w-[290px] data-ending-style:-translate-x-10 data-starting-style:-translate-x-10",
-          className
-        )}
-        {...props}
-      >
-        {children}
-        <SheetPrimitive.Close render={<Button variant="ghost" size="icon-sm" className="absolute top-4 right-4" aria-label="Закрыть" />}>
-          <X />
-        </SheetPrimitive.Close>
-      </SheetPrimitive.Popup>
-    </SheetPrimitive.Portal>
+    <AnimatePresence>
+      {open && (
+        <SheetPrimitive.Portal keepMounted>
+          <SheetPrimitive.Backdrop render={<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.18 } }} />}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" />
+          <SheetPrimitive.Popup
+            data-slot="sheet-content"
+            render={<motion.div initial={{ x: offset, opacity: 0 }} animate={{ x: 0, opacity: 1, transition: sheetSpring }}
+              exit={{ x: offset / 2, opacity: 0, transition: exitFast }} />}
+            className={cn("fixed inset-y-0 z-50 flex h-full w-full flex-col bg-card text-card-foreground shadow-pop ring-1 ring-border outline-none",
+              side === "right" ? "right-0 max-w-xl" : "left-0 max-w-[290px]", className)}
+            {...props}
+          >
+            {children}
+            <SheetPrimitive.Close render={<Button variant="ghost" size="icon-sm" className="absolute top-4 right-4" aria-label="Закрыть" />}>
+              <X />
+            </SheetPrimitive.Close>
+          </SheetPrimitive.Popup>
+        </SheetPrimitive.Portal>
+      )}
+    </AnimatePresence>
   )
 }
 

@@ -1,31 +1,49 @@
 import * as React from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
+import { AnimatePresence, motion } from "motion/react"
 import { X } from "lucide-react"
+import { dialogSpring, exitFast } from "@/lib/motion"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
-function Dialog(props: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+// Animated with Motion (motion.dev/docs/base-ui): the open state is read from context so the keepMounted Portal can
+// stay mounted inside AnimatePresence until the exit animation finishes.
+
+const DialogOpenContext = React.createContext(false)
+
+function Dialog({ open = false, ...props }: DialogPrimitive.Root.Props) {
+  return (
+    <DialogOpenContext.Provider value={open}>
+      <DialogPrimitive.Root data-slot="dialog" open={open} {...props} />
+    </DialogOpenContext.Provider>
+  )
 }
 
 function DialogContent({ className, children, ...props }: DialogPrimitive.Popup.Props) {
+  const open = React.useContext(DialogOpenContext)
   return (
-    <DialogPrimitive.Portal>
-      <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] transition-opacity duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-      <DialogPrimitive.Popup
-        data-slot="dialog-content"
-        className={cn(
-          "fixed top-1/2 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl bg-card text-card-foreground shadow-pop ring-1 ring-border transition-[scale,opacity] duration-200 ease-out outline-none data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0",
-          className
-        )}
-        {...props}
-      >
-        {children}
-        <DialogPrimitive.Close render={<Button variant="ghost" size="icon-sm" className="absolute top-3 right-3" aria-label="Закрыть" />}>
-          <X />
-        </DialogPrimitive.Close>
-      </DialogPrimitive.Popup>
-    </DialogPrimitive.Portal>
+    <AnimatePresence>
+      {open && (
+        <DialogPrimitive.Portal keepMounted>
+          <DialogPrimitive.Backdrop render={<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: exitFast }} />}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" />
+          <div className="pointer-events-none fixed inset-0 z-50 grid place-items-center p-4">
+            <DialogPrimitive.Popup
+              data-slot="dialog-content"
+              render={<motion.div initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0, transition: dialogSpring }}
+                exit={{ opacity: 0, scale: 0.98, y: 4, transition: exitFast }} />}
+              className={cn("pointer-events-auto relative flex w-full max-w-md flex-col rounded-xl bg-card text-card-foreground shadow-pop ring-1 ring-border outline-none", className)}
+              {...props}
+            >
+              {children}
+              <DialogPrimitive.Close render={<Button variant="ghost" size="icon-sm" className="absolute top-3 right-3" aria-label="Закрыть" />}>
+                <X />
+              </DialogPrimitive.Close>
+            </DialogPrimitive.Popup>
+          </div>
+        </DialogPrimitive.Portal>
+      )}
+    </AnimatePresence>
   )
 }
 

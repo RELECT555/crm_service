@@ -26,6 +26,12 @@
   --color-warning: var(--warning);
   --color-info: var(--info);
   --color-canvas: var(--canvas);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
+  --color-series-other: var(--series-other);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-muted: var(--sidebar-muted);
@@ -70,6 +76,9 @@
   --sidebar-accent: #f3f1fb;
   --sidebar-active: #4e3aa0;
   --sidebar-border: #ebeaf0;
+  /* Chart series (dataviz reference palette, validated light + dark: scripts/validate_palette.js). Fixed order. */
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4;
+  --series-other: #c9c8d1;
   --shadow-card: 0 1px 2px rgb(20 18 40 / 0.04), 0 1px 1px rgb(20 18 40 / 0.03);
   --shadow-pop: 0 18px 40px -12px rgb(20 18 40 / 0.22);
 }
@@ -101,6 +110,8 @@
   --sidebar-accent: #1e1d26;
   --sidebar-active: #e4ddff;
   --sidebar-border: #222229;
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181;
+  --series-other: #4a4956;
   --shadow-card: 0 1px 0 rgb(255 255 255 / 0.02) inset, 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow-pop: 0 24px 48px -12px rgb(0 0 0 / 0.7);
 }
