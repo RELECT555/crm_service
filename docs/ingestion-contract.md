@@ -1,6 +1,6 @@
 # Ingestion and TypeScript contracts
 
-Status: target interfaces. These are design sketches, not the exact signatures of the Bitrix24 prototype in `src/`. The implemented subset and its limits are described in [README.md](../README.md).
+Status: target interfaces. These are design sketches. The **implemented** contract is `Connector` in [`apps/api/src/connectors/types.ts`](../apps/api/src/connectors/types.ts), explained in [code-architecture.md](code-architecture.md). When the two disagree, the code is current; move a target feature into the code contract only together with an adapter that needs it and tests.
 
 ## Connector boundary
 

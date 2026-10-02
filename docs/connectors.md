@@ -1,6 +1,6 @@
 # CRM connector research
 
-Research date: 2026-09-30. Links point to official vendor documentation. API versions, quotas, subscriptions, editions, and marketplace rules can change; recheck them in a provider sandbox when implementation starts. The entries below describe supported mechanisms, not guaranteed access on every customer plan.
+Research date: 2026-09-30, refreshed 2026-10-02. Links point to official vendor documentation. API versions, quotas, subscriptions, editions, and marketplace rules can change; recheck them in a provider sandbox when implementation starts. The entries below describe supported mechanisms, not guaranteed access on every customer plan.
 
 ## Capability matrix
 
@@ -16,47 +16,22 @@ Research date: 2026-09-30. Links point to official vendor documentation. API ver
 | RetailCRM (candidate) | API v5 with scoped API keys | History APIs for some changes; evaluate object coverage | JavaScript integration module embed points | Order-centric model needs an `Order` entity and metrics separate from deal pipelines. |
 | Creatio (candidate) | REST/OData with deployment-specific authentication | Research a supported change feed for each deployment | Marketplace package or UI extension | Configuration and authentication vary by deployment; validate with a target customer. |
 
-## Provider notes and evidence
+## Connection quick reference
 
-### Bitrix24
+What the operator enters and how each provider behaves. Details, endpoints and sources are in the per-provider playbooks under [`connectors/`](connectors/); new playbooks start from [`connectors/_template.md`](connectors/_template.md).
 
-For a distributed integration, create an OAuth application. An inbound webhook can work for one customer's simple integration but is not the recommended mass-install pattern. The [REST overview](https://apidocs.bitrix24.com/api-reference/) describes authorization, pages of up to 50 records, and batches of up to 50 calls. New CRM work should favor universal `crm.item.*`; [Bitrix24's list guide](https://apidocs.bitrix24.com/tutorials/crm/how-to-get-lists/index.html) says development of legacy lead/contact/company/deal method branches has stopped and documents their field-name differences. Retrieve object types, fields, categories, and stage semantics before mapping. [Universal CRM methods](https://apidocs.bitrix24.com/api-reference/crm/universal/index.html) cover standard and smart-process objects.
+| CRM | Operator enters | Credential | Token lifetime | List page | Rate limit (summary) | Change capture | Playbook |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Bitrix24 | Portal host | OAuth app | Access short-lived, refresh via oauth.bitrix.info | 50 | Leaky bucket ~2 rps (5 rps Enterprise), 503 `QUERY_LIMIT_EXCEEDED` | `event.bind`, no retries → reconcile | [bitrix24.md](connectors/bitrix24.md) |
+| Kommo / amoCRM | Account subdomain | OAuth integration | Access 24 h, refresh 3 months, rotated | 250 | 7 rps | Webhooks with retries; API registration plan-dependent | [kommo.md](connectors/kommo.md) |
+| HubSpot | Nothing (account picker) | OAuth app | Access ~30 min, refresh until revoked | 100 (search: 10k cap) | Per-app burst; search ~5 rps | App webhook subscriptions | [hubspot.md](connectors/hubspot.md) |
+| Pipedrive | Nothing (company picker) | OAuth app | Access 60 min, refresh expires after 60 days unused | 500 (cursor) | Daily company budget + burst | Webhooks v2 | [pipedrive.md](connectors/pipedrive.md) |
+| Salesforce | Login domain (prod/sandbox/My Domain) | External Client App | Org policy | 2,000 (REST) / Bulk 2.0 | Daily org allocation | CDC via Pub/Sub, 72 h replay | [salesforce.md](connectors/salesforce.md) |
+| Zoho CRM | Data center (if needed) | OAuth client | Access 1 h, refresh until revoked (20/user cap) | 200, `page_token` after 2,000 | Credits per edition | Watch channels ≤ 1 week, renew | [zoho.md](connectors/zoho.md) |
+| Dynamics 365 | Environment URL | Entra app | Access ~1 h, refresh rotated | Server-driven | Service protection 429 | Change tracking delta links | [dynamics.md](connectors/dynamics.md) |
+| RetailCRM | System URL + API key | Scoped API key | Until revoked | 100 | ~10 rps per IP | History API `sinceId` | [retailcrm.md](connectors/retailcrm.md) |
 
-Subscribe to relevant events through the app, including create/update/delete and funnel moves. The [deal-event guide](https://apidocs.bitrix24.com/api-reference/crm/deals/events/index.html) says normal deal events provide only the ID and that moving a deal to another funnel has its own event. The [event-handler guide](https://apidocs.bitrix24.com/api-reference/events/index.html) documents `application_token`, form-encoded delivery, and cases where an event does not include user OAuth tokens. Validate the callback and fetch via the installation's stored credentials. [Widget placements](https://apidocs.bitrix24.com/api-reference/widgets/index.html) support a CRM deal detail tab and a main menu entry via an externally hosted application frame.
-
-The [Bitrix24 event guide](https://apidocs.bitrix24.com/api-reference/events/index.html) says ordinary event delivery has no retry on handler failure. The prototype therefore stores accepted events durably and runs periodic reads. This does not fully resolve a lost delete event: a missing record can also reflect changed read permissions. Evaluate Bitrix24 offline events or an explicit deletion policy before promising complete delete reconciliation.
-
-For the two-axis model, [CRM activities](https://apidocs.bitrix24.com/api-reference/crm/timeline/activities/) provide meetings, calls, tasks, email, and custom provider types with links to CRM objects. [Smart processes](https://apidocs.bitrix24.com/api-reference/crm/universal/index.html) can represent customer-specific procurement or other commercial flows, but their meaning and amount fields require explicit mapping. A deal's opportunity amount is a pipeline value, not evidence of booked revenue. The current prototype loads the primary activity owner link; full multi-entity bindings and external `tasks.task.list` remain to be added.
-
-### Kommo / amoCRM
-
-Kommo documents [OAuth 2.0](https://developers.kommo.com/docs/oauth-20) for installed integrations and revocation handling. Its [webhook guide](https://developers.kommo.com/docs/webhooks-general) lists supported objects and create/update/delete/status events, says hooks use `x-www-form-urlencoded`, and notes that webhook management via API is restricted by plan. Verify installation and webhook callbacks according to the specific documented mechanism; do not assume all hooks carry the same cryptographic signature. The [limits guide](https://developers.kommo.com/docs/limitations) states no more than seven API requests per second. [Public integrations](https://developers.kommo.com/docs/authorization-public) can have widgets and use both API and Web SDK. Plan a polling/reconciliation path for customers who cannot enable the desired webhooks.
-
-### HubSpot
-
-Build on the current [developer platform](https://developers.hubspot.com/developer-platform-basics): it provides REST APIs, OAuth, webhooks, React App Cards, App Home, and settings pages. [Webhook subscriptions](https://developers.hubspot.com/docs/apps/developer-platform/build-apps/features/configure-webhooks) can notify on object creation and other subscribed events via POST. Use CRM object APIs for backfill, discover properties and associations, and use a cursor or export appropriate to the selected object. Treat event payloads as change signals and refetch when the chosen subscription lacks complete data. HubSpot's [migration guidance](https://developers.hubspot.com/blog/developer-platform-migration-timeline) says legacy cards are being retired; choose current UI extensions. Quotas vary by app and account, so read live response headers and current API usage documentation during implementation.
-
-### Pipedrive
-
-[OAuth 2.0](https://developers.pipedrive.com/docs/api/v1/Oauth) is required for Marketplace apps. Prefer [webhooks v2](https://pipedrive.readme.io/docs/guide-for-webhooks-v2) for create/change/delete notifications, and fetch full entities when needed. [App extensions](https://pipedrive.readme.io/docs/app-extensions) provide sidebar panels, modals, menu actions, and settings surfaces. The [rate-limit guide](https://pipedrive.readme.io/docs/core-api-concepts-rate-limiting) describes a shared company daily token budget plus per-token burst limits and rate-limit headers; schedule backfills to avoid exhausting a customer's shared budget.
-
-### Salesforce
-
-Use the REST API for targeted queries and [Bulk API 2.0 query jobs](https://developer.salesforce.com/docs/platform/api-asynch/guide/queries.html) for large initial extracts. [Change Data Capture](https://developer.salesforce.com/docs/platform/platform-events/guide/platform-events-objects-change-data-capture.html) covers create/update/delete/undelete for supported objects. Subscribe with [Pub/Sub API](https://developer.salesforce.com/docs/platform/change-data-capture/guide/cdc-subscribe.html), retain replay position within the vendor's retention window, and reconcile when a gap cannot be replayed. For a hosted UI inside Salesforce, [Canvas](https://developer.salesforce.com/docs/platform/canvas-framework/guide/quick-start-intro-create.html) can render an external app; current Salesforce guidance favors External Client Apps for new Canvas integrations. Validate scopes and customer org configuration before committing to this route.
-
-### Zoho CRM
-
-[Zoho CRM v8](https://www.zoho.com/crm/developer/docs/api/v8/) provides metadata, REST, Bulk, query, and notification APIs. Use [OAuth](https://www.zoho.com/crm/developer/docs/api/v8/oauth-overview.html) with organization-specific authorization and appropriate read scopes. [Notification channels](https://www.zoho.com/crm/developer/docs/api/v8/notifications/enable.html) send module IDs and operation to a callback; their expiry is configurable up to one week, so store expiry and renew before it lapses. Use the documented callback token/channel ID check, then fetch changed records. Keep a reconciliation scan because notifications can be missed during downtime or renewal gaps. A Zoho embedded UI needs separate research and a sandbox prototype before it is promised as a release feature.
-
-### Microsoft Dynamics 365 Sales / Dataverse
-
-The [Dataverse Web API](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/perform-operations-web-api) provides REST/OData access, and [OAuth authentication](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/authentication) is required for non-.NET Framework clients. Prefer [change tracking](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/use-change-tracking-synchronize-data-external-systems) for incremental reads: enable it for each needed table, request `Prefer: odata.track-changes`, and persist the opaque delta link. [Dataverse webhooks](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/use-webhooks) are another event route but require registration of steps and endpoint handling. A model-driven [custom page](https://learn.microsoft.com/en-us/power-apps/developer/model-driven-apps/clientapi/navigate-to-custom-page-examples) can show analytics in full-page, dialog, or pane context; validate its data and authentication bridge in a prototype.
-
-### Additional candidates for customer discovery
-
-**RetailCRM** is relevant if the first customers run ecommerce operations. Its [API rules](https://docs.retailcrm.ru/Developers/API/APIFeatures/APIRules) direct new integrations to API v5 and describe pagination. Its [history API guidance](https://docs.retailcrm.ru/Developers/API/APIFeatures/WorkingHistoryAPI) describes an incremental `sinceId` pattern for supported history endpoints. [JS module embed points](https://docs.retailcrm.ru/Developers/modules/PublishingModuleMarketplace/JsModulesTargets) provide in-product surfaces. Because orders are central, an implementation needs an explicit order/revenue model; mapping orders to deals would corrupt funnel metrics. Confirm credential distribution, event coverage, and customer permissions before scheduling this connector.
-
-**Creatio** provides REST/OData and an extensible package model according to its [platform architecture](https://academy.creatio.com/docs/developer/architecture/development_in_creatio/creating_applications_on_creatio_platform/overview). Its [Marketplace app guidance](https://academy.creatio.com/docs/developer/marketplace_app_development/app_development/recommendations_for_development/overview) describes external data access and iframe integration. A reliable incremental change mechanism and secure multi-tenant authentication need a deployment-specific proof of concept before Creatio enters the committed connector set.
+Research for this table was refreshed on 2026-10-02. Vendor documentation sites could not be fetched directly from the research environment, so several facts come from the official pages as indexed by search; the playbooks mark sandbox-unverified behavior explicitly.
 
 ## Connector selection rule
 

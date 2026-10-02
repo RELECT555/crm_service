@@ -121,3 +121,20 @@ test("admin API: tenants, provider catalog, connection detail, mapping removal, 
     store.close();
   }
 });
+
+test("every catalog provider is fully described and has a connector playbook", async () => {
+  const { existsSync } = await import("node:fs");
+  const { ConnectorRegistry } = await import("../src/connectors/registry.ts");
+  const config: Config = { port: 3000, dbPath: ":memory:", appOrigin: "http://localhost:3000",
+    bitrixClientId: "id", bitrixClientSecret: "secret", adminApiKey: "a".repeat(40), dataKey: randomBytes(32) };
+  const store = new Store(":memory:");
+  try {
+    const catalog = ConnectorRegistry.create(config, store).catalog();
+    assert.equal(new Set(catalog.map(info => info.id)).size, catalog.length);
+    for (const info of catalog) {
+      assert.ok(info.setupSteps.length > 0 && info.commercialData.length > 0 && info.workData.length > 0, info.id);
+      assert.ok(info.limits && info.changeCapture && info.docsUrl.startsWith("https://"), info.id);
+      assert.ok(existsSync(new URL(`../../../docs/connectors/${info.id}.md`, import.meta.url)), `missing playbook for ${info.id}`);
+    }
+  } finally { store.close(); }
+});
